@@ -1,0 +1,1292 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Vehicle Master{% endblock %}
+
+{% block content %}
+
+<style>
+    .inline-add-box {
+    background: #f8f9fa;
+    border: 1px dashed #0d6efd;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 12px;
+}
+</style>
+<div class="container mt-4">
+    <div class="container mt-3">
+        <input id="vehicle_id" name="vehicle_id" type="hidden">
+        <input class="form-control mb-2" id="quickFilter" placeholder="Search..." type="text">
+        <button class="btn btn-primary mb-3" data-bs-target="#vehicleModal" data-bs-toggle="modal">
+            + Add New Vehicle
+        </button>
+        <button class="btn btn-secondary mb-2" id="toggleColumns">
+            ⚙ Show / Hide Columns
+        </button>
+
+
+        <div class="column-manager d-none" id="columnManager">
+
+            <div class="cm-toolbar">
+                <input class="form-control"
+                       id="columnSearch"
+                       placeholder="Search column..."
+                       type="text">
+
+                <button class="btn btn-success btn-sm"
+                        onclick="saveColumnState()">
+                    Save
+                </button>
+
+                <button class="btn btn-secondary btn-sm"
+                        onclick="resetColumns()">
+                    Reset
+                </button>
+            </div>
+
+            <div id="columnList"></div>
+        </div>
+        <div id="columnPanel"
+             style="display:none; background:#fff; border:1px solid #ddd; padding:10px; border-radius:8px; max-height:250px; overflow:auto;">
+        </div>
+    </div>
+    <div class="ag-theme-quartz"
+         id="myGrid"
+         style="height:600px;width:100%;">
+    </div>
+</div>
+<!-- Vehicle Modal -->
+<div class="modal fade" id="vehicleModal" tabindex="-1">
+    <div class="modal-dialog vehicle-modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">Add Vehicle</h5>
+                <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+            </div>
+
+            <div class="card-body">
+                <form id="vehicleForm" method="post">
+                    {% csrf_token %}
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            {{ form.registration_no.label_tag }}
+                            {{ form.registration_no }}
+                            <small class="text-danger" id="reg_error"></small>
+                        </div>
+
+                        <div class="col-md-4">
+                            {{ form.chassis_no.label_tag }}
+                            {{ form.chassis_no }}
+                        </div>
+
+                        <div class="col-md-4">
+                            {{ form.engine_no.label_tag }}
+                            {{ form.engine_no }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.vehicle_type.label_tag }}
+                            {{ form.vehicle_type }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.model.label_tag }}
+
+                            <div class="d-flex">
+                                {{ form.model }}
+                                <button class="btn btn-outline-primary ms-2" data-bs-target="#modelModal" data-bs-toggle="modal"
+                                        type="button"> +
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.variant.label_tag }}
+
+                            <div class="d-flex">
+                                {{ form.variant }}
+                                <button class="btn btn-outline-primary ms-2" data-bs-target="#variantModal" data-bs-toggle="modal"
+                                        type="button">
+                                    +
+                                </button>
+                            </div>
+                        </div>
+
+
+                        <div class="col-md-4">
+                            {{ form.color.label_tag }}
+                            {{ form.color }}
+                        </div>
+
+                        <div class="col-md-4">
+                            {{ form.sale_date.label_tag }}
+                            {{ form.sale_date }}
+                        </div>
+
+
+                        <div class="col-md-4">
+                            {{ form.customer.label_tag }}
+                            {{ form.customer }}
+                            <button class="btn btn-outline-secondary mt-2" onclick="openCustomerCard(document.getElementById('id_customer').value)"
+                                    type="button">
+                                👁 View Customer
+                            </button>
+                        </div>
+
+
+                        <div class="mt-4 text-end">
+                            <button class="btn btn-success px-4" type="submit">
+                                Save Vehicle
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Model  Modal -->
+<div class="modal fade" id="modelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Add Model</h5>
+                <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+            </div>
+
+            <div class="modal-body">
+                <label>Model Name</label>
+                <input class="form-control" id="model_name" type="text">
+                <small class="text-danger" id="model_error"></small>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success" id="saveModel">Save</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+<!-- Variant Modal -->
+<div class="modal fade" id="variantModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Add Variant</h5>
+                <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="mb-3">
+                    <label>Model</label>
+                    <select class="form-select" id="id_model">
+                            <option value="">Select Model</option>
+
+                            {% for m in models %}
+                                <option value="{{ m.id }}">
+                                    {{ m.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                </div>
+
+                <div class="mb-3">
+                    <label>Variant Name</label>
+                    <input class="form-control" id="variant_name" type="text">
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success" id="saveVariant">Save</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="customerCardModal" tabindex="-1">
+    <div class="modal-dialog vehicle-modal-dialog">
+        <div class="modal-content shadow-lg rounded-4">
+
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Customer Details</h5>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="fw-bold">Name</label>
+                        <div class="form-control bg-light" id="c_name"></div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="fw-bold">Mobile</label>
+                        <div class="form-control bg-light" id="c_mobile"></div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="fw-bold">Email</label>
+                        <div class="form-control bg-light" id="c_email"></div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="fw-bold">City</label>
+                        <div class="form-control bg-light" id="c_city"></div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="fw-bold">State</label>
+                        <div class="form-control bg-light" id="c_state"></div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="fw-bold">GST No</label>
+                        <div class="form-control bg-light" id="c_gst"></div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="fw-bold">Address</label>
+                        <div class="form-control bg-light" id="c_address"></div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="columnModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5>Select Columns</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body" id="columnList1">
+                <!-- dynamic checkboxes -->
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ✅ jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- ✅ Select2 CSS (move to HEAD ideally) -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" rel="stylesheet"/>
+
+<!-- ✅ Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+<!-- ✅ INIT (ONLY ONCE, AFTER LOAD) -->
+
+
+<script>
+    // =========================
+    // FORM SUBMIT (AJAX)
+    // =========================
+    const form = document.getElementById("vehicleForm");
+
+    if (form) {
+        form.addEventListener("submit", function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+
+            fetch("", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken")
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log("SERVER RESPONSE:", data);  // 🔥 ADD THIS
+                if (data.status === "success") {
+
+                    showToast("Vehicle added successfully");
+
+                    lastAddedId = data.id;
+
+                    form.reset();
+                    // 🔥 CLOSE MODAL
+                        bootstrap.Modal.getInstance(
+                            document.getElementById('vehicleModal')
+                        ).hide();
+
+              loadVehicleGrid();
+
+
+
+
+
+                } else {
+                   //console.error("FORM ERRORS:", data. errors);  // 🔥 ADD
+                    //showToast("Error saving vehicle", "danger");
+                    // 🔥 CLEAR OLD ERRORS
+    document.querySelectorAll(".error-text").forEach(el => el.remove());
+
+    // 🔥 SHOW NEW ERRORS
+                    for (let field in data. Errors) {
+
+                        const input = document.getElementById("id_" + field);
+
+                        if (input) {
+                            const error = document.createElement("div");
+                            error.className = "text-danger error-text";
+                            error.innerText = data.errors[field][0];
+
+                            input.parentNode.appendChild(error);
+                        }
+                    }
+                }
+
+            });
+        });
+    }
+
+
+    // =========================
+    // MODEL → VARIANT DEPENDENT
+    // =========================
+    const modelDropdown = document.getElementById("id_model");
+
+    if (modelDropdown) {
+        modelDropdown.addEventListener("change", function () {
+
+            fetch(`/ajax/load-variants/?model_id=${this.value}`)
+                .then(res => res.json())
+                .then(data => {
+
+                    const variantDropdown = document.getElementById("id_variant");
+
+                    variantDropdown.innerHTML = '<option value="">Select Variant</option>';
+
+                    data.forEach(v => {
+                        variantDropdown.innerHTML += `<option value="${v.id}">${v.name}</option>`;
+                    });
+
+                });
+
+        });
+    }
+
+
+    // =========================
+    // ADD MODEL
+    // =========================
+    const saveModelBtn = document.getElementById("saveModel");
+
+    if (saveModelBtn) {
+        saveModelBtn.addEventListener("click", function () {
+
+            const name = document.getElementById("model_name").value;
+            const errorBox = document.getElementById("model_error");
+
+            fetch('/ajax/add-model/', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: JSON.stringify({ name: name })
+            })
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.status === "error") {
+                    errorBox.innerText = data.message;
+                    return;
+                }
+
+                showToast("Model added successfully");
+
+                modelDropdown.innerHTML += `<option value="${data.id}" selected>${data.name}</option>`;
+
+                bootstrap.Modal.getInstance(document.getElementById('modelModal')).hide();
+
+                document.getElementById("model_name").value = "";
+                errorBox.innerText = "";
+                setTimeout(() => {
+
+                bootstrap.Modal.getOrCreateInstance(
+                        document.getElementById("vehicleModal")
+                ).show();
+
+                }, 350);
+
+            });
+        });
+    }
+
+
+    // =========================
+    // ADD VARIANT
+    // =========================
+    const saveVariantBtn = document.getElementById("saveVariant");
+
+    if (saveVariantBtn) {
+        saveVariantBtn.addEventListener("click", function () {
+
+            const modelId = document.getElementById("id_model").value;
+            const name = document.getElementById("variant_name").value;
+
+            if (!modelId) {
+                alert("Select model first");
+                return;
+            }
+
+            fetch('/ajax/add-variant/', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: JSON.stringify({
+                    model_id: modelId,
+                    name: name
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.status === "error") {
+                    showToast(data.message, "danger");
+                    return;
+                }
+
+                showToast("Variant added successfully");
+
+                const variantDropdown = document.getElementById("id_variant");
+                variantDropdown.innerHTML += `<option value="${data.id}" selected>${data.name}</option>`;
+
+                bootstrap.Modal.getInstance(document.getElementById('variantModal')).hide();
+                setTimeout(() => {
+
+                    bootstrap.Modal.getOrCreateInstance(
+                        document.getElementById("vehicleModal")
+                    ).show();
+
+                }, 350);
+
+                document.getElementById("variant_name").value = "";
+            });
+        });
+    }
+
+
+
+
+// =========================
+// GRID LOAD
+// =========================
+function loadVehicleGrid() {
+
+    fetch('/ajax/vehicles/?t=' + Date.now(), {
+        cache: "no-store"
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        gridApi.setGridOption("rowData", data);
+
+        gridApi.refreshCells({
+            force: true
+        });
+
+        gridApi.redrawRows();
+
+        if (lastAddedId) {
+            setTimeout(() => {
+                highlightRow(lastAddedId);
+            }, 200);
+        }
+
+    });
+}
+
+
+// =========================
+// HIGHLIGHT
+// =========================
+function highlightRow(id) {
+
+    gridApi.forEachNode(function(node) {
+        if (node.data.id === id) {
+
+            gridApi.ensureNodeVisible(node, 'middle');
+            node.setSelected(true);
+
+            const row = document.querySelector(`[row-id="${node.rowIndex}"]`);
+
+            if (row) {
+                row.classList.add("new-row-highlight");
+
+                setTimeout(() => {
+                    row.classList.remove("new-row-highlight");
+                }, 3000);
+            }
+        }
+    });
+}
+document.getElementById('vehicleModal').addEventListener('shown.bs.modal', function () {
+    document.getElementById("id_registration_no")?.focus();
+});
+
+document.querySelector('[data-bs-target="#vehicleModal"]')
+.addEventListener("click", function () {
+
+    const form = document.getElementById("vehicleForm");
+
+    if (form) form.reset();
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const regInput = document.getElementById("id_registration_no");
+    const errorBox = document.getElementById("reg_error");
+    const saveBtn = document.querySelector("#vehicleForm button[type='submit']");
+
+    let debounceTimer;
+
+    regInput.addEventListener("input", function () {
+
+        const value = this.value.trim();
+
+        clearTimeout(debounceTimer);
+
+        if (!value) {
+            errorBox.innerText = "";
+            this.classList.remove("is-invalid");
+            saveBtn.disabled = false;
+            return;
+        }
+
+        // 🔥 debounce (wait user stops typing)
+        debounceTimer = setTimeout(() => {
+
+            fetch(`/ajax/check-registration/?registration_no=${value}`)
+                .then(res => res.json())
+                .then(data => {
+
+                    if (data.exists) {
+
+                        errorBox.innerText = "Registration already exists";
+
+                        regInput.classList.add("is-invalid");
+
+                        saveBtn.disabled = true;
+
+                    } else {
+
+                        errorBox.innerText = "";
+
+                        regInput.classList.remove("is-invalid");
+
+                        saveBtn.disabled = false;
+                    }
+
+                });
+
+        }, 500); // wait 500ms
+
+    });
+
+});
+
+// Add Customer Modal
+document.addEventListener("DOMContentLoaded", function () {
+
+    const customerSelect = new TomSelect("#id_customer", {
+
+        valueField: "id",
+        labelField: "text",
+        searchField: "text",
+
+        placeholder: "Search or create customer...",
+
+        create: function(input, callback) {
+             let mobile = prompt("Enter mobile number:");
+
+    fetch('/ajax/add-customer/', {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({
+            name: input,
+            mobile: mobile
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        if (data.status === "exists") {
+
+            showToast("Customer already exists, selected existing", "warning");
+
+            callback({
+                id: data.id,
+                text: data.text
+            });
+
+        } else if (data.status === "success") {
+
+            showToast("Customer created successfully");
+
+            callback({
+                id: data.id,
+                text: data.text
+            });
+
+        } else {
+            showToast(data.message || "Error", "danger");
+            callback();
+        }
+
+    })
+    .catch(() => callback());
+        },
+
+        load: function(query, callback) {
+            if (!query.length) return callback();
+
+            fetch(`/ajax/customer-search/?term=${query}`)
+                .then(res => res.json())
+                .then(data => callback(data.results))
+                .catch(() => callback());
+        },
+
+        onChange: function(value) {
+
+
+                    if (!value || value === "") {
+                        clearCustomerFields();
+                        return;
+                    }
+
+
+            fetch(`/ajax/customer-details/?id=${value}`)
+                .then(res => res.json())
+                .then(data => {
+
+                    if (data.status === "success") {
+
+                        document.getElementById("customer_mobile").value = data.data.mobile || "";
+                        document.getElementById("customer_email").value = data.data.email || "";
+                        document.getElementById("customer_city").value = data.data.city || "";
+                        document.getElementById("customer_gst").value = data.data.gst || "";
+                    }
+
+                });
+        }
+
+    });
+
+});
+
+
+function openCustomerCard(customerId) {
+      if (!customerId) {
+        showToast("Please select a customer first", "warning");
+        return;
+    }
+    fetch(`/ajax/customer-details/?id=${customerId}`)
+        .then(res => res.json())
+        .then(data => {
+
+            if (data.status === "success") {
+
+                const d = data.data;
+
+                document.getElementById("c_name").innerText = d.name || "-";
+                document.getElementById("c_mobile").innerText = d.mobile || "-";
+                document.getElementById("c_email").innerText = d.email || "-";
+                document.getElementById("c_city").innerText = d.city || "-";
+                document.getElementById("c_state").innerText = d.state || "-";
+                document.getElementById("c_gst").innerText = d.gst || "-";
+                document.getElementById("c_address").innerText = d.address || "-";
+
+                new bootstrap.Modal(document.getElementById("customerCardModal")).show();
+            }
+
+        });
+
+}
+function clearCustomerFields() {
+    document.querySelectorAll(
+        "#customer_mobile, #customer_email, #customer_city, #customer_gst"
+    ).forEach(el => el.value = "");
+}
+    function fillCustomer(d) {
+    document.getElementById("customer_mobile").value = d.mobile || "";
+    document.getElementById("customer_email").value = d.email || "";
+    document.getElementById("customer_city").value = d.city || "";
+    document.getElementById("customer_gst").value = d.gst || "";
+}
+document.getElementById('quickFilter')
+.addEventListener('input', function () {
+
+    gridApi.setGridOption(
+        'quickFilterText',
+        this.value
+    );
+
+});
+// Grid bottom code
+
+
+
+
+const columnGroups = {
+    "Vehicle Info": [
+        "registration_no",
+        "chassis_no",
+        "engine_no",
+        "color",
+        "sale_date",
+        "vehicle_type"
+    ],
+
+    "Model Info": [
+        "model__name",
+        "variant__name"
+    ],
+
+    "Customer Info": [
+        "customer__name"
+    ]
+};
+
+let gridApi = null;
+let draggedCol = null;
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    // =========================
+    // GRID
+    // =========================
+   gridApi = agGrid.createGrid(
+    document.querySelector("#myGrid"),
+    {
+        rowSelection: "single",
+
+        pagination: true,
+
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true
+        },
+
+        columnDefs: [
+            {
+                field: "registration_no",
+                pinned: "left",
+                editable: true
+            },
+            { field: "chassis_no" },
+            { field: "engine_no" },
+            {
+                field: "model__name",
+                headerName: "Model"
+            },
+            {
+                field: "variant__name",
+                headerName: "Variant"
+            },
+            {
+                field: "color",
+                editable: true
+            },
+            { field: "sale_date" },
+            { field: "vehicle_type" },
+            {
+                field: "customer__name",
+                headerName: "Customer"
+            }
+        ],
+
+        onRowDoubleClicked: function(event) {
+
+            const vehicleId = event.data.id;
+
+            if (vehicleId) {
+                editVehicle(vehicleId);
+            }
+        }
+    }
+);
+
+  loadVehicleGrid();
+
+
+
+
+
+    restoreColumnState();
+
+    // =========================
+    // QUICK FILTER
+    // =========================
+    document
+        .getElementById("quickFilter")
+        .addEventListener("input", function () {
+
+            gridApi.setGridOption(
+                "quickFilterText",
+                this.value
+            );
+
+        });
+
+    // =========================
+    // TOGGLE COLUMN PANEL
+    // =========================
+    document
+        .getElementById("toggleColumns")
+        .addEventListener("click", function () {
+
+            toggleColumnPanel();
+
+        });
+
+    // =========================
+    // SEARCH INSIDE PANEL
+    // =========================
+    document
+        .getElementById("columnSearch")
+        .addEventListener("input", function () {
+
+            const term = this.value.toLowerCase();
+
+            document
+                .querySelectorAll(".cm-item")
+                .forEach(item => {
+
+                    item.style.display =
+                        item.innerText.toLowerCase().includes(term)
+                        ? "flex"
+                        : "none";
+
+                });
+
+        });
+
+});
+
+
+// ====================================
+// LOAD GRID DATA
+// ====================================
+function loadVehicleGrid() {
+
+    fetch(`/ajax/vehicles/`)
+        .then(res => res.json())
+        .then(data => {
+
+            gridApi.setGridOption(
+                "rowData",
+                data
+            );
+
+        });
+
+}
+
+
+// ====================================
+// OPEN PANEL
+// ====================================
+function toggleColumnPanel() {
+
+    const panel =
+        document.getElementById("columnManager");
+
+    panel.classList.toggle("d-none");
+
+    if (!panel.classList.contains("d-none")) {
+
+        buildColumnManager();
+
+    }
+}
+
+
+// ====================================
+// BUILD COLUMN MANAGER
+// ====================================
+function buildColumnManager() {
+
+    const container =
+        document.getElementById("columnList");
+
+    container.innerHTML = "";
+
+    const columns = gridApi.getColumns();
+
+    Object.keys(columnGroups).forEach(group => {
+
+        // GROUP TITLE
+        const title = document.createElement("div");
+
+        title.className = "cm-group";
+
+        title.innerText = group;
+
+        container.appendChild(title);
+
+        // COLUMNS
+        columnGroups[group].forEach(colId => {
+
+            const col =
+                columns.find(
+                    c => c.getColId() === colId
+                );
+
+            if (!col) return;
+
+            const item =
+                document.createElement("div");
+
+            item.className = "cm-item";
+
+            item.draggable = true;
+
+            item.dataset.col = colId;
+
+            item.innerHTML = `
+                <span>
+                    ${colId.replaceAll("_", " ")}
+                </span>
+
+                <input type="checkbox"
+                    ${col.isVisible() ? "checked" : ""}
+                >
+            `;
+
+            // ==================
+            // SHOW/HIDE
+            // ==================
+            item.querySelector("input")
+                .addEventListener("change", function () {
+
+                    gridApi.setColumnsVisible(
+                        [colId],
+                        this.checked
+                    );
+
+                    saveColumnState();
+
+                });
+
+            // ==================
+            // DRAG EVENTS
+            // ==================
+            item.addEventListener(
+                "dragstart",
+                dragStart
+            );
+
+            item.addEventListener(
+                "dragover",
+                dragOver
+            );
+
+            item.addEventListener(
+                "drop",
+                drop
+            );
+
+            container.appendChild(item);
+
+        });
+
+    });
+
+}
+
+
+// ====================================
+// DRAG START
+// ====================================
+function dragStart() {
+
+    draggedCol = this.dataset.col;
+
+}
+
+
+// ====================================
+// DRAG OVER
+// ====================================
+function dragOver(e) {
+
+    e.preventDefault();
+
+}
+
+
+// ====================================
+// DROP
+// ====================================
+function drop() {
+
+    const targetCol = this.dataset.col;
+
+    if (
+        !draggedCol ||
+        draggedCol === targetCol
+    ) return;
+
+    const state =
+        gridApi.getColumnState();
+
+    const fromIndex =
+        state.findIndex(
+            c => c.colId === draggedCol
+        );
+
+    const toIndex =
+        state.findIndex(
+            c => c.colId === targetCol
+        );
+
+    const moved =
+        state.splice(fromIndex, 1)[0];
+
+    state.splice(toIndex, 0, moved);
+
+    gridApi.applyColumnState({
+        state: state,
+        applyOrder: true
+    });
+
+    saveColumnState();
+
+    buildColumnManager();
+
+}
+
+
+// ====================================
+// SAVE
+// ====================================
+function saveColumnState() {
+
+    const state =
+        gridApi.getColumnState();
+
+    localStorage.setItem(
+        "vehicleGridColumns",
+        JSON.stringify(state)
+    );
+
+    showToast("Preferences saved");
+
+}
+
+
+// ====================================
+// RESTORE
+// ====================================
+function restoreColumnState() {
+
+    const saved =
+        localStorage.getItem(
+            "vehicleGridColumns"
+        );
+
+    if (!saved) return;
+
+    try {
+
+        gridApi.applyColumnState({
+            state: JSON.parse(saved),
+            applyOrder: true
+        });
+
+    } catch (err) {
+
+        console.error(err);
+
+    }
+
+}
+
+
+// ====================================
+// RESET
+// ====================================
+function resetColumns() {
+
+    localStorage.removeItem(
+        "vehicleGridColumns"
+    );
+
+    gridApi.resetColumnState();
+
+    buildColumnManager();
+
+    showToast("Columns reset");
+
+}
+document.getElementById("vehicleForm").addEventListener("submit", function(e) {
+
+    e.preventDefault();
+
+    const vehicleId = document.getElementById("vehicle_id").value;
+    const formData = new FormData(this);
+
+    fetch(`/ajax/vehicle/${vehicleId}/update/`, {
+        method: "POST",
+        body: formData,
+        headers: {
+            "X-CSRFToken": getCookie("csrftoken")
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        if (data.status === "success") {
+            showToast("Vehicle updated successfully");
+            bootstrap.Modal.getInstance(document.getElementById("vehicleModal")).hide();
+
+            gridApi.refreshServerSide
+                ? gridApi.refreshServerSide()
+                : location.reload();
+        }
+    });
+});
+    function editVehicle(vehicleId) {
+
+    fetch(`/ajax/vehicle/${vehicleId}/`)
+        .then(res => res.json())
+        .then(data => {
+
+            document.getElementById(
+                "vehicle_id"
+            ).value = data.id;
+
+            document.getElementById(
+                "id_registration_no"
+            ).value =
+                data.registration_no || "";
+            document.getElementById(
+                "id_chassis_no"
+            ).value = data.id_chassis_no;
+            document.getElementById(
+                "id_engine_no"
+            ).value = data.id_engine_no;
+            document.getElementById(
+                "id_color"
+            ).value = data.id_color;
+             document.getElementById(
+                "id_sale_date"
+            ).value = data.id_sale_date;
+            // CUSTOMER
+            const customerEl =
+                document.getElementById(
+                    "id_customer"
+                );
+
+            if (
+                customerEl &&
+                customerEl.tomselect
+            ) {
+
+                customerEl.tomselect.clear();
+
+                customerEl.tomselect.addOption({
+                    id: data.customer,
+                    text: data.customer_name
+                });
+
+                customerEl.tomselect.setValue(
+                    data.customer
+                );
+            }
+            // veh type
+            // MODEL
+            const vehTypeEl =
+                document.getElementById(
+                    "id_vehicle_type"
+                );
+
+            if (vehTypeEl) {
+
+                vehTypeEl.value =
+                    data.id_vehicle_type || "";
+
+                vehTypeEl.dispatchEvent(
+                    new Event("change")
+                );
+            }
+            // MODEL
+            const modelEl =
+                document.getElementById(
+                    "id_model"
+                );
+
+            if (modelEl) {
+
+                modelEl.value =
+                    data.model || "";
+
+                modelEl.dispatchEvent(
+                    new Event("change")
+                );
+            }
+
+            // VARIANT
+            setTimeout(() => {
+
+                const variantEl =
+                    document.getElementById(
+                        "id_variant"
+                    );
+
+                if (variantEl) {
+
+                    variantEl.value =
+                        data.variant || "";
+
+                    variantEl.dispatchEvent(
+                        new Event("change")
+                    );
+                }
+
+            }, 500);
+
+            bootstrap.Modal
+                .getOrCreateInstance(
+                    document.getElementById(
+                        "vehicleModal"
+                    )
+                )
+                .show();
+
+        });
+}
+
+
+</script>
+
+
+{% endblock %}

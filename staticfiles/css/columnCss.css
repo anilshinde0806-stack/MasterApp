@@ -1,0 +1,206 @@
+.column-manager{
+    position:absolute;
+    right:20px;
+    top:120px;
+    width:320px;
+    background:#fff;
+    border-radius:12px;
+    box-shadow:0 5px 25px rgba(0,0,0,.2);
+    padding:15px;
+    z-index:9999;
+}
+.cm-toolbar{
+    display:flex;
+    gap:8px;
+    margin-bottom:15px;
+}
+.cm-header {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.cm-header input {
+    flex: 1;
+    padding: 5px;
+}
+
+.cm-group{
+    font-weight:700;
+    margin-top:15px;
+    margin-bottom:8px;
+    color:#0d6efd;
+}
+
+.cm-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 10px;
+    border-radius:8px;
+    cursor:move;
+    margin-bottom:5px;
+    background:#f8f9fa;
+}
+
+.cm-item:hover{
+    background:#e9ecef;
+}
+
+.ag-theme-quartz{
+    --ag-header-background-color:#0b3b75;
+    --ag-header-foreground-color:white;
+    --ag-odd-row-background-color:#f5f7fa;
+    --ag-background-color:#eef1f5;
+}
+
+/* 🔹 Grid background */
+.ag-theme-legacy,
+.ag-root-wrapper {
+    background-color: #f5f7fa !important;   /* light gray */
+}
+
+
+/* 🔹 Header background */
+.ag-header {
+    background-color: #0d3b66 !important;   /* dark blue */
+    border-bottom: none;
+}
+
+
+/* 🔹 Header text */
+.ag-header-cell-label {
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+
+/* 🔹 Header borders cleanup */
+.ag-header-cell {
+    border-right: 1px solid rgba(255,255,255,0.2);
+}
+
+
+/* 🔹 Row styling (better ERP look) */
+.ag-row {
+    background-color: #ffffff;
+}
+
+.ag-row:nth-child(even) {
+    background-color: #f9fbfd;   /* alternate rows */
+}
+
+
+/* 🔹 Hover effect */
+.ag-row-hover {
+    background-color: #e6f0ff !important;
+}
+
+
+/* 🔹 Selected row */
+.ag-row-selected {
+    background-color: #cfe2ff !important;
+}
+
+ .new-row-highlight {
+    background-color: #fff3cd !important;  /* light yellow */
+    transition: background-color 0.5s ease;
+}
+    .is-invalid {
+    border-color: #dc3545;
+}
+
+.is-valid {
+    border-color: #198754;
+}
+    .ag-row:nth-child(odd) {
+    background-color: #f8f9fa;
+}
+
+.ag-row:nth-child(even) {
+    background-color: #ffffff;
+}
+    .ag-row:hover {
+    background-color: #e9f5ff !important;
+}
+
+    .ag-theme-alpine .ag-cell {
+    padding: 6px !important;
+    font-size: 13px;
+}
+.ag-theme-quartz {
+    --ag-background-color: #f4f6f9;
+    --ag-odd-row-background-color: #ffffff;
+    --ag-header-background-color: #17375e;
+    --ag-header-foreground-color: white;
+    --ag-row-hover-color: #dbeafe;
+    --ag-selected-row-background-color: #cfe2ff;
+    --ag-font-size: 13px;
+    --ag-font-family: Segoe UI;
+    border-radius: 10px;
+}
+.column-manager{
+    position:absolute;
+    right:20px;
+    top:120px;
+    width:300px;
+    background:#fff;
+    border-radius:12px;
+    box-shadow:0 5px 20px rgba(0,0,0,.15);
+    z-index:999;
+    padding:15px;
+}
+
+.cm-toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:15px;
+}
+
+.cm-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 10px;
+    border-bottom:1px solid #eee;
+    cursor:move;
+}
+
+.cm-item:hover{
+    background:#f4f6f9;
+}
+
+.cm-group{
+    font-weight:700;
+    margin-top:10px;
+    color:#17375e;
+}
+<style>
+
+.ag-theme-alpine.compact-grid {
+
+    --ag-font-size: 12px;
+
+    --ag-grid-size: 4px;
+
+    --ag-list-item-height: 28px;
+
+    --ag-row-height: 30px;
+
+    --ag-header-height: 34px;
+
+    --ag-cell-horizontal-padding: 6px;
+}
+
+.compact-grid .ag-header-cell-label {
+
+    font-weight: 600;
+}
+
+.compact-grid .ag-cell {
+
+    display: flex;
+    align-items: center;
+}
+
+</style>

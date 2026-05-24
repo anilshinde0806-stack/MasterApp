@@ -1,0 +1,243 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Claim Entry{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid px-2">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h3 class="mb-0">Job Card List</h3>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'part_order_list' %}">
+            Part Order Tracking
+        </a>
+    </div>
+
+    <!-- FILTER PANEL -->
+    <div class="card p-3 mb-2">
+
+        <div class="row">
+
+            <div class="col-md-3">
+                <label>Advisor</label>
+                <select id="advisorFilter" class="form-control">
+                    <option value="">All</option>
+                    <option value="null">Unassigned</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label>Repair Status</label>
+                <select id="statusFilter" class="form-control">
+                    <option value="">All</option>
+                    <option selected>Open</option>
+                    <option>Completed</option>
+                    <option>Closed</option>
+                    <option>Cancellation</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label>Date From</label>
+                <input type="date" id="fromDate" class="form-control">
+            </div>
+
+            <div class="col-md-3">
+                <label>Date To</label>
+                <input type="date" id="toDate" class="form-control">
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- GRID -->
+    <div class="container-fluid px-2">
+
+    <div id="jobGrid"
+         class="ag-theme-alpine"
+         style="height: calc(100vh - 140px); width:100%;">
+    </div>
+
+</div>
+  </div>
+
+<script>
+
+let gridApi;
+
+const columnDefs = [
+
+    {
+        headerName: "Job No",
+        field: "job_no",
+        pinned: "left",
+        filter: true
+    },
+
+    {
+        headerName: "Claim No",
+        field: "claim__claim_no",
+        filter: true
+    },
+
+    {
+        headerName: "Reg No",
+        field: "claim__vehicle__registration_no",
+        filter: true
+    },
+
+    {
+        headerName: "Model",
+        field: "claim__vehicle__model__name"
+    },
+
+    {
+        headerName: "Customer",
+        field: "claim__vehicle__customer__name"
+    },
+
+    {
+        headerName: "Advisor",
+        field: "advisor__name",
+        filter: true,
+        cellRenderer: params =>
+            params.value ? params.value : "<span style='color:red'>Unassigned</span>"
+    },
+
+    {
+        headerName: "Status",
+        field: "repair_status",
+        filter: true,
+        cellRenderer: params => {
+            let color =
+                params.value === "Closed" ? "green" :
+                params.value === "Completed" ? "green" :
+                params.value === "Open" ? "orange" :
+                params.value === "Cancellation" ? "red" : "gray";
+
+            return `<span style="color:${color};font-weight:bold">
+                        ${params.value}
+                    </span>`;
+        }
+    },
+
+    {
+        headerName: "Work Progress",
+        field: "work_progress_status",
+        minWidth: 220,
+        filter: true,
+        cellRenderer: params => {
+            const value = params.value || "Work Not Started";
+            const cls = value === "Work Completed"
+                ? "bg-success"
+                : value === "Work Not Started"
+                    ? "bg-secondary"
+                    : "bg-info text-dark";
+
+            return `<span class="badge ${cls}">${value}</span>`;
+        }
+    },
+
+    {
+        headerName: "Parts Not Available",
+        field: "parts_not_available_status",
+        minWidth: 170,
+        filter: true,
+        cellRenderer: params => {
+            const value = params.value || "No PNA";
+            const cls = value === "No PNA" ? "bg-success" : "bg-danger";
+            return `<span class="badge ${cls}">${value}</span>`;
+        }
+    },
+
+    {
+        headerName: "Net Total",
+        field: "grand_total"
+    },
+
+    {
+        headerName: "Created At",
+        field: "created_at"
+    }
+
+];
+
+const gridOptions = {
+
+    columnDefs: columnDefs,
+
+    pagination: true,
+
+    defaultColDef: {
+        sortable: true,
+        resizable: true,
+        filter: true
+    },
+
+    rowSelection: "single",
+
+    onRowDoubleClicked: function (event) {
+
+        let jobId = event.data.id;
+
+        // 👉 OPEN JOB CARD EDIT PAGE
+        window.location.href = `/jobCard/${jobId}/edit/`;
+    }
+
+};
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const gridDiv = document.querySelector("#jobGrid");
+
+    gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+    loadData();
+});
+
+function loadData() {
+    const status = document.getElementById("statusFilter").value;
+    const fromDate = document.getElementById("fromDate").value;
+    const toDate = document.getElementById("toDate").value;
+    const params = new URLSearchParams();
+
+    if (status) {
+        params.set("repair_status", status);
+    }
+
+    if (fromDate) {
+        params.set("date_from", fromDate);
+    }
+
+    if (toDate) {
+        params.set("date_to", toDate);
+    }
+
+    fetch(`/api/jobcards/?${params.toString()}`)
+        .then(res => res.json())
+        .then(data => {
+
+            gridApi.setGridOption("rowData", data);
+        });
+}
+
+document.getElementById("statusFilter").addEventListener("change", loadData);
+document.getElementById("fromDate").addEventListener("change", loadData);
+document.getElementById("toDate").addEventListener("change", loadData);
+
+document.getElementById("advisorFilter").addEventListener("change", function () {
+
+    let val = this.value;
+
+    if (val === "null") {
+
+        gridApi.setGridOption("quickFilterText", "Unassigned");
+
+    } else {
+
+        gridApi.setGridOption("quickFilterText", val);
+    }
+});
+</script>
+
+{% endblock %}

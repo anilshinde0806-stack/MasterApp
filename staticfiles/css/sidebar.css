@@ -1,0 +1,139 @@
+.app {
+    display: flex;
+    min-height: 100vh;
+     min-width: 100vh;
+}
+.main {
+    width: 100%;
+    max-width: 100%;
+}
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1050;
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.erp-menu {
+   background: linear-gradient(
+        90deg,
+        #1e293b,
+        #1e293b
+    );
+    position: sticky;
+    top: 0;
+    z-index: 1050;
+}
+
+.erp-menu-list {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.erp-menu-item {
+    position: relative;
+}
+
+.erp-menu-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    padding: 14px 18px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: .2s;
+}
+
+.erp-menu-link:hover {
+   background: #1e293b;
+}
+
+/* SUBMENU */
+
+/* SUBMENU */
+
+.erp-submenu {
+
+    position: absolute;
+
+    top: 100%;
+    left: 0;
+
+    min-width: 240px;
+
+    background: #fff;
+
+    border-radius: 0 0 14px 14px;
+
+    box-shadow: 0 12px 30px rgba(0,0,0,.18);
+
+    padding: 8px 0;
+
+    list-style: none;
+
+    z-index: 2000;
+
+    opacity: 0;
+
+    visibility: hidden;
+
+    transform: translateY(12px) scale(.98);
+
+    transition:
+        opacity .22s ease,
+        transform .22s ease,
+        visibility .22s;
+}
+
+/* SHOW */
+
+.erp-menu-item:hover > .erp-submenu {
+
+    opacity: 1;
+
+    visibility: visible;
+
+    transform: translateY(0) scale(1);
+}
+
+/* SUBMENU LINKS */
+
+.erp-submenu .erp-menu-link {
+
+    color: #212529;
+
+    padding: 11px 16px;
+
+    transition:
+        background .2s,
+        padding-left .2s,
+        color .2s;
+}
+
+/* HOVER EFFECT */
+
+.erp-submenu .erp-menu-link:hover {
+
+    background: #f0fdf4;
+
+    color: #198754;
+
+    padding-left: 22px;
+}
+.erp-menu-item:hover > .erp-menu-link {
+
+    background: rgba(255,255,255,.08);
+}
+.erp-menu-link:hover {
+    background: rgba(255,255,255,0.08);
+}
+.vehicle-modal-dialog {
+
+    margin-top: 130px;
+
+    max-width: 900px;
+}

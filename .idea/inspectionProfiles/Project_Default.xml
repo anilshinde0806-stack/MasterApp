@@ -1,0 +1,84 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="arrow" />
+          <option value="attrs" />
+          <option value="binaryornot" />
+          <option value="blinker" />
+          <option value="build" />
+          <option value="cffi" />
+          <option value="chardet" />
+          <option value="charset-normalizer" />
+          <option value="cleo" />
+          <option value="click" />
+          <option value="contourpy" />
+          <option value="contrib" />
+          <option value="cookiecutter" />
+          <option value="crashtest" />
+          <option value="cryptography" />
+          <option value="cycler" />
+          <option value="django-apps" />
+          <option value="django-configurations" />
+          <option value="django-tailwind" />
+          <option value="dulwich" />
+          <option value="flake8" />
+          <option value="flake8-noqa" />
+          <option value="flake8-respect-noqa" />
+          <option value="fonttools" />
+          <option value="html5lib" />
+          <option value="idna" />
+          <option value="importlib-metadata" />
+          <option value="importlib2" />
+          <option value="installer" />
+          <option value="itsdangerous" />
+          <option value="jeepney" />
+          <option value="jinja2-time" />
+          <option value="jsonschema" />
+          <option value="keyring" />
+          <option value="kiwisolver" />
+          <option value="lockfile" />
+          <option value="matplotlib" />
+          <option value="mccabe" />
+          <option value="more-itertools" />
+          <option value="msgpack" />
+          <option value="numpy" />
+          <option value="openpyxl" />
+          <option value="pandas" />
+          <option value="pexpect" />
+          <option value="pillow" />
+          <option value="pkginfo" />
+          <option value="poetry" />
+          <option value="poetry-core" />
+          <option value="poetry-plugin-export" />
+          <option value="poyo" />
+          <option value="ptyprocess" />
+          <option value="pycodestyle" />
+          <option value="pycparser" />
+          <option value="pyflakes" />
+          <option value="pyparsing" />
+          <option value="pyrsistent" />
+          <option value="python-dateutil" />
+          <option value="python-slugify" />
+          <option value="pytz" />
+          <option value="rapidfuzz" />
+          <option value="requests" />
+          <option value="requests-toolbelt" />
+          <option value="shellingham" />
+          <option value="six" />
+          <option value="text-unidecode" />
+          <option value="themes" />
+          <option value="tomlkit" />
+          <option value="trove-classifiers" />
+          <option value="types-python-dateutil" />
+          <option value="urllib3" />
+          <option value="virtualenv-clone" />
+          <option value="webencodings" />
+          <option value="zipp" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

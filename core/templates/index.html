@@ -1,0 +1,528 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}
+Dashboard
+{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-3">
+
+<!-- ===================================== -->
+<!-- MANAGER / ADMIN DASHBOARD -->
+<!-- ===================================== -->
+
+{% if show_manager_dashboard %}
+
+<div class="row g-3 mb-3">
+
+    <div class="col-md-3">
+        <div class="dash-card bg-primary">
+            <small>Total Claims</small>
+            <h3>{{ total_claims }}</h3>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-warning text-dark">
+            <small>Pending Claims</small>
+            <h3>{{ pending_claims }}</h3>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-info text-dark">
+            <small>Work Allocation Pending</small>
+            <h3>{{ work_allocation_pending }}</h3>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-success">
+            <small>Repair In Progress</small>
+            <h3>{{ repair_in_progress }}</h3>
+        </div>
+    </div>
+
+</div>
+
+<div class="row g-3">
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header">
+Stage Wise Claims
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-bordered">
+
+<thead>
+
+<tr>
+<th>Stage</th>
+<th>Total</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for s in stage_counts %}
+
+<tr>
+
+<td>
+
+
+{% if s.claim_stage == 1 %}
+    Claim Created
+
+{% elif s.claim_stage == 2 %}
+    Advisor Assigned
+
+{% elif s.claim_stage == 3 %}
+    Estimate Created
+
+{% elif s.claim_stage == 4 %}
+    Claim Intimation
+
+{% elif s.claim_stage == 5 %}
+    Survey Done
+
+{% elif s.claim_stage == 6 %}
+    Insurance Approval
+
+{% elif s.claim_stage == 7 %}
+    Work Allocation
+
+{% elif s.claim_stage == 8 %}
+    Repair In Progress
+
+{% elif s.claim_stage == 9 %}
+    Work Completed
+
+{% elif s.claim_stage == 10 %}
+    Re Inspection
+
+{% elif s.claim_stage == 11 %}
+    Liability
+
+{% elif s.claim_stage == 12 %}
+    Invoiced
+
+{% elif s.claim_stage == 13 %}
+    Delivery
+
+{% elif s.claim_stage == 14 %}
+    Closed
+
+{% else %}
+    Unknown
+
+{% endif %}
+
+
+</td>
+
+<td>
+{{ s.total }}
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header">
+
+Advisor Workload
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-bordered">
+
+<thead>
+
+<tr>
+
+<th>Advisor</th>
+
+<th>Claims</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for a in advisor_counts %}
+
+<tr>
+
+<td>
+
+{{ a.employee__name|default:"-" }}
+
+</td>
+
+<td>
+
+{{ a.total }}
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endif %}
+
+
+
+<!-- ===================================== -->
+<!-- ADVISOR DASHBOARD -->
+<!-- ===================================== -->
+
+{% if logged_emp.employee_type == "Advisor" %}
+
+<div class="row g-3">
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header bg-primary text-white">
+
+My Claims
+
+<span class="badge bg-light text-dark float-end">
+
+{{ claims.count }}
+
+</span>
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-hover">
+
+<thead>
+
+<tr>
+
+<th>Claim</th>
+
+<th>Vehicle</th>
+
+<th>Stage</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for c in claims %}
+
+<tr>
+
+<td>
+
+{{ c.claim_no }}
+
+</td>
+
+<td>
+
+{{ c.vehicle.registration_no }}
+
+</td>
+
+<td>
+
+<span class="badge bg-success">
+
+{{ c.get_claim_stage_display }}
+
+</span>
+
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+<td colspan="3"
+class="text-center">
+
+No Claims
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header bg-success text-white">
+
+My Job Cards
+
+<span class="badge bg-light text-dark float-end">
+
+{{ jobcards.count }}
+
+</span>
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-hover">
+
+<thead>
+
+<tr>
+
+<th>Job No</th>
+
+<th>Vehicle</th>
+
+<th>Status</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for j in jobcards %}
+
+<tr>
+
+<td>
+
+{{ j.job_no }}
+
+</td>
+
+<td>
+
+{{ j.claim.vehicle.registration_no }}
+
+</td>
+
+<td>
+
+{{ j.repair_status }}
+
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+<td colspan="3"
+class="text-center">
+
+No Job Cards
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endif %}
+
+
+
+<!-- ===================================== -->
+<!-- RECEPTION / STAFF -->
+<!-- ===================================== -->
+
+{% if logged_emp.employee_type == "RECEPTION" or logged_emp.employee_type == "STAFF" %}
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header">
+
+Unassigned Claims
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-bordered">
+
+<thead>
+
+<tr>
+
+<th>Claim No</th>
+
+<th>Vehicle</th>
+
+<th>Customer</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for c in claims %}
+
+<tr>
+
+<td>
+
+{{ c.claim_no }}
+
+</td>
+
+<td>
+
+{{ c.vehicle.registration_no }}
+
+</td>
+
+<td>
+
+{{ c.vehicle.customer.name }}
+
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+<td colspan="3"
+class="text-center">
+
+No Records
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+{% endif %}
+
+</div>
+
+
+
+<style>
+
+.dash-card{
+
+padding:18px;
+
+border-radius:14px;
+
+color:white;
+
+box-shadow:
+0 2px 12px
+rgba(0,0,0,.12);
+
+}
+
+.dash-card h3{
+
+margin:0;
+
+font-weight:700;
+
+}
+
+.card-header{
+
+font-weight:600;
+
+}
+
+.table{
+
+font-size:13px;
+
+}
+
+</style>
+
+{% endblock %}

@@ -1,0 +1,371 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Part Order Tracking{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <h4 class="mb-0">Part Order & Tracking</h4>
+            <small class="text-muted">Select an order header to view and update part order lines.</small>
+        </div>
+        <a class="btn btn-primary btn-sm" href="{% url 'part_order_create' %}">
+            New Parts Order
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-2">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label">Search Order</label>
+                    <input class="form-control" id="orderQuickFilter" placeholder="Order no, job no, claim no, reg no, customer">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Order Status</label>
+                    <select class="form-select" id="statusFilter">
+                        <option value="">All</option>
+                        {% for value, label in statuses %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" id="refreshJobs" type="button">
+                        Refresh
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" id="createOrderBtn" type="button" disabled>
+                        New Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="partOrderJobGrid"
+         class="ag-theme-alpine"
+         style="height: calc(100vh - 210px); min-height: 460px; width:100%;">
+    </div>
+</div>
+
+<div class="modal fade" id="partOrderLineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen-xl-down modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <div>
+                    <h6 class="modal-title mb-0" id="selectedJobTitle">Order Tracking Details</h6>
+                    <small class="text-muted" id="selectedJobMeta">Select an order</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a class="btn btn-sm btn-outline-success d-none"
+                       id="printOrderBtn"
+                       target="_blank"
+                       href="#">
+                        Print
+                    </a>
+                    <a class="btn btn-sm btn-outline-primary d-none"
+                       id="openDetailBtn"
+                       href="#">
+                        Full Edit
+                    </a>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-2">
+                <div id="partOrderLineGrid"
+                     class="ag-theme-alpine"
+                     style="height: 70vh; min-height: 420px; width:100%;">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let jobGridApi;
+let lineGridApi;
+let selectedHeader = null;
+let selectedOrderId = "";
+let lineModal = null;
+const orderStatuses = {{ status_values|safe }};
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(";").shift();
+    return "";
+}
+
+const jobColumnDefs = [
+    {
+        headerName: "Order No",
+        field: "order_no",
+        pinned: "left",
+        width: 140,
+        cellRenderer: params => {
+            const icon = params.data.line_count > 0 ? "▶" : "+";
+            return `<span class="text-primary fw-bold">${icon}</span> ${params.value}`;
+        }
+    },
+    { headerName: "Order Date", field: "order_date", width: 125 },
+    {
+        headerName: "Status",
+        field: "status",
+        width: 150,
+        cellRenderer: params => statusBadge(params.value)
+    },
+    { headerName: "Line Items", field: "line_count", width: 115 },
+    { headerName: "Received", field: "received_count", width: 105 },
+    { headerName: "Back Order", field: "back_order_count", width: 120 },
+    { headerName: "Job No", field: "job_no", width: 130 },
+    { headerName: "Claim No", field: "claim_no", width: 130 },
+    { headerName: "Reg No", field: "reg_no", width: 140 },
+    { headerName: "Customer", field: "customer", flex: 1, minWidth: 160 },
+    { headerName: "Model", field: "model", width: 140 },
+    { headerName: "Supplier", field: "supplier", width: 150 },
+    { headerName: "Expected", field: "expected_date", width: 125 }
+];
+
+const lineColumnDefs = [
+    {
+        headerName: "Action",
+        width: 95,
+        pinned: "left",
+        editable: false,
+        cellRenderer: params => {
+            if (!params.data || !params.data.id) return "";
+            return "<button class=\"btn btn-sm btn-outline-danger\" onclick=\"deleteOrderLine(" + params.data.id + ")\">Delete</button>";
+        }
+    },
+    { headerName: "Part No", field: "part_no", width: 120, pinned: "left" },
+    { headerName: "Description", field: "description", flex: 1, minWidth: 180 },
+    {
+        headerName: "Order Qty",
+        field: "ordered_qty",
+        width: 105,
+        editable: true,
+        cellClass: "text-end"
+    },
+    {
+        headerName: "Received",
+        field: "received_qty",
+        width: 105,
+        editable: true,
+        cellClass: "text-end"
+    },
+    {
+        headerName: "Status",
+        field: "status",
+        width: 150,
+        editable: true,
+        cellEditor: "agSelectCellEditor",
+        cellEditorParams: {
+            values: orderStatuses
+        },
+        cellRenderer: params => statusBadge(params.value)
+    },
+    { headerName: "Expected", field: "expected_date", width: 125, editable: true },
+    { headerName: "Received Date", field: "received_date", width: 135, editable: true },
+    { headerName: "Tracking Ref", field: "tracking_ref", width: 150, editable: true },
+    { headerName: "Remarks", field: "remarks", width: 220, editable: true }
+];
+
+const jobGridOptions = {
+    columnDefs: jobColumnDefs,
+    pagination: true,
+    rowSelection: "single",
+    defaultColDef: {
+        sortable: true,
+        resizable: true,
+        filter: true
+    },
+    onRowClicked: params => selectOrderHeader(params.data)
+};
+
+const lineGridOptions = {
+    columnDefs: lineColumnDefs,
+    rowData: [],
+    defaultColDef: {
+        sortable: true,
+        resizable: true,
+        filter: true
+    },
+    stopEditingWhenCellsLoseFocus: true,
+    onCellValueChanged: params => updateOrderLine(params.data)
+};
+
+document.addEventListener("DOMContentLoaded", function () {
+    jobGridApi = agGrid.createGrid(
+        document.querySelector("#partOrderJobGrid"),
+        jobGridOptions
+    );
+
+    lineGridApi = agGrid.createGrid(
+        document.querySelector("#partOrderLineGrid"),
+        lineGridOptions
+    );
+    lineModal = new bootstrap.Modal(document.getElementById("partOrderLineModal"));
+    document.getElementById("partOrderLineModal").addEventListener("shown.bs.modal", function () {
+        lineGridApi.sizeColumnsToFit();
+    });
+
+    loadOrderHeaders();
+
+    document.getElementById("orderQuickFilter").addEventListener("input", function () {
+        jobGridApi.setGridOption("quickFilterText", this.value);
+    });
+
+    document.getElementById("statusFilter").addEventListener("change", function () {
+        jobGridApi.setFilterModel(
+            this.value
+                ? { status: { type: "equals", filter: this.value } }
+                : null
+        );
+    });
+
+    document.getElementById("refreshJobs").addEventListener("click", loadOrderHeaders);
+    document.getElementById("createOrderBtn").addEventListener("click", createSelectedOrder);
+});
+
+function loadOrderHeaders(preferredOrderId) {
+    fetch("/api/part-orders/headers/")
+        .then(res => res.json())
+        .then(data => {
+            jobGridApi.setGridOption("rowData", data);
+            if (preferredOrderId) {
+                const header = data.find(item => String(item.id) === String(preferredOrderId));
+                if (header) {
+                    selectOrderHeader(header);
+                }
+            }
+        });
+}
+
+function selectOrderHeader(header) {
+    selectedHeader = header;
+    selectedOrderId = String(header.id || "");
+    document.getElementById("selectedJobTitle").innerText =
+        `${header.order_no} | ${header.job_no || ""}`;
+    document.getElementById("selectedJobMeta").innerText =
+        `${header.reg_no || ""} ${header.customer ? "| " + header.customer : ""}`;
+
+    const createBtn = document.getElementById("createOrderBtn");
+    createBtn.disabled = !header.job_id;
+    createBtn.innerText = "New Order";
+
+    if (header.job_id) {
+        updateDetailLink();
+        loadOrderLines(header.id);
+    } else {
+        document.getElementById("openDetailBtn").classList.add("d-none");
+        loadOrderLines(header.id);
+    }
+
+    updatePrintLink();
+    lineModal.show();
+}
+
+function createSelectedOrder() {
+    if (!selectedHeader || !selectedHeader.job_id) return;
+
+    fetch("/part-orders/job/" + encodeURIComponent(selectedHeader.job_id) + "/create/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({})
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            selectedOrderId = String(data.order_id);
+            loadOrderHeaders(selectedOrderId);
+        });
+}
+
+function updateDetailLink() {
+    const detailBtn = document.getElementById("openDetailBtn");
+
+    if (!selectedHeader || !selectedHeader.job_id || !selectedOrderId) {
+        detailBtn.classList.add("d-none");
+        detailBtn.href = "#";
+        return;
+    }
+
+    detailBtn.href = "/part-orders/job/" + selectedHeader.job_id + "/?order_id=" + encodeURIComponent(selectedOrderId);
+    detailBtn.classList.remove("d-none");
+}
+
+function updatePrintLink() {
+    const printBtn = document.getElementById("printOrderBtn");
+
+    if (!selectedOrderId) {
+        printBtn.classList.add("d-none");
+        printBtn.href = "#";
+        return;
+    }
+
+    printBtn.href = "/part-orders/" + encodeURIComponent(selectedOrderId) + "/print/";
+    printBtn.classList.remove("d-none");
+}
+
+function loadOrderLines(orderId) {
+    fetch("/api/part-orders/header/" + encodeURIComponent(orderId) + "/lines/")
+        .then(res => res.json())
+        .then(data => lineGridApi.setGridOption("rowData", data));
+}
+
+function updateOrderLine(row) {
+    fetch("/api/part-orders/line/" + encodeURIComponent(row.id) + "/update/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify(row)
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === "success") {
+                row.status = data.line_status;
+                lineGridApi.refreshCells({ force: true });
+                loadOrderHeaders(selectedOrderId);
+            }
+        });
+}
+
+function deleteOrderLine(orderId) {
+    if (!confirm("Delete this part order line?")) return;
+
+    fetch("/api/part-orders/line/" + encodeURIComponent(orderId) + "/delete/", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCookie("csrftoken")
+        }
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (selectedOrderId) {
+                loadOrderLines(selectedOrderId);
+            }
+            loadOrderHeaders(selectedOrderId);
+        });
+}
+
+function statusBadge(status) {
+    const cls =
+        status === "Completed" || status === "Received" ? "bg-success" :
+        status === "Back Order" ? "bg-danger" :
+        status === "In Transit" ? "bg-info text-dark" :
+        status === "Order Placed" ? "bg-warning text-dark" :
+        "bg-secondary";
+
+    return `<span class="badge ${cls}">${status || "Pending"}</span>`;
+}
+</script>
+{% endblock %}

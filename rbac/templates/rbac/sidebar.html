@@ -1,0 +1,22 @@
+{% for item in menu_items %}
+    <li class="menu-item">
+
+        <div class="menu-link" data-url="{% if item.url %}{% url item.url %}{% else %}#{% endif %}">
+            <span>
+                <i class=""></i>
+                <span class="text">{{ item.title }}</span>
+            </span>
+
+            {% if item.children %}
+                <span class="arrow">▶</span>
+            {% endif %}
+        </div>
+
+        {% if item.children %}
+            <ul class="submenu">
+                {% include "rbac/sidebar.html" with menu_items=item.children %}
+            </ul>
+        {% endif %}
+
+    </li>
+{% endfor %}

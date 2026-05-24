@@ -1,0 +1,314 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}
+User Permission Matrix
+{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-3">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header bg-primary text-white">
+
+<div class="d-flex justify-content-between">
+
+<span>
+
+User Menu Permission Matrix
+
+</span>
+
+<input type="text"
+       id="searchUser"
+
+       class="form-control w-25"
+
+       placeholder="Search User">
+
+</div>
+
+</div>
+
+<div class="card-body p-0">
+
+<div class="table-responsive">
+
+<table class="table table-bordered table-sm align-middle mb-0"
+       id="permissionTable">
+
+<thead class="table-light sticky-top">
+
+<tr>
+
+<th style="min-width:220px;">
+
+Menu
+
+</th>
+
+{% for user in users %}
+
+<th class="text-center">
+
+{{ user.username }}
+
+</th>
+
+{% endfor %}
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for row in matrix %}
+
+<tr class="
+{% if row.menu.parent %}
+table-light
+{% endif %}
+">
+
+<td>
+
+{% if row.menu.parent %}
+
+<span class="ms-4">
+
+└─
+
+{{ row.menu.name }}
+
+</span>
+
+{% else %}
+
+<b>
+
+{{ row.menu.name }}
+
+</b>
+
+{% endif %}
+
+</td>
+
+{% for p in row.permissions %}
+
+<td class="text-center">
+
+<input type="checkbox"
+
+class="form-check-input user-menu-check"
+
+data-user="{{ p.user.id }}"
+
+data-menu="{{ row.menu.id }}"
+
+{% if p.perm and p.perm.can_view %}
+checked
+{% endif %}
+
+>
+
+</td>
+
+{% endfor %}
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<script>
+
+document
+.querySelectorAll(
+".user-menu-check"
+)
+
+.forEach(
+
+cb=>{
+
+cb.addEventListener(
+
+"change",
+
+function(){
+
+fetch(
+
+"{% url 'update_user_permission' %}",
+
+{
+
+method:"POST",
+
+headers:{
+
+"Content-Type":
+
+"application/x-www-form-urlencoded",
+
+"X-CSRFToken":
+
+getCookie(
+"csrftoken"
+)
+
+},
+
+body:
+
+`user_id=${this.dataset.user}`+
+
+`&menu_id=${this.dataset.menu}`+
+
+`&checked=${this.checked}`
+
+}
+
+)
+
+.then(
+res=>res.json()
+)
+
+.then(data=>{
+
+showToast(
+
+"Permission Updated",
+
+"success"
+
+);
+
+});
+
+});
+
+}
+
+);
+
+
+
+document
+.getElementById(
+"searchUser"
+)
+
+.addEventListener(
+
+"keyup",
+
+function(){
+
+const value =
+
+this.value
+.toLowerCase();
+
+document
+.querySelectorAll(
+"#permissionTable tbody tr"
+)
+
+.forEach(
+
+row=>{
+
+row.style.display =
+
+row.innerText
+.toLowerCase()
+
+.includes(
+value
+)
+
+?
+
+""
+
+:
+
+"none";
+
+}
+
+)
+
+}
+
+);
+
+</script>
+
+
+
+<style>
+
+#permissionTable{
+
+font-size:13px;
+
+}
+
+#permissionTable th{
+
+white-space:nowrap;
+
+vertical-align:middle;
+
+}
+
+#permissionTable td{
+
+padding:6px;
+
+}
+
+.form-check-input{
+
+width:18px;
+
+height:18px;
+
+cursor:pointer;
+
+}
+
+.sticky-top{
+
+z-index:5;
+
+}
+
+.table-light{
+
+background:#f8f9fa;
+
+}
+
+</style>
+
+{% endblock %}

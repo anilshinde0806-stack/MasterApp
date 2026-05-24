@@ -1,0 +1,81 @@
+<!-- templatetags/rbac/matrix.html -->
+{% extends "registration/auth_base.html" %}
+
+{% block content %}
+
+<h3 class="mb-4">Permission Matrix</h3>
+
+<div class="table-responsive">
+<table class="table table-bordered align-middle text-center">
+
+    <thead class="table-dark">
+        <tr>
+            <th>Menu</th>
+            {% for group in groups %}
+                <th>{{ group.name }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for row in matrix %}
+        <tr>
+            <td class="fw-bold text-start">{{ row.menu.title }}</td>
+
+            {% for item in row.permissions %}
+            <td>
+
+                <div class="d-flex flex-column gap-1">
+
+                    <label>
+                        <input type="checkbox"
+                               class="perm-toggle"
+                               data-menu="{{ row.menu.id }}"
+                               data-group="{{ item.group.id }}"
+                               data-type="view"
+                               {% if item.perm and item.perm.can_view %}checked{% endif %}>
+                        V
+                    </label>
+
+                    <label>
+                        <input type="checkbox"
+                               class="perm-toggle"
+                               data-menu="{{ row.menu.id }}"
+                               data-group="{{ item.group.id }}"
+                               data-type="add"
+                               {% if item.perm and item.perm.can_add %}checked{% endif %}>
+                        A
+                    </label>
+
+                    <label>
+                        <input type="checkbox"
+                               class="perm-toggle"
+                               data-menu="{{ row.menu.id }}"
+                               data-group="{{ item.group.id }}"
+                               data-type="edit"
+                               {% if item.perm and item.perm.can_edit %}checked{% endif %}>
+                        E
+                    </label>
+
+                    <label>
+                        <input type="checkbox"
+                               class="perm-toggle"
+                               data-menu="{{ row.menu.id }}"
+                               data-group="{{ item.group.id }}"
+                               data-type="delete"
+                               {% if item.perm and item.perm.can_delete %}checked{% endif %}>
+                        D
+                    </label>
+
+                </div>
+
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+
+</table>
+</div>
+
+{% endblock %}

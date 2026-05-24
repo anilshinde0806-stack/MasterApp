@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+input, textarea, select {
+    width: 100%;
+    border-radius: 12px !important;
+    padding: 10px;
+    border: 1px solid #dcdcdc;
+}
+
+input:focus, textarea:focus {
+    box-shadow: 0 0 10px rgba(13,110,253,.2);
+    border-color: #0d6efd;
+}
+</style>
+<div class="container-fluid">
+
+    <div class="card shadow-lg border-0 rounded-4">
+
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">
+                <i class="fa fa-building me-2"></i>
+                Company Setup
+            </h4>
+        </div>
+
+        <div class="card-body">
+
+            <form method="POST" enctype="multipart/form-data">
+
+                {% csrf_token %}
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        <label>Company Name</label>
+                        {{ form.company_name }}
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label>Logo</label>
+                        {{ form.logo }}
+                    </div>
+
+                    <div class="col-md-12 mb-3">
+                        <label>Address</label>
+                        {{ form.address }}
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>City</label>
+                        {{ form.city }}
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>State</label>
+                        {{ form.state }}
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>Pincode</label>
+                        {{ form.pincode }}
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>Phone</label>
+                        {{ form.phone }}
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>Mobile</label>
+                        {{ form.mobile }}
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>Email</label>
+                        {{ form.email }}
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label>GST No</label>
+                        {{ form.gst_no }}
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label>Website</label>
+                        {{ form.website }}
+                    </div>
+
+                    <div class="col-md-12 mb-3">
+                        <label>Invoice Footer</label>
+                        {{ form.invoice_footer }}
+                    </div>
+
+                </div>
+
+                <button class="btn btn-success rounded-pill px-4">
+                    <i class="fa fa-save me-2"></i>
+                    Save Setup
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

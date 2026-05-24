@@ -1,0 +1,758 @@
+{% load static %}
+{% load menu_tags %}
+
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Body Shop Management System{% endblock %}</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Tom Select -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/styles1.css' %}">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link rel="stylesheet" href="{% static 'css/sidebar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/columnCss.css' %}">
+
+    <!-- JS Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise/dist/ag-grid-enterprise.min.js"></script>
+
+    <!-- Custom JS -->
+    <script src="{% static 'js/toastMsg.js' %}"></script>
+
+    <style>
+        #erpMessageContainer{
+    position: fixed;
+    top: 75px;
+    right: 20px;
+    z-index: 99999;
+    width: 350px;
+}
+
+.erp-alert{
+
+    position: relative;
+
+    padding: 14px 16px;
+
+    margin-bottom: 12px;
+
+    border-radius: 14px;
+
+    color: white;
+
+    font-size: 14px;
+
+    font-weight: 500;
+
+    box-shadow: 0 8px 25px rgba(0,0,0,.15);
+
+    animation: slideIn .25s ease;
+
+    border-left: 5px solid rgba(255,255,255,.5);
+}
+
+.erp-alert-success{
+    background: linear-gradient(135deg,#198754,#20c997);
+}
+
+.erp-alert-warning{
+    background: linear-gradient(135deg,#fd7e14,#ffb020);
+}
+
+.erp-alert-danger{
+    background: linear-gradient(135deg,#dc3545,#ff4d6d);
+}
+
+.erp-alert-info{
+    background: linear-gradient(135deg,#0dcaf0,#3b82f6);
+}
+
+.erp-alert-close{
+
+    position:absolute;
+
+    top:8px;
+    right:10px;
+
+    cursor:pointer;
+
+    font-size:18px;
+
+    opacity:.8;
+}
+
+.erp-alert-close:hover{
+    opacity:1;
+}
+
+@keyframes slideIn{
+
+    from{
+        transform:translateX(40px);
+        opacity:0;
+    }
+
+    to{
+        transform:translateX(0);
+        opacity:1;
+    }
+}
+        .custom-breadcrumb {
+            background: #fff;
+            padding: 10px 16px;
+            border-radius: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            font-size: 14px;
+        }
+
+        .custom-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+            content: "›";
+            color: #999;
+            font-size: 16px;
+        }
+
+        .breadcrumb-link {
+            color: #198754;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .breadcrumb-link:hover {
+            color: #0f5132;
+        }
+
+        .breadcrumb-current {
+            color: #212529;
+            font-weight: 600;
+        }
+
+        .erp-menu-item.open > .erp-submenu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+    display: block;
+}
+        @media (max-width: 768px) {
+
+    .erp-menu {
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .erp-menu-list {
+        flex-wrap: nowrap;
+        min-width: max-content;
+    }
+
+    .erp-submenu {
+        position: fixed;
+        top: 90px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+}
+
+        .erp-header{
+
+    min-height:65px;
+}
+
+.clock-box{
+
+    text-align:right;
+
+    min-width:160px;
+}
+
+#erpDate{
+
+    font-size:11px;
+
+    color:#6c757d;
+}
+
+#erpTime{
+
+    font-size:15px;
+
+    color:#0d6efd;
+}
+    </style>
+
+
+<script>
+
+function showMessage(message, type="success") {
+
+    const container =
+        document.getElementById(
+            "erpMessageContainer"
+        );
+
+    const div =
+        document.createElement("div");
+
+    div.className =
+        `erp-alert erp-alert-${type}`;
+
+    div.innerHTML = `
+
+        <div class="erp-alert-close">
+            ×
+        </div>
+
+        ${message}
+    `;
+
+    div.querySelector(".erp-alert-close")
+        .onclick = function() {
+
+            div.remove();
+        };
+
+    container.prepend(div);
+}
+
+
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    fetch("/ajax/unread-notifications/?t=" + Date.now())
+        .then(res => res.json())
+        .then(data => {
+
+            data.forEach(n => {
+
+                showToast(
+                    `<b>${n.title}</b><br>${n.message}<br>
+                     <a href="${n.url}" class="text-white">Open</a>`,
+                    "success"
+                );
+
+                fetch(`/ajax/notification/${n.id}/read/`);
+            });
+
+        });
+
+});
+
+
+function checkNotifications() {
+
+    fetch(
+        "/ajax/unread-notifications/?t="
+        + Date.now()
+    )
+
+    .then(res => res.json())
+
+    .then(data => {
+
+        data.forEach(n => {
+
+            showToast(
+                `<b>${n.title}</b><br>
+                 ${n.message}<br>
+                 <a href="${n.url}"
+                 class="text-white">
+                 Open
+                 </a>`,
+                "success"
+            );
+
+            fetch(
+                `/ajax/notification/${n.id}/read/`
+            );
+
+        });
+
+    });
+
+}
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        checkNotifications();
+
+        // every 10 sec
+        setInterval(
+            checkNotifications,
+            10000
+        );
+
+});
+
+setInterval(checkNotifications, 3000);
+
+document.addEventListener("click", function(e) {
+
+    const link = e.target.closest(".erp-menu-link");
+
+    if (!link) return;
+
+    const item =
+        link.closest(".erp-menu-item");
+
+    const directSubmenu =
+        item.querySelector(":scope > .erp-submenu");
+
+    const isInsideSubmenu =
+        link.closest(".erp-submenu") !== null;
+
+    const url =
+        link.dataset.url;
+
+    // =========================
+    // SUBMENU ITEM CLICK
+    // =========================
+    if (isInsideSubmenu) {
+
+        if (url && url !== "#") {
+
+            window.location.href =
+                "/" + url.replace(/^\/+/, "");
+        }
+
+        return;
+    }
+
+    // =========================
+    // MAIN MENU WITH CHILDREN
+    // =========================
+    if (directSubmenu) {
+
+        e.preventDefault();
+
+        document
+            .querySelectorAll(".erp-menu-item.open")
+            .forEach(function(el) {
+
+                if (el !== item) {
+                    el.classList.remove("open");
+                }
+
+            });
+
+        item.classList.toggle("open");
+
+        return;
+    }
+
+    // =========================
+    // MAIN MENU WITHOUT CHILDREN
+    // =========================
+    if (url && url !== "#") {
+
+        window.location.href =
+            "/" + url.replace(/^\/+/, "");
+    }
+
+});
+
+
+</script>
+</head>
+
+<body class="bg-light">
+
+            {% with company=company_setup %}
+
+                <div class="erp-header d-flex justify-content-between align-items-center px-3 py-2 bg-white border-bottom">
+
+                    <!-- LEFT -->
+
+                    <div class="d-flex align-items-center">
+
+                        {% if company.logo %}
+                            <img src="{{ company.logo.url }}"
+                                 height="42"
+                                 class="me-2 rounded">
+                        {% endif %}
+
+                        <div>
+
+                            <div class="fw-bold">
+                                {{ company.company_name }}
+                            </div>
+
+                            <small class="text-muted">
+
+                            {% if request.user.employee %}
+
+                                {{ request.user.employee.name }}
+
+                            {% else %}
+
+                                {{ request.user.username }}
+
+                            {% endif %}
+
+                            (
+
+                            {% if request.user.is_superuser %}
+
+                                Admin
+
+                            {% elif request.user.groups.first %}
+
+                                {{ request.user.employee.employee_type}}
+
+                            {% else %}
+
+                                User
+
+                            {% endif %}
+
+                            )
+
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <!-- RIGHT -->
+
+                    <div class="d-flex align-items-center gap-3">
+
+                        <div class="clock-box">
+
+                            <div id="erpDate"></div>
+
+                            <div id="erpTime"
+                                 class="fw-bold">
+                            </div>
+
+                        </div>
+
+                        <form method="POST"
+                              action="{% url 'logout' %}">
+
+                            {% csrf_token %}
+
+                            <button type="submit"
+                                    class="btn btn-sm btn-outline-danger">
+
+                                <i class="fa fa-sign-out-alt"></i>
+
+                                Logout
+
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </div>
+            {% endwith %}
+            <nav class="erp-menu">
+                <ul class="erp-menu-list">
+
+                    {% include "rbac/top_menu.html" with menu_items=menu_items %}
+
+                </ul>
+
+            <nav aria-label="breadcrumb">
+                                <ol class="breadcrumb custom-breadcrumb mb-0">
+
+                                    <li class="breadcrumb-item">
+                                        <a href="/" class="breadcrumb-link">
+                                            <i class="fa fa-home me-1"></i>
+                                            Home
+                                        </a>
+                                    </li>
+
+                                    {% for item in breadcrumbs %}
+                                        <li class="breadcrumb-item {% if forloop.last %}active{% endif %}">
+
+                                            {% if not forloop.last and item.url %}
+                                                <a href="{% url item.url %}" class="breadcrumb-link">
+                                                    {% if item.icon %}
+                                                        <i class="{{ item.icon }} me-1"></i>
+                                                    {% endif %}
+                                                    {{ item.title }}
+                                                </a>
+                                            {% else %}
+                                                <span class="breadcrumb-current">
+                                                    {% if item.icon %}
+                                                        <i class="{{ item.icon }} me-1"></i>
+                                                    {% endif %}
+                                                    {{ item.title }}
+                                                </span>
+                                            {% endif %}
+
+                                        </li>
+                                    {% endfor %}
+
+                                </ol>
+
+
+                            </nav>
+                </nav>
+            <!-- TOAST MESSAGES -->
+            {% if messages %}
+
+            <script>
+
+            document.addEventListener(
+                "DOMContentLoaded",
+                function() {
+
+                    {% for message in messages %}
+
+                        showMessage(
+                            `{{ message|escapejs }}`,
+                            `{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}`
+                        );
+
+                    {% endfor %}
+
+            });
+
+            </script>
+
+            {% endif %}
+
+            <div id="toastBox" class="position-fixed top-0 end-0 p-3" style="z-index:9999"></div>
+
+            <div class="app">
+                <!-- MAIN -->
+               <div class="main">
+
+                   <!-- PAGE CONTENT -->
+
+                        <div class="container-fluid">
+                            {% block content %}{% endblock %}
+                        </div>
+
+
+                </div>
+
+            </div>
+
+            <script>
+            function getCookie(name) {
+                let cookieValue = null;
+
+                if (document.cookie && document.cookie !== "") {
+                    const cookies = document.cookie.split(";");
+
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+
+                        if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                            cookieValue = decodeURIComponent(
+                                cookie.substring(name.length + 1)
+                            );
+                            break;
+                        }
+                    }
+                }
+
+                return cookieValue;
+            }
+
+            document.addEventListener("DOMContentLoaded", function () {
+
+                document.querySelectorAll(".toast").forEach(function (toastEl) {
+                    new bootstrap.Toast(toastEl, {
+                        delay: 3000
+                    }).show();
+                });
+
+            });
+
+            document.addEventListener("click", function (e) {
+
+                const link = e.target.closest(".menu-link");
+                if (!link) return;
+
+                const item = link.closest(".menu-item");
+                const submenu = item.querySelector(":scope > .submenu");
+
+                if (submenu) {
+                    e.preventDefault();
+
+                    document.querySelectorAll(".menu-item").forEach(el => {
+                        if (el !== item) el.classList.remove("active");
+                    });
+
+                    item.classList.toggle("active");
+                } else {
+                    const url = link.dataset.url;
+                    if (url) window.location.href = url;
+                }
+
+            });
+            </script>
+
+            {% block extra_js %}{% endblock %}
+            <div id="erpMessageContainer"></div>
+            <div class="modal fade"
+     id="announcementModal"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header bg-primary text-white">
+
+                <h5 class="modal-title"
+                    id="announcementTitle">
+                </h5>
+
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <span id="announcementType"
+                      class="badge bg-warning text-dark mb-2">
+                </span>
+
+                <p id="announcementMessage"
+                   class="mt-2">
+                </p>
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button type="button"
+                        class="btn btn-success"
+                        id="announcementOkBtn">
+
+                    I Have Read
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    fetch("/ajax/unread-announcements/?t=" + Date.now())
+        .then(res => res.json())
+        .then(data => {
+
+            if (!data.length) return;
+
+            let index = 0;
+
+            function showNotice() {
+
+                const n = data[index];
+
+                document.getElementById("announcementTitle").innerText =
+                    n.title;
+
+                document.getElementById("announcementMessage").innerText =
+                    n.message;
+
+                document.getElementById("announcementType").innerText =
+                    n.type;
+
+                const modalEl =
+                    document.getElementById("announcementModal");
+
+                const modal =
+                    bootstrap.Modal.getOrCreateInstance(modalEl);
+
+                modal.show();
+
+                document.getElementById("announcementOkBtn").onclick =
+                    function () {
+
+                        fetch(`/ajax/announcement/${n.id}/read/`)
+                            .then(() => {
+
+                                modal.hide();
+
+                                index++;
+
+                                if (index < data.length) {
+                                    setTimeout(showNotice, 500);
+                                }
+
+                            });
+                    };
+            }
+
+            showNotice();
+
+        });
+
+});
+
+function updateERPClock(){
+
+    const now =
+        new Date();
+
+    document.getElementById(
+        "erpDate"
+    ).innerText =
+
+        now.toLocaleDateString(
+            "en-IN",
+            {
+                weekday:"short",
+                day:"2-digit",
+                month:"short",
+                year:"numeric"
+            }
+        );
+
+    document.getElementById(
+        "erpTime"
+    ).innerText =
+
+        now.toLocaleTimeString(
+            "en-IN",
+            {
+                hour:"2-digit",
+                minute:"2-digit",
+                second:"2-digit"
+            }
+        );
+}
+
+updateERPClock();
+
+setInterval(
+    updateERPClock,
+    1000
+);
+
+</script>
+</body>
+</html>

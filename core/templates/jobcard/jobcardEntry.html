@@ -1,0 +1,1932 @@
+{% extends "registration/auth_base.html" %}
+{% load static %}
+{% block title %}
+Job Card Creation
+{% endblock %}
+
+{% block content %}
+<style>
+    .stage-badge {
+
+        padding: 6px 14px;
+
+        border-radius: 30px;
+
+        font-size: 12px;
+        font-weight: 600;
+
+        color: white;
+
+        letter-spacing: .5px;
+
+        box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+
+    /* CLAIM CREATED */
+    .stage-1 {
+        background: #6c757d;
+    }
+
+    /* ADVISOR ASSIGNED */
+    .stage-2 {
+        background: #0d6efd;
+    }
+
+    /* INTIMATION */
+    .stage-3 {
+        background: #17a2b8;
+    }
+
+    /* SURVEY */
+    .stage-4 {
+        background: #fd7e14;
+    }
+
+    /* INSURANCE APPROVAL */
+    .stage-5 {
+        background: #6610f2;
+    }
+
+    /* ESTIMATE CREATED */
+    .stage-6 {
+        background: #198754;
+    }
+
+    /* JOB CARD CREATED */
+    .stage-7 {
+        background: #20c997;
+    }
+
+    /* DELIVERY */
+    .stage-8 {
+        background: #212529;
+    }
+
+    .stage-9 {
+        background: #198754;
+    }
+
+    .stage-10 {
+        background: #0dcaf0;
+    }
+
+    .stage-11 {
+        background: #fd7e14;
+    }
+
+    .stage-12 {
+        background: #6f42c1;
+    }
+
+    .stage-13 {
+        background: #0d6efd;
+    }
+
+    .stage-14 {
+        background: #212529;
+    }
+    .sticky-action {
+        position: sticky;
+        top: 105px;
+    }
+
+    .compact-damage {
+        width: fit-content;
+        max-width: 100%;
+        margin: auto;
+        background: transparent;
+    }
+
+    .damage-img {
+        display: block;
+        max-width: 280px;
+        width: 100%;
+        height: auto;
+    }
+    /* Gauge labels */
+    .gauge-label {
+        position: absolute;
+        font-size: 9px;
+        font-weight: bold;
+        color: #444;
+    }
+
+    .empty {
+        left: -8px;
+        bottom: -2px;
+    }
+
+    .quarter {
+        left: 10px;
+        top: 8px;
+    }
+
+    .half {
+        left: 42px;
+        top: -8px;
+    }
+
+    .three {
+        right: 10px;
+        top: 8px;
+    }
+
+    .full {
+        right: -8px;
+        bottom: -2px;
+    }
+
+    .mini-gauge {
+        position: relative;
+        width: 85px;
+        height: 42px;
+        margin: 4px auto 0;
+        border-top-left-radius: 85px;
+        border-top-right-radius: 85px;
+        border: 7px solid #dee2e6;
+        border-bottom: 0;
+    }
+
+    .mini-needle {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        width: 3px;
+        height: 36px;
+        background: #dc3545;
+        transform-origin: bottom center;
+    }
+
+    .mini-center {
+        position: absolute;
+        bottom: -5px;
+        left: 50%;
+        width: 11px;
+        height: 11px;
+        background: #212529;
+        border-radius: 50%;
+        transform: translateX(-50%);
+    }
+
+    .form-check-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+    }
+
+    .form-check-wrap label {
+        margin: 0;
+        font-size: 12px;
+    }
+    .compact-form label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #6c757d;
+        margin-bottom: 2px;
+    }
+
+    .compact-form .form-control,
+    .compact-form .form-select {
+        min-height: 30px !important;
+        height: 30px !important;
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 6px;
+    }
+
+    .form-check-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-top: 22px;
+    }
+
+    .form-check-wrap label {
+        margin: 0;
+        color: #212529;
+    }
+
+
+    .compact-damage {
+        max-width: 420px;
+    }
+
+    .damage-img {
+
+        display: block;
+
+        width: 100%;
+        height: auto;
+
+        object-fit: contain;
+    }
+    .damage-mark {
+
+        position: absolute;
+
+        width: 14px;
+        height: 14px;
+
+        background: #dc3545;
+
+        border: 2px solid #fff;
+
+        border-radius: 50%;
+
+        transform: translate(-50%, -50%);
+
+        cursor: pointer;
+
+        z-index: 5;
+    }
+
+    .scratch-line {
+
+        position: absolute;
+
+        height: 4px;
+
+        background: #ffc107;
+
+        border-radius: 10px;
+
+        transform-origin: left center;
+
+        cursor: pointer;
+
+        z-index: 4;
+    }
+
+    .compact-table th,
+    .compact-table td {
+        padding: 3px 5px !important;
+        vertical-align: middle;
+    }
+
+    .compact-table input,
+    .compact-table select {
+        min-height: 28px !important;
+        height: 28px !important;
+        font-size: 12px;
+        padding: 2px 5px;
+    }
+    #damageBox {
+        user-select: none;
+        touch-action: none;
+        cursor: crosshair;
+    }
+
+
+
+    .nav-tabs {
+        border-bottom: 1px solid #dcdcdc;
+    }
+
+    .nav-tabs .nav-link {
+
+        background: #f1f3f5;
+
+        color: #495057;
+
+        border: 1px solid #dcdcdc;
+
+        margin-right: 4px;
+
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+
+        font-weight: 600;
+
+        padding: 8px 18px;
+
+        transition: 0.2s;
+    }
+
+    .nav-tabs .nav-link:hover {
+
+        background: #e9ecef;
+        color: #000;
+    }
+
+    .nav-tabs .nav-link.active {
+
+        background: #198754;
+
+        color: #fff !important;
+
+        border-color: #198754;
+
+        box-shadow: 0 2px 8px rgba(25,135,84,0.2);
+    }
+
+    .tab-content {
+
+        background: #fff;
+
+        border: 1px solid #dee2e6;
+
+        border-top: none;
+
+        padding: 15px;
+
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    }
+
+
+    .damage-box {
+        position: relative;
+        width: 320px;
+        height: 180px;
+        background: transparent;
+        margin: auto;
+        overflow: hidden;
+    }
+
+    .damage-img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+    }
+
+    .damage-mark {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: rgba(220, 53, 69, 0.85);
+        border: 2px solid #fff;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 2px 6px rgba(0,0,0,.35);
+        cursor: pointer;
+    }
+    body{
+        background:#f4f6f9;
+    }
+
+    .card{
+        border-radius:16px;
+    }
+
+    .card-header{
+        border-bottom:1px solid #eee;
+    }
+
+    .form-control,
+    .form-select{
+        min-height:44px;
+        border-radius:10px;
+    }
+
+    .form-control:focus,
+    .form-select:focus{
+        box-shadow:none;
+        border-color:#198754;
+    }
+
+    .info-box{
+        margin-bottom:16px;
+    }
+
+    .info-box label{
+        font-size:12px;
+        color:#888;
+        display:block;
+    }
+
+    .info-box div{
+        font-weight:600;
+    }
+
+    .progress-readonly .badge {
+        min-width: 82px;
+    }
+
+    .progress-duration {
+        font-weight: 700;
+        color: #0d6efd;
+        white-space: nowrap;
+    }
+
+    .close-ready-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 5px 8px;
+        font-size: 12px;
+        background: #fff;
+    }
+
+    .close-ready-pill.done {
+        border-color: #198754;
+        color: #146c43;
+        background: #eaf7ef;
+    }
+
+    .close-ready-pill.pending {
+        border-color: #ffc107;
+        color: #856404;
+        background: #fff8e1;
+    }
+
+    .close-ready-pill.danger {
+        border-color: #dc3545;
+        color: #842029;
+        background: #f8d7da;
+    }
+
+    .close-action-bar .form-check {
+        min-width: 115px;
+    }
+
+    .close-action-bar .btn {
+        min-height: 34px;
+    }
+
+</style>
+<form action="{% if job %}{% url 'jobcard_edit' job.id %}{% elif claim %}{% url 'jobcard_create_with_claim' claim.id %}{% else %}{% url 'jobCreate' %}{% endif %}"
+      id="jobCardForm"
+      method="post">
+    {% csrf_token %}
+
+    {% if is_jobcard_locked %}
+    <div class="alert alert-warning py-2">
+        This jobcard is closed. Normal users can view it only; only Admin or Manager can re-open it.
+    </div>
+    {% endif %}
+
+    <!-- FULL WIDTH CLAIM DETAILS -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white py-2">
+            <h6 class="mb-0">Claim Details</h6>
+        </div>
+
+        <div class="card-body compact-form">
+            <div class="row g-2">
+                <div class="col-md-2">
+                    <label>Claim No</label>
+                    <div class="form-control bg-light">{{ claim.claim_no }}</div>
+                </div>
+
+                <div class="col-md-2">
+                    <label>Vehicle No</label>
+                    <div class="form-control bg-light">{{ claim.vehicle.registration_no }}</div>
+                </div>
+
+                <div class="col-md-2">
+                    <label>Model</label>
+                    <div class="form-control bg-light">{{ claim.vehicle.model.name }}</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label>Customer</label>
+                    <div class="form-control bg-light">{{ claim.vehicle.customer.name }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+
+                        <!-- CURRENT STAGE -->
+                        <span class="stage-badge stage-{{ claim.claim_stage }}">
+        {{ claim.get_claim_stage_display }}
+    </span>
+
+                        <!-- NEXT ACTION -->
+                        {% if claim.claim_stage < 14 %}
+                        <a class="btn btn-primary btn-sm"
+                           href="{% url 'claim_edit' claim.id %}?move_stage=next">
+                            Move Next Stage
+                        </a>
+                        {% else %}
+                        <a class="btn btn-outline-secondary btn-sm"
+                           href="{% url 'claim_edit' claim.id %}">
+                            View Claim
+                        </a>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label>Advisor</label>
+                <div class="form-control bg-light">{{ claim.employee.name }}</div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <div class="row g-3">
+
+        <!-- LEFT SIDE: ALL DATA ENTRY -->
+        <div class="col-lg-8">
+
+            <!-- JOB CARD DETAILS -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Job Card Details</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    <div class="row g-2">
+
+                        <div class="col-md-3">
+                            <label>Job No</label>
+                            {{ form.job_no }}
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Job Created Date</label>
+                            <input class="form-control"
+                                   type="date"
+                                   name="job_created_date"
+                                   value="{{ job_created_date_value }}"
+                                   {% if is_jobcard_locked or job.repair_status == "Closed" and not can_reopen_jobcard %}disabled readonly{% endif %}>
+                        </div>
+
+                        <div class="col-md-3">
+                            <!-- Advisor -->
+
+
+                            <label class="form-label">
+                                Advisor
+                            </label>
+
+
+                            {% if can_change_advisor %}
+
+                            {{ form.advisor }}
+
+                            {% else %}
+
+                            <input class="form-control"
+                                   readonly
+                                   type="text"
+                                   value="{{ logged_emp }}">
+
+                            <input name="advisor"
+                                   type="hidden"
+                                   value="{{ logged_emp.id }}">
+
+                            {% endif %}
+
+
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Jobcard Main Status</label>
+                            <input class="form-control"
+                                   readonly
+                                   value="{{ job.repair_status|default:'Open' }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Inward Type</label>
+                            {{ form.vehicle_inward_type }}
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Inward By</label>
+                            {{ form.vehicle_inward_by }}
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Gate In Time</label>
+                            {{ form.gate_in_datetime }}
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Current KM</label>
+                            {{ form.km }}
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Expected Delivery</label>
+                            {{ form.expected_delivery_datetime }}
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Insurance Company</label>
+                            <select class="form-select" name="insurance_company" {% if is_jobcard_locked or job.repair_status == "Closed" and not can_reopen_jobcard %}disabled{% endif %}>
+                                <option value="">Select Insurance</option>
+                                {% for ins in insurance_companies %}
+                                <option %}
+                                        %}selected{% claim.insurance_company_id== endif if ins.id value="{{ ins.id }}" {%>
+                                    {{ ins.ins_co_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Policy No</label>
+                            <input class="form-control"
+                                   name="policy_no"
+                                   type="text"
+                                   {% if is_jobcard_locked or job.repair_status == "Closed" and not can_reopen_jobcard %}readonly disabled{% endif %}
+                                   value="{{ claim.policy_no|default:'' }}">
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- INSTRUCTIONS -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Repair Instructions</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    {{ form.repair_instructions }}
+                </div>
+            </div>
+
+            <!-- PARTS / LABOUR -->
+            <ul class="nav nav-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#parts">
+                        Estimation Parts
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#labour">
+                        Estimation Labour
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content mt-2 mb-3">
+
+                <!-- PARTS -->
+                <div class="tab-pane fade show active" id="parts">
+
+                    <div class="text-end mb-2">
+                        <button class="btn btn-primary btn-sm"
+                                onclick="addPartRow()"
+                                {% if is_jobcard_locked %}disabled{% endif %}
+                                type="button">
+                            + Add Part For Estimation
+                        </button>
+                    </div>
+
+                    <table class="table table-bordered table-sm compact-table">
+                        <thead>
+                        <tr>
+                            <th>Part No</th>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                            <th>Action</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="partsTable">
+                        {% for p in parts %}
+                        <tr>
+                            <td>
+                                <input type="hidden" name="part_id[]" value="{{ p.id }}">
+                                <input class="form-control" name="part_no[]" value="{{ p.part_no }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}>
+                            </td>
+                            <td><input class="form-control" name="part_desc[]" value="{{ p.description }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
+                            <td><input class="form-control qty" name="qty[]" value="{{ p.qty }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
+                            <td><input class="form-control rate" name="rate[]" value="{{ p.rate }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
+                            <td><input class="form-control amount" name="amount[]" readonly value="{{ p.amount }}"></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        onclick="removeEstimationRow(this)"
+                                        {% if is_jobcard_locked %}disabled{% endif %}
+                                        type="button">
+                                    Remove
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- LABOUR -->
+                <div class="tab-pane fade" id="labour">
+
+                    <div class="text-end mb-2">
+                        <button class="btn btn-primary btn-sm"
+                                    onclick="addLabourRow()"
+                                {% if is_jobcard_locked %}disabled{% endif %}
+                                type="button">
+                            + Add Labour For Estimation
+                        </button>
+                    </div>
+
+                    <table class="table table-bordered table-sm compact-table">
+                        <thead>
+                        <tr>
+                            <th>Job Code</th>
+                            <th>Description</th>
+                            <th>Hours</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                            <th>Action</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="labourTable">
+                        {% for l in labours %}
+                        <tr>
+                            <td>
+                                <input type="hidden" name="labour_id[]" value="{{ l.id }}">
+                                <input class="form-control" name="job_code[]" value="{{ l.job_code }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}>
+                            </td>
+                            <td><input class="form-control" name="lab_desc[]" value="{{ l.description }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
+                            <td><input class="form-control hrs" name="hrs[]" value="{{ l.labour_hrs }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
+                            <td><input class="form-control rate" name="lab_rate[]" value="{{ l.rate }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
+                            <td><input class="form-control amount" name="lab_amount[]" readonly value="{{ l.amount }}">
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        onclick="removeEstimationRow(this)"
+                                        {% if is_jobcard_locked %}disabled{% endif %}
+                                        type="button">
+                                    Remove
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <!-- TOTAL -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body py-2">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <label>Parts Total</label>
+                            <h6 id="partsTotal">0.00</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Labour Total</label>
+                            <h6 id="labourTotal">0.00</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <label>GST</label>
+                            <h6 id="gstAmount">0.00</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Net Total</label>
+                            <h5 id="netTotal">0.00</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PART ORDER -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Parts Order</h6>
+                    {% if job %}
+                    <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary"
+                            onclick="createPartOrder({{ job.id }})"
+                            {% if is_jobcard_locked %}disabled{% endif %}
+                            type="button">
+                        New Order
+                    </button>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="card-body compact-form">
+                    {% if job.part_order_headers.exists %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Order No</th>
+                                <th>Order Date</th>
+                                <th>Supplier</th>
+                                <th>Status</th>
+                                <th class="text-end">Line Items</th>
+                                <th style="width:110px">Tracking</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for order_header in job.part_order_headers.all %}
+                            <tr>
+                                <td>{{ order_header.order_no|default:"-" }}</td>
+                                <td>{{ order_header.order_date|date:"d-m-Y"|default:"-" }}</td>
+                                <td>{{ order_header.supplier|default:"-" }}</td>
+                                <td>{{ order_header.status|default:"Pending" }}</td>
+                                <td class="text-end">{{ order_header.lines.count }}</td>
+                                <td>
+                                    <a class="btn btn-sm btn-outline-primary w-100"
+                                       href="{% url 'part_order_job_detail' job.id %}?order_id={{ order_header.id }}">
+                                        Tracking
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">No part order created yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if job_progress_rows %}
+            <!-- READONLY WORK PROGRESS -->
+            <div class="card border-0 shadow-sm mb-3 progress-readonly">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Repair Work Progress</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th style="width:45px;">Sr</th>
+                                <th>Stage</th>
+                                <th style="width:135px;">Start</th>
+                                <th style="width:135px;">Finish</th>
+                                <th style="width:145px;">Duration</th>
+                                <th style="width:130px;">Employee</th>
+                                <th style="width:105px;">Status</th>
+                                <th>Remarks</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for progress in job_progress_rows %}
+                            <tr>
+                                <td class="text-center">{{ forloop.counter }}</td>
+                                <td><b>{{ progress.label }}</b></td>
+                                <td>{{ progress.start_time|date:"d-m-Y H:i"|default:"-" }}</td>
+                                <td>{{ progress.finish_time|date:"d-m-Y H:i"|default:"-" }}</td>
+                                <td>
+                                    {% if progress.start_timestamp %}
+                                    <span class="progress-duration"
+                                          data-start="{{ progress.start_timestamp }}"
+                                          data-finish="{{ progress.finish_timestamp }}"
+                                          data-status="{{ progress.status }}">
+                                        -
+                                    </span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>{{ progress.employee|default:"-" }}</td>
+                                <td>
+                                    {% if progress.status == "Completed" %}
+                                    <span class="badge bg-success">Completed</span>
+                                    {% elif progress.status == "In Progress" %}
+                                    <span class="badge bg-info text-dark">In Progress</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ progress.remarks|default:"" }}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card border-0 shadow-sm mb-3 close-action-bar">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Jobcard Close Readiness Action Bar</h6>
+                </div>
+
+                <div class="card-body py-2 compact-form">
+                    {% if job %}
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="close-ready-pill {% if close_ready_status.work_completed %}done{% else %}danger{% endif %}">
+                            {% if close_ready_status.work_completed %}✓{% else %}!{% endif %}
+                            {% if close_ready_status.work_completed %}
+                            Work Completed
+                            {% else %}
+                            Work Not Completed
+                            {% endif %}
+                        </span>
+                        <span class="close-ready-pill {% if close_ready_status.qc_done %}done{% else %}danger{% endif %}">
+                            {% if close_ready_status.qc_done %}✓{% else %}!{% endif %}
+                            {% if close_ready_status.qc_done %}
+                            QC Done
+                            {% else %}
+                            QC Not Done
+                            {% endif %}
+                        </span>
+                        <span class="close-ready-pill {% if close_ready_status.ri_done %}done{% else %}danger{% endif %}">
+                            {% if close_ready_status.ri_done %}✓{% else %}!{% endif %}
+                            {% if close_ready_status.ri_done %}
+                            RI Done
+                            {% else %}
+                            RI Not Done
+                            {% endif %}
+                        </span>
+                        <span class="close-ready-pill {% if close_ready_status.part_entry_complete %}done{% else %}danger{% endif %}">
+                            {% if close_ready_status.part_entry_complete %}✓{% else %}!{% endif %}
+                            {% if close_ready_status.part_entry_complete %}
+                            Part Entry Complete
+                            {% else %}
+                            Part Entry Not Completed
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    {% if not can_close_jobcard and job.repair_status != "Closed" %}
+                    <div class="text-muted small mt-2">
+                        Complete all above items in Work Allocation to enable Jobcard Main Status close option.
+                    </div>
+                    {% endif %}
+
+                    {% endif %}
+
+                    <div class="row g-2 align-items-end mt-2">
+                        {% if job %}
+                        {% if can_close_jobcard or job.repair_status == "Closed" %}
+                        <div class="col-md-3">
+                            <label>Jobcard Main Status</label>
+                            <select class="form-select"
+                                    id="jobcardMainStatus"
+                                    data-current-status="{{ job.repair_status|default:'' }}"
+                                    name="jobcard_main_status">
+                                {% if job.repair_status == "Closed" and can_reopen_jobcard %}
+                                <option value="Completed">Completed / Re-open</option>
+                                {% elif job.repair_status != "Closed" %}
+                                <option value="{{ job.repair_status|default:'Completed' }}">
+                                    {{ job.repair_status|default:'Completed' }}
+                                </option>
+                                {% endif %}
+                                <option value="Closed" {% if job.repair_status == "Closed" %}selected{% endif %}>
+                                    Closed
+                                </option>
+                            </select>
+                            {% if job.repair_status == "Closed" and not can_reopen_jobcard %}
+                            <small class="text-muted">Only Admin or Manager can re-open.</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endif %}
+
+                        <div class="col-md-5">
+                            <label>Close Checklist</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check">
+                                    {{ form.road_test_done }}
+                                    <label class="form-check-label" for="id_road_test_done">Road Test</label>
+                                </div>
+                                <div class="form-check">
+                                    {{ form.washing_done }}
+                                    <label class="form-check-label" for="id_washing_done">Washing</label>
+                                </div>
+                                <div class="form-check">
+                                    {{ form.ready_for_delivery }}
+                                    <label class="form-check-label" for="id_ready_for_delivery">Ready</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md">
+                            <button class="btn btn-success w-100"
+                                    {% if is_jobcard_locked %}disabled{% endif %}
+                                    type="submit">
+                                Save Job Card
+                            </button>
+                        </div>
+
+                        <div class="col-md">
+                            {% if job %}
+                            <a class="btn btn-dark w-100"
+                               href="{% url 'jobcard_print' job.id PDF_SECRET_TOKEN %}"
+                               target="_blank">
+                                Print Job Card
+                            </a>
+                            {% else %}
+                            <button class="btn btn-dark w-100" disabled type="button">
+                                Save first to print
+                            </button>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md">
+                            {% if job %}
+                            <a class="btn btn-dark w-100"
+                               href="{% url 'estimate_print' job.id%}"
+                               target="_blank">
+                                Print Estimate
+                            </a>
+                            {% else %}
+                            <button class="btn btn-dark w-100" disabled type="button">
+                                Save first to estimate
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT SIDE: CONDITION / INVENTORY / ACTION -->
+        <div class="col-lg-4">
+
+            <!-- FUEL + DAMAGE -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Vehicle Condition</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    <fieldset {% if is_jobcard_locked %}disabled{% endif %}>
+
+                    <div class="row g-2">
+
+                        <div class="{% if is_cng_vehicle %}col-6{% else %}col-12{% endif %}">
+                            <label>Fuel</label>
+                            <input class="form-range"
+                                   id="fuelRange"
+                                   max="100"
+                                   min="0"
+                                   name="fuel_percent"
+                                   type="range"
+                                   {% if is_jobcard_locked %}disabled{% endif %}
+                                   value="{{ fuel_percent|default:0 }}">
+
+                            <div class="mini-gauge">
+                                <div class="mini-needle" id="fuelNeedle"></div>
+                                <div class="mini-center"></div>
+                                <div class="gauge-label empty">E</div>
+                                <div class="gauge-label quarter">1/4</div>
+                                <div class="gauge-label half">1/2</div>
+                                <div class="gauge-label three">3/4</div>
+                                <div class="gauge-label full">F</div>
+                            </div>
+
+                            <div class="text-center small fw-bold">
+                                Petrol/Diesel:
+                                <span id="fuelText">{{ fuel_percent|default:0 }}</span>%
+                            </div>
+                        </div>
+
+                        {% if is_cng_vehicle %}
+                        <div class="col-6">
+                            <label>CNG</label>
+                            <input class="form-range"
+                                   id="cngRange"
+                                   max="100"
+                                   min="0"
+                                   name="cng_percent"
+                                   type="range"
+                                   {% if is_jobcard_locked %}disabled{% endif %}
+                                   value="{{ cng_percent|default:0 }}">
+
+                            <div class="mini-gauge">
+                                <div class="mini-needle" id="cngNeedle"></div>
+                                <div class="mini-center"></div>
+                                <div class="gauge-label empty">E</div>
+                                <div class="gauge-label quarter">1/4</div>
+                                <div class="gauge-label half">1/2</div>
+                                <div class="gauge-label three">3/4</div>
+                                <div class="gauge-label full">F</div>
+                            </div>
+
+                            <div class="text-center small fw-bold">
+                                CNG:
+                                <span id="cngText">{{ cng_percent|default:0 }}</span>%
+                            </div>
+                        </div>
+                        {% endif %}
+
+                    </div>
+
+                    <hr class="my-2">
+
+                    <label>Damage Marking</label>
+
+                    <div class="damage-box compact-damage" id="damageBox">
+                        <img class="damage-img"
+                             src="{% static 'images/car-top-view.png' %}">
+                    </div>
+
+                    <input id="damageMarks"
+                           name="damage_marks"
+                           type="hidden"
+                           value='{{ damage_marks_json|safe }}'>
+
+                    <div class="mt-1 small">
+                        <span class="badge bg-danger">● Dent</span>
+                        <span class="badge bg-warning text-dark">━ Scratch</span>
+                    </div>
+
+                    <button class="btn btn-sm btn-outline-danger mt-1"
+                            onclick="clearDamageMarks()"
+                            {% if is_jobcard_locked %}disabled{% endif %}
+                            type="button">
+                        Clear Marks
+                    </button>
+                    </fieldset>
+
+                </div>
+            </div>
+
+            <!-- INVENTORY -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Vehicle Inventory</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    <fieldset {% if is_jobcard_locked %}disabled{% endif %}>
+
+                    <div class="row g-2">
+
+                        <div class="col-6">
+                            <label>Mud Flap</label>
+                            <input class="form-control"
+                                   max="4"
+                                   min="0"
+                                   name="mud_flap_count"
+                                   type="number"
+                                   value="{{ mud_flap_count|default:0 }}">
+                        </div>
+
+                        <div class="col-6">
+                            <label>Floor Mat</label>
+                            <input class="form-control"
+                                   max="10"
+                                   min="0"
+                                   name="floor_mat_count"
+                                   type="number"
+                                   value="{{ floor_mat_count|default:0 }}">
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% class="form-check-input"
+                                   endif if lh_mirror name="lh_mirror" type="checkbox" {%>
+                            <label>LH Mirror</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% class="form-check-input"
+                                   endif if name="rh_mirror" rh_mirror type="checkbox" {%>
+                            <label>RH Mirror</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% center_mirror
+                                   class="form-check-input" endif if name="center_mirror" type="checkbox" {%>
+                            <label>Center Mirror</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% class="form-check-input"
+                                   endif if jack name="jack" type="checkbox" {%>
+                            <label>Jack</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% class="form-check-input"
+                                   endif if name="tool_kit" tool_kit type="checkbox" {%>
+                            <label>Tool Kit</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% class="form-check-input"
+                                   endif frt_wiper if name="frt_wiper" type="checkbox" {%>
+                            <label>Front Wipers</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% class="form-check-input"
+                                   endif if name="rr_wiper" rr_wiper type="checkbox" {%>
+                            <label>Rear Wiper</label>
+                        </div>
+
+                        <div class="col-6 form-check-wrap">
+                            <input %} %}checked{% accessories
+                                   class="form-check-input" endif if name="accessories" type="checkbox" {%>
+                            <label>Accessories</label>
+                        </div>
+
+                    </div>
+                    </fieldset>
+
+                </div>
+            </div>
+
+            <!-- TYRES -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Tyre Inventory</h6>
+                </div>
+
+                <div class="card-body p-2">
+                    <fieldset {% if is_jobcard_locked %}disabled{% endif %}>
+
+                    <table class="table table-bordered table-sm compact-table mb-0">
+                        <thead>
+                        <tr>
+                            <th>Pos</th>
+                            <th>Make</th>
+                            <th>Depth</th>
+                            <th>Cap</th>
+                        </tr>
+                        </thead>
+
+                        <tbody>
+                        {% for tyre in tyre_inventory %}
+                        <tr>
+                            <td>
+                                {{ tyre.label }}
+                                <input name="tyre_position[]"
+                                       type="hidden"
+                                       value="{{ tyre.position }}">
+                            </td>
+
+                            <td>
+                                <input class="form-control"
+                                       name="tyre_make[]"
+                                       type="text"
+                                       value="{{ tyre.make }}">
+                                <input name="tyre_size[]"
+                                       type="hidden"
+                                       value="{{ tyre.size }}">
+                            </td>
+
+                            <td>
+                                <input class="form-control"
+                                       name="tyre_depth[]"
+                                       step="0.01"
+                                       type="number"
+                                       value="{{ tyre.depth }}">
+                            </td>
+
+                            <td>
+                                <select class="form-select"
+                                        name="tyre_wheel_cap[]">
+                                    <option value="Y"
+                                    {% if tyre.wheel_cap == "Y" %}
+                                    selected
+                                    {% endif %}>
+                                        Y
+                                    </option>
+
+                                    <option value="N"
+                                    {% if tyre.wheel_cap == "N" %}
+                                    selected
+                                    {% endif %}>
+                                        N
+                                    </option>
+                                </select>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </fieldset>
+
+                </div>
+            </div>
+
+            <!-- CUSTOMER SNAPSHOT -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Customer Snapshot</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    <div><b>Name:</b> {{ claim.vehicle.customer.name }}</div>
+                    <div><b>Mobile:</b> {{ claim.vehicle.customer.mobile_no }}</div>
+                    <div><b>Vehicle:</b> {{ claim.vehicle.registration_no }}</div>
+                    <div><b>Model:</b> {{ claim.vehicle.model.name }}</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</form>
+<script>
+ document.addEventListener("DOMContentLoaded", function () {
+
+        const params = new URLSearchParams(window.location.search);
+        const isSaved = params.get("saved") === "1";
+
+        document.querySelectorAll(".post-save-btn").forEach(btn => {
+
+            if (isSaved) {
+                btn.classList.remove("disabled");
+                btn.href = btn.dataset.url;
+                btn.onclick = null;
+            } else {
+                btn.classList.add("disabled");
+                btn.href = "#";
+                btn.onclick = function () {
+                    showToast("Please save Job Card first", "warning");
+                    return false;
+                };
+            }
+
+        });
+
+    });
+
+
+    let damageMarks = [];
+    let isPointerDown = false;
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    function getPoint(e, box) {
+        const rect = box.getBoundingClientRect();
+
+        return {
+            x: ((e.clientX - rect.left) / rect.width) * 100,
+            y: ((e.clientY - rect.top) / rect.height) * 100
+        };
+    }
+
+
+    function renderDamageMarks() {
+
+        const box = document.getElementById("damageBox");
+        const hidden = document.getElementById("damageMarks");
+
+        if (!box || !hidden) return;
+
+        box.querySelectorAll(".damage-mark, .scratch-line")
+            .forEach(el => el.remove());
+
+        damageMarks.forEach((mark, index) => {
+
+            // =========================
+            // DENT
+            // =========================
+
+            if (mark.type === "dent") {
+
+                const dot = document.createElement("div");
+
+                dot.className = "damage-mark";
+
+                dot.style.left = mark.x + "%";
+                dot.style.top = mark.y + "%";
+
+                dot.title = "Dent";
+
+                dot.addEventListener("click", function (e) {
+                    if (isJobcardLocked) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    damageMarks.splice(index, 1);
+                    renderDamageMarks();
+                });
+
+                box.appendChild(dot);
+            }
+
+            // =========================
+            // SCRATCH
+            // =========================
+
+            if (mark.type === "scratch") {
+
+                const line = document.createElement("div");
+
+                line.className = "scratch-line";
+
+                const x1 = parseFloat(mark.x1);
+                const y1 = parseFloat(mark.y1);
+                const x2 = parseFloat(mark.x2);
+                const y2 = parseFloat(mark.y2);
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+
+                const length = Math.sqrt(dx * dx + dy * dy);
+
+                const angle =
+                    Math.atan2(dy, dx) * 180 / Math.PI;
+
+                line.style.left = x1 + "%";
+                line.style.top = y1 + "%";
+
+                line.style.width = length + "%";
+
+                line.style.transform =
+                    `rotate(${angle}deg)`;
+
+                line.title = "Scratch";
+
+                line.addEventListener("click", function (e) {
+                    if (isJobcardLocked) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    damageMarks.splice(index, 1);
+                    renderDamageMarks();
+                });
+
+                box.appendChild(line);
+            }
+
+        });
+
+        hidden.value = JSON.stringify(damageMarks);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const box = document.getElementById("damageBox");
+        const hidden = document.getElementById("damageMarks");
+
+        if (!box || !hidden) return;
+
+        try {
+            damageMarks = JSON.parse(hidden.value || "[]");
+        } catch {
+            damageMarks = [];
+        }
+
+        renderDamageMarks();
+
+        box.addEventListener("contextmenu", function(e){
+            e.preventDefault();   // disable right click menu
+        });
+
+        box.addEventListener("pointerdown", function (e) {
+            if (isJobcardLocked) {
+                return;
+            }
+
+            // only left mouse button
+            if (e.pointerType === "mouse" && e.button !== 0) return;
+
+            if (
+                e.target.classList.contains("damage-mark") ||
+                e.target.classList.contains("scratch-line")
+            ) return;
+
+            e.preventDefault();
+
+            const p = getPoint(e, box);
+
+            startX = p.x;
+            startY = p.y;
+            moved = false;
+            isPointerDown = true;
+
+            box.setPointerCapture(e.pointerId);
+        });
+
+        box.addEventListener("pointermove", function (e) {
+            if (isJobcardLocked) {
+                return;
+            }
+
+            if (!isPointerDown) return;
+
+            const p = getPoint(e, box);
+
+            const distance =
+                Math.sqrt(
+                    Math.pow(p.x - startX, 2) +
+                    Math.pow(p.y - startY, 2)
+                );
+
+            if (distance > 2) {
+                moved = true;
+            }
+        });
+
+        box.addEventListener("pointerup", function (e) {
+            if (isJobcardLocked) {
+                return;
+            }
+
+            if (!isPointerDown) return;
+
+            e.preventDefault();
+
+            const p = getPoint(e, box);
+
+            const distance =
+                Math.sqrt(
+                    Math.pow(p.x - startX, 2) +
+                    Math.pow(p.y - startY, 2)
+                );
+
+            if (distance > 3) {
+
+                // drag = scratch
+                damageMarks.push({
+                    type: "scratch",
+                    x1: startX.toFixed(2),
+                    y1: startY.toFixed(2),
+                    x2: p.x.toFixed(2),
+                    y2: p.y.toFixed(2)
+                });
+
+            } else {
+
+                // click = dent
+                damageMarks.push({
+                    type: "dent",
+                    x: p.x.toFixed(2),
+                    y: p.y.toFixed(2)
+                });
+            }
+
+            isPointerDown = false;
+            renderDamageMarks();
+
+            try {
+                box.releasePointerCapture(e.pointerId);
+            } catch {}
+        });
+
+    });
+    function clearDamageMarks() {
+        if (isJobcardLocked) {
+            showToast("Closed jobcard is view only", "warning");
+            return;
+        }
+
+        damageMarks = [];
+
+        renderDamageMarks();
+    }
+    function updateGauge(rangeId, needleId, textId) {
+
+        const range = document.getElementById(rangeId);
+        const needle = document.getElementById(needleId);
+        const text = document.getElementById(textId);
+
+        if (!range || !needle || !text) return;
+
+        function setGauge() {
+            const value = Number(range.value || 0);
+            const angle = -90 + (value * 1.8);
+
+            needle.style.transform = `rotate(${angle}deg)`;
+            text.innerText = value;
+        }
+
+        setGauge();
+
+        range.addEventListener("input", setGauge);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        updateGauge("fuelRange", "fuelNeedle", "fuelText");
+        updateGauge("cngRange", "cngNeedle", "cngText");
+    });
+    document.addEventListener("blur", function(e) {
+
+        if (!e.target.matches('input[name="part_no[]"]')) return;
+
+        const partInput = e.target;
+        const partNo = partInput.value.trim();
+
+        if (!partNo) return;
+
+        const row = partInput.closest("tr");
+
+        fetch(`/ajax/part-lookup/?item_code=${encodeURIComponent(partNo)}&t=${Date.now()}`)
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.status !== "success") {
+                    showToast("Part not found", "warning");
+                    return;
+                }
+
+                row.querySelector('input[name="part_desc[]"]').value =
+                    data.description || "";
+
+                row.querySelector('input[name="rate[]"]').value =
+                    data.rate || 0;
+                row.querySelector('input[name="qty[]"]').value = 1;
+
+
+                updateGrandTotal();
+            });
+
+    }, true);
+
+
+    document.addEventListener("input", function () {
+        updateGrandTotal();
+    });
+    document.addEventListener("DOMContentLoaded", function(){
+
+        // AUTO GATE IN TIME
+
+        const gateInput =
+            document.getElementById("id_gate_in_datetime");
+
+        if(gateInput && !gateInput.value){
+
+            const now = new Date();
+
+            now.setMinutes(
+                now.getMinutes() - now.getTimezoneOffset()
+            );
+
+            gateInput.value =
+                now.toISOString().slice(0,16);
+        }
+
+
+
+
+
+    });
+
+
+    const canEditJobcardEntries =
+        {{ can_edit_jobcard_entries|yesno:"true,false" }};
+    const isJobcardLocked =
+        {{ is_jobcard_locked|yesno:"true,false" }};
+
+    document.addEventListener("DOMContentLoaded", function () {
+        if (!isJobcardLocked) {
+            return;
+        }
+
+        document.querySelectorAll("#jobCardForm input, #jobCardForm select, #jobCardForm textarea, #jobCardForm button").forEach(el => {
+            if (el.type === "hidden") {
+                return;
+            }
+
+            el.disabled = true;
+        });
+    });
+
+    function createPartOrder(jobId) {
+    if (isJobcardLocked) {
+        showToast("Closed jobcard is view only", "warning");
+        return;
+    }
+
+    fetch(`/part-orders/job/${jobId}/create/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({})
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === "success") {
+                window.location.href = data.redirect_url;
+            } else {
+                showToast("Part order create failed", "danger");
+            }
+        })
+        .catch(() => {
+            showToast("Part order create failed", "danger");
+        });
+}
+
+    function addPartRow(part = {}) {
+    if (!canEditJobcardEntries || isJobcardLocked) {
+        showToast("Closed jobcard is view only", "warning");
+        return;
+    }
+
+    const tbody = document.getElementById("partsTable");
+
+    tbody.insertAdjacentHTML("beforeend", `
+        <tr>
+            <td>
+                <input type="hidden" name="part_id[]" form="jobCardForm" value="${part.id || ""}">
+                <input type="text" class="form-control"
+                       name="part_no[]" form="jobCardForm"
+                       value="${part.part_no || ""}">
+            </td>
+
+            <td>
+                <input type="text" class="form-control"
+                       name="part_desc[]" form="jobCardForm"
+                       value="${part.description || ""}">
+            </td>
+
+            <td>
+                <input type="number" class="form-control text-end qty"
+                       name="qty[]" form="jobCardForm"
+                       value="${part.qty || 1}" step="0.01">
+            </td>
+
+            <td>
+                <input type="number" class="form-control text-end rate"
+                       name="rate[]" form="jobCardForm"
+                       value="${part.rate || 0}" step="0.01">
+            </td>
+
+            <td>
+                <input type="number" class="form-control text-end amount"
+                       name="amount[]" form="jobCardForm"
+                       value="${part.amount || 0}" step="0.01" readonly>
+            </td>
+
+            <td>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        onclick="removeEstimationRow(this)">
+                    Remove
+                </button>
+            </td>
+        </tr>
+    `);
+}
+
+
+    function addLabourRow() {
+    if (!canEditJobcardEntries || isJobcardLocked) {
+        showToast("Closed jobcard is view only", "warning");
+        return;
+    }
+
+    const tbody = document.getElementById("labourTable");
+
+    tbody.insertAdjacentHTML("beforeend", `
+        <tr>
+            <td>
+                <input type="hidden" name="labour_id[]" form="jobCardForm" value="">
+                <input name="job_code[]" form="jobCardForm" class="form-control">
+            </td>
+            <td><input name="lab_desc[]" form="jobCardForm" class="form-control"></td>
+            <td><input name="hrs[]" form="jobCardForm" class="form-control hrs"></td>
+            <td><input name="lab_rate[]" form="jobCardForm" class="form-control rate"></td>
+            <td><input name="lab_amount[]" form="jobCardForm" class="form-control amount" readonly></td>
+            <td>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        onclick="removeEstimationRow(this)">
+                    Remove
+                </button>
+            </td>
+        </tr>
+    `);
+}
+
+    function removeEstimationRow(button) {
+        if (!canEditJobcardEntries || isJobcardLocked) {
+            showToast("Closed jobcard is view only", "warning");
+            return;
+        }
+
+        const row = button.closest("tr");
+
+        if (row) {
+            row.remove();
+            updateGrandTotal();
+        }
+    }
+
+    function calculateJobcardRowAmount(row) {
+        if (!row) return;
+
+        const amountInput = row.querySelector(".amount");
+        const rateInput = row.querySelector(".rate");
+
+        if (!amountInput || !rateInput) return;
+
+        const qtyInput = row.querySelector(".qty");
+        const hrsInput = row.querySelector(".hrs");
+        const multiplierInput = qtyInput || hrsInput;
+
+        if (!multiplierInput) return;
+
+        const multiplier = parseFloat(multiplierInput.value || 0);
+        const rate = parseFloat(rateInput.value || 0);
+
+        amountInput.value = (multiplier * rate).toFixed(2);
+    }
+
+    document.addEventListener("input", function (e) {
+        if (
+            !e.target.classList.contains("qty") &&
+            !e.target.classList.contains("hrs") &&
+            !e.target.classList.contains("rate")
+        ) {
+            return;
+        }
+
+        calculateJobcardRowAmount(e.target.closest("tr"));
+        updateGrandTotal();
+    });
+    function updateGrandTotal() {
+
+        let partSum = 0;
+        let labourSum = 0;
+
+        document.querySelectorAll("#partsTable .amount").forEach(i => {
+            partSum += parseFloat(i.value || 0);
+        });
+
+        document.querySelectorAll("#labourTable .amount").forEach(i => {
+            labourSum += parseFloat(i.value || 0);
+        });
+
+
+
+        let gst = (labourSum * 18) / 100;
+        let net = partSum +labourSum + gst;
+
+        document.getElementById("partsTotal").innerText = partSum.toFixed(2);
+        document.getElementById("labourTotal").innerText = labourSum.toFixed(2);
+
+        document.getElementById("gstAmount").innerText = gst.toFixed(2);
+        document.getElementById("netTotal").innerText = net.toFixed(2);
+    }
+document.getElementById("jobCardForm").addEventListener("submit", function () {
+    const fd = new FormData(this);
+    console.log("part_no[]", fd.getAll("part_no[]"));
+    console.log("job_code[]", fd.getAll("job_code[]"));
+});
+
+document.getElementById("jobCardForm").addEventListener("submit", function (event) {
+    const mainStatus = document.getElementById("jobcardMainStatus");
+
+    if (!mainStatus || mainStatus.value !== "Closed") {
+        return;
+    }
+
+    if (mainStatus.dataset.currentStatus === "Closed") {
+        return;
+    }
+
+    if (!confirm("After closing the jobcard, normal users cannot re-open it. Only Admin or Manager can re-open. Do you want to close this jobcard?")) {
+        event.preventDefault();
+        return;
+    }
+
+    const roadTest = document.getElementById("id_road_test_done");
+    const washing = document.getElementById("id_washing_done");
+    const ready = document.getElementById("id_ready_for_delivery");
+    const missing = [];
+
+    if (roadTest && !roadTest.checked) {
+        missing.push("Road Test");
+    }
+
+    if (washing && !washing.checked) {
+        missing.push("Washing");
+    }
+
+    if (ready && !ready.checked) {
+        missing.push("Ready");
+    }
+
+    if (missing.length) {
+        event.preventDefault();
+        alert("Before closing jobcard, tick: " + missing.join(", "));
+    }
+});
+
+function formatProgressDuration(milliseconds) {
+    const totalMinutes = Math.max(0, Math.floor(milliseconds / 60000));
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+
+    return days + " Days - " + hours + " Hour - " + minutes + " Minute";
+}
+
+function updateProgressDurations() {
+    const now = Date.now();
+
+    document.querySelectorAll(".progress-duration").forEach(el => {
+        const start = Number(el.dataset.start || 0);
+        const finish = Number(el.dataset.finish || 0);
+
+        if (!start) {
+            el.textContent = "-";
+            return;
+        }
+
+        el.textContent = formatProgressDuration((finish || now) - start);
+    });
+}
+
+updateProgressDurations();
+setInterval(updateProgressDurations, 60000);
+</script>
+
+{% endblock %}

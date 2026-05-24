@@ -1,0 +1,157 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Employee Master</h3>
+
+    <button class="btn btn-primary mb-3" id="addBtn">+ Add Employee</button>
+
+    <table id="employeeTable" class="table table-striped">
+        <thead>
+            <tr>
+            <th>Name</th>
+            <th>Code</th>            <th>Mobile</th>
+            <th>Designation</th>
+            <th>Department</th>
+            <th>Type</th>
+            <th>Action</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+
+<!-- MODAL -->
+<div class="modal fade" id="employeeModal">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Employee</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="employeeForm">
+            {% csrf_token %}
+            <input type="hidden" name="id" id="id">
+
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="name" id="name" placeholder="Employee  Name">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="employee_code" id="employee_code" placeholder="Code">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="mobile_no" id="mobile_no" placeholder="Mobile">
+
+                    <div class="col-md-6 mb-2">
+                    <input class="form-control" name="designation" id="designation" placeholder="Designation">
+                </div>
+                    <div class="col-md-6 mb-2">
+                    <select class="form-control" name="department" id="department" >
+
+                        <option value="Front Office">Front Office</option>
+                        <option value="Back Office">Back Office</option>
+                        <option value="Floor">Floor</option>
+                        <option value="washing">Washing & VAS</option>
+                   </select>
+                </div>
+               <div class="col-md-4">
+                    <select name="employee_type" id="employee_type" class="form-select">
+                        <option value="STAFF">Staff</option>
+                        <option value="ADMIN">Admin</option>
+                        <option value="Advisor">Advisor</option>
+                        <option value="MANAGER">Manager</option>
+                    </select>
+                </div>
+
+
+            </div>
+            </div>
+        </form>
+
+        <div id="formErrors" class="text-danger"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-success" id="saveBtn">Save</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+let table;
+
+$(document).ready(function () {
+
+    table = $('#employeeTable').DataTable({
+        ajax: '/employee/data/',
+        columns: [
+            { data: 'name' },
+            { data: 'employee_code' },
+            { data: 'mobile_no' },
+            { data: 'designation' },
+            { data: 'department' },
+            { data: 'employee_type' },
+            {
+                data: 'id',
+                render: function (data) {
+                    return `<button class="btn btn-sm btn-warning editBtn" data-id="${data}">Edit</button>`;
+                }
+            }
+        ]
+    });
+
+});
+
+
+$('#addBtn').click(function () {
+    $('#employeeForm')[0].reset();
+    $('#id').val('');
+    $('#employeeModal').modal('show');
+});
+
+// EDIT
+$('#employeeTable').on('click', '.editBtn', function () {
+    let id = $(this).data('id');
+
+    $.get(`/employee/get/${id}/`, function (data) {
+        $('#id').val(data.id);
+        $('#name').val(data.name);
+        $('#mobile_no').val(data.employee_code);
+        $('#mobile_no').val(data.mobile_no);
+        $('#designation').val(data.designation);
+        $('#department').val(data.department);
+        $('#employee_type').val(data.employee_type);
+
+        $('#employeeModal').modal('show');
+    });
+});
+
+// SAVE
+$('#saveBtn').click(function () {
+    $.post('/employee/save/', $('#employeeForm').serialize(), function (res) {
+
+        if (res.success) {
+            $('#employeeModal').modal('hide');
+            table.ajax.reload();
+        } else {
+            $('#formErrors').html(JSON.stringify(res.errors));
+        }
+
+    });
+});
+
+
+</script>
+{% endblock %}

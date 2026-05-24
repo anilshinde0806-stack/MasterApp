@@ -1,0 +1,794 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Work Allocation{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-2">
+
+                <form method="post" id="workAllocationForm" enctype="multipart/form-data">
+{% csrf_token %}
+
+<!-- HEADER -->
+<div class="card border-0 shadow-sm mb-2">
+    <div class="card-header text-center fw-bold py-1"
+         style="background:#6fa8dc;color:#000;">
+        Allotment Parts Slip , Job Status , PNA
+    </div>
+
+    <div class="card-body p-2">
+
+        <div class="row g-1 compact-form">
+
+            <div class="col-md-2"><label>Reg. No</label></div>
+            <div class="col-md-2 fw-bold">{{ job.claim.vehicle.registration_no }}</div>
+
+            <div class="col-md-2"><label>Insurance Co.</label></div>
+            <div class="col-md-2 fw-bold">{{ job.claim.insurance_company|default:"" }}</div>
+
+            <div class="col-md-2"><label>Advisor</label></div>
+            <div class="col-md-2 fw-bold">{{ job.advisor.name|default:"" }}</div>
+
+            <div class="col-md-2"><label>Model</label></div>
+            <div class="col-md-2 fw-bold">{{ job.claim.vehicle.model.name }}</div>
+
+            <div class="col-md-2"><label>Surveyor</label></div>
+            <div class="col-md-2 fw-bold">{{ job.claim.surveyor|default:"" }}</div>
+
+            <div class="col-md-2"><label>Claim No</label></div>
+            <div class="col-md-2 fw-bold">{{ job.claim.claim_no }}</div>
+
+            <div class="col-md-2"><label>Allotment Date</label></div>
+            <div class="col-md-2">
+                <input type="date"
+                       name="allotment_date"
+                       class="form-control"
+                       value="{{ allocation.allotment_date|date:'Y-m-d' }}">
+            </div>
+
+            <div class="col-md-2"><label>Delivery Date</label></div>
+            <div class="col-md-2">
+                <input type="date"
+                       name="delivery_date"
+                       class="form-control"
+                       value="{{ allocation.delivery_date|date:'Y-m-d' }}">
+            </div>
+
+            <div class="col-md-2"><label>Parts Slip No</label></div>
+            <div class="col-md-2">
+                <input type="text"
+                       name="parts_slip_no"
+                       class="form-control"
+                       value="{{ allocation.parts_slip_no|default:'' }}">
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<!-- JOB PROGRESS -->
+<div class="card border-0 shadow-sm mb-2">
+    <div class="card-header py-1 fw-bold text-center">
+        Job Progress
+    </div>
+
+    <div class="card-body p-2">
+
+        <table class="table table-bordered table-sm compact-table mb-0">
+            <thead>
+                <tr>
+                    <th style="width:32%">Job Progress Name</th>
+                    <th>Start Date & Time</th>
+                    <th>Finish Date & Time</th>
+                    <th>Click Start/Finish</th>
+                    <th>Denter / Painter / Mechanic</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for row in progress_rows %}
+                <tr>
+                    <td>
+                        <b>{{ row.label }}</b>
+                        <input type="hidden"
+                               name="stage[]"
+                               value="{{ row.stage }}">
+                    </td>
+
+                    <td>
+                        <input type="datetime-local"
+                               name="start_time[]"
+                              class="form-control start-time"
+
+                               value="{{ row.start_time|date:'Y-m-d\\TH:i' }}">
+                    </td>
+
+                    <td>
+                        <input type="datetime-local"
+                               name="finish_time[]"
+                              class="form-control finish-time"
+
+                               value="{{ row.finish_time|date:'Y-m-d\\TH:i' }}">
+                    </td>
+                     <td>
+
+                        <button type="button"
+                                  class="btn btn-success btn-sm"
+                                  onclick="startStage(this)">
+                              Start
+                          </button>
+
+                          <button type="button"
+                                  class="btn btn-danger btn-sm"
+                                  onclick="finishStage(this)">
+                              Finish
+                          </button>
+
+                        </td>
+                    <td>
+                        <select name="employee[]"
+                                class="form-select progress-employee">
+                            <option value="">Select</option>
+                            {% for emp in technicians %}
+                            <option value="{{ emp.id }}"
+                                {% if row.employee_id == emp.id %}selected{% endif %}>
+                                {{ emp.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+
+                    <td>
+                        <input type="text"
+                               name="progress_remarks[]"
+                               class="form-control"
+                               value="{{ row.remarks }}">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    </div>
+</div>
+
+<!-- PARTS ASSESSMENT + PNA -->
+<div class="card border-0 shadow-sm mb-2">
+
+    <div class="card-header py-1 text-center fw-bold"
+         style="background:#d9ead3;">
+        Insurance Co. Part's wise Assessment Detail's
+    </div>
+
+    <div class="card-body p-1">
+
+        <div class="table-responsive">
+
+            <table class="table table-bordered table-sm compact-table mb-0">
+
+                <thead>
+                    <tr>
+                        <th>Sr</th>
+                        <th>Part No</th>
+                        <th>Part Description</th>
+                        <th>Qty</th>
+                        <th>MRP</th>
+                        <th>New / Repair / KO</th>
+                        <th>Pick Store</th>
+                        <th>Date</th>
+                        <th>Picker</th>
+                        <th>KO Order Date</th>
+                        <th>KO Order No</th>
+                        <th>ETA</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for p in allocation_parts %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+
+                        <td>
+                                                {% if p.part %}
+                                {{ p.part.part_no }}
+                            {% else %}
+                                {{ p.part_no }}
+                            {% endif %}
+                            <input type="hidden"
+                                   name="allocation_part_id[]"
+                                   value="{{ p.id }}">
+                        </td>
+
+                        <td> {% if p.part %}
+                                {{ p.part.description }}
+                            {% else %}
+                                {{ p.description }}
+                            {% endif %}</td>
+
+                        <td class="text-end">{% if p.part %}
+                                {{ p.part.qty }}
+                            {% else %}
+                                {{ p.qty }}
+                            {% endif %}</td>
+
+                        <td class="text-end">{% if p.part %}
+                                {{ p.part.rate }}
+                            {% else %}
+                                {{ p.rate }}
+                            {% endif %}</td>
+
+
+
+                        <td>
+                            <select name="decision[]"
+                                    class="form-select">
+                                <option value="New" {% if p.decision == "New" %}selected{% endif %}>New</option>
+                                <option value="Repair" {% if p.decision == "Repair" %}selected{% endif %}>Repair</option>
+                                <option value="KO" {% if p.decision == "KO" %}selected{% endif %}>KO</option>
+                                <option value="Reject" {% if p.decision == "Reject" %}selected{% endif %}>Reject</option>
+                            </select>
+                        </td>
+
+                        <td class="text-center">
+                            <select name="pick_from_store[]"
+                                    class="form-select">
+                                <option value="No" {% if not p.pick_from_store %}selected{% endif %}>No</option>
+                                <option value="Yes" {% if p.pick_from_store %}selected{% endif %}>Yes</option>
+                            </select>
+                        </td>
+
+                        <td>
+                            <input type="date"
+                                   name="pick_date[]"
+                                   class="form-control"
+                                   value="{{ p.pick_date|date:'Y-m-d' }}">
+                        </td>
+
+                        <td>
+                            <input type="text"
+                                   name="picker_name[]"
+                                   class="form-control"
+                                   value="{{ p.picker_name|default:'' }}">
+                        </td>
+
+                        <td>
+                            <input type="date"
+                                   name="ko_order_date[]"
+                                   class="form-control"
+                                   value="{{ p.ko_order_date|date:'Y-m-d' }}">
+                        </td>
+
+                        <td>
+                            <input type="text"
+                                   name="ko_order_no[]"
+                                   class="form-control"
+                                   value="{{ p.ko_order_no|default:'' }}">
+                        </td>
+
+                        <td>
+                            <input type="date"
+                                   name="eta[]"
+                                   class="form-control"
+                                   value="{{ p.eta|date:'Y-m-d' }}">
+                        </td>
+
+                        <td>
+                            <input type="text"
+                                   name="part_remarks[]"
+                                   class="form-control"
+                                   value="{{ p.remarks|default:'' }}">
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="17"
+                            class="text-center text-muted">
+                            No assessed parts found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+</div>
+
+<!-- LABOUR ASSESSMENT -->
+<div class="card border-0 shadow-sm mb-2">
+
+    <div class="card-header py-1 text-center fw-bold"
+         style="background:#cfe2f3;">
+        Labour Assessment Detail's
+    </div>
+
+    <div class="card-body p-1">
+
+        <table class="table table-bordered table-sm compact-table mb-0">
+
+            <thead>
+                <tr>
+                    <th>Sr</th>
+                    <th>Labour Code</th>
+                    <th>Description</th>
+                    <th>Original Amount</th>
+                    <th>Decision</th>
+                    <th>Revised Amount</th>
+                    <th>Technician</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for l in allocation_labours %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+
+                    <td>
+                        {{ l.job_code }}
+                        <input type="hidden"
+                               name="allocation_labour_id[]"
+                               value="{{ l.id }}">
+                    </td>
+
+                    <td>{{ l.description }}</td>
+
+                    <td class="text-end">{{ l.amount }}</td>
+
+                    <td>
+                        <select name="labour_decision[]"
+                                class="form-select">
+                            <option value="Approved" {% if l.decision == "Approved" %}selected{% endif %}>Approved</option>
+                            <option value="Reject" {% if l.decision == "Reject" %}selected{% endif %}>Reject</option>
+                        </select>
+                    </td>
+
+                    <td>
+                        <input type="number"
+                               step="0.01"
+                               name="labour_revised_amount[]"
+                               class="form-control text-end"
+                               value="{{ l.revised_amount|default:l.amount }}">
+                    </td>
+
+                    <td>
+                        <select name="labour_employee[]"
+                                class="form-select">
+                            <option value="">Select</option>
+                            {% for emp in technicians %}
+                            <option value="{{ emp.id }}"
+                                {% if l.employee_id == emp.id %}selected{% endif %}>
+                                {{ emp.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+
+                    <td>
+                        <input type="text"
+                               name="labour_remarks[]"
+                               class="form-control"
+                               value="{{ l.remarks|default:'' }}">
+                    </td>
+
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8"
+                        class="text-center text-muted">
+                        No assessed labour found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+</div>
+
+<!-- ACTION -->
+<div class="card border-0 shadow-sm sticky-bottom bg-white action-bar">
+    <div class="card-body py-1 px-2">
+        <div class="d-flex flex-wrap align-items-end gap-2 compact-form">
+            <div class="form-check action-check mb-1">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="markWorkCompleted"
+                       name="mark_work_completed"
+                       value="1"
+                       {% if is_work_completed %}checked{% endif %}>
+                <label class="form-check-label fw-bold" for="markWorkCompleted">
+                    Work Completed
+                </label>
+            </div>
+
+            <div class="form-check action-check mb-1">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="markQcDone"
+                       name="mark_qc_done"
+                       value="1"
+                       {% if job.qc_done %}checked{% endif %}>
+                <label class="form-check-label fw-bold" for="markQcDone">
+                    QC Done
+                </label>
+            </div>
+
+            <div class="form-check action-check mb-1">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="markReinspectionDone"
+                       name="reinspection_done"
+                       value="1"
+                       {% if job.reinspection_done %}checked{% endif %}>
+                <label class="form-check-label fw-bold" for="markReinspectionDone">
+                    Re-Inspection
+                </label>
+            </div>
+
+            <div class="form-check action-check mb-1">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="partEntryComplete"
+                       name="part_entry_complete"
+                       value="1"
+                       {% if allocation.part_entry_complete %}checked{% endif %}>
+                <label class="form-check-label fw-bold" for="partEntryComplete">
+                    Part Entry
+                </label>
+            </div>
+
+            <div class="action-field">
+                <label>Re-Inspection Date</label>
+                <input class="form-control"
+                       type="date"
+                       name="reinspection_date"
+                       value="{{ job.reinspection_date|date:'Y-m-d' }}">
+            </div>
+
+            <div class="action-field action-by">
+                <label>Done By</label>
+                <input class="form-control"
+                       type="text"
+                       name="reinspection_done_by"
+                       value="{{ job.reinspection_done_by|default:'' }}">
+            </div>
+
+            <div class="action-file">
+                <label>Images</label>
+                <input class="form-control"
+                       type="file"
+                       id="reinspectionImages"
+                       name="reinspection_images"
+                       accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                       multiple>
+            </div>
+
+            <div class="action-limit text-muted">
+                Max {{ reinspection_max_photos }} / {{ reinspection_max_image_size_mb }}MB each /
+                {{ reinspection_max_total_size_mb }}MB total<br>
+                Existing {{ existing_reinspection_photo_count }} / {{ existing_reinspection_photo_size_mb }}MB
+            </div>
+
+            {% if job.reinspection_photos.exists %}
+            <a class="btn btn-sm btn-outline-primary mb-1"
+               href="/work-allocation/{{ job.id }}/reinspection-photos/"
+               target="_blank">
+                View Images
+            </a>
+            {% endif %}
+
+            <div class="ms-auto d-flex gap-2 mb-1">
+                {% if can_print_work_report %}
+                <a href="{% url 'work_completion_report' job.id %}"
+                   class="btn btn-sm btn-primary"
+                   target="_blank">
+                    Print Report
+                </a>
+                {% endif %}
+
+                <a href="{% url 'work_allocation_list' %}"
+                   class="btn btn-sm btn-outline-secondary">
+                    Back
+                </a>
+
+                <button type="submit"
+                        class="btn btn-sm btn-success px-4">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</form>
+
+</div>
+
+<style>
+.compact-form label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+}
+
+.compact-form .form-control,
+.compact-form .form-select {
+    height: 30px;
+    min-height: 30px;
+    padding: 2px 6px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+.compact-table {
+    font-size: 12px;
+}
+
+.compact-table th,
+.compact-table td {
+    padding: 3px 5px !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.compact-table .form-control,
+.compact-table .form-select {
+    height: 28px;
+    min-height: 28px;
+    padding: 2px 5px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+.card {
+    border-radius: 10px;
+}
+
+.card-header {
+    padding: 5px 10px;
+}
+
+.sticky-bottom {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+}
+
+.action-bar {
+    border-top: 1px solid #d9dee5 !important;
+}
+
+.action-check {
+    min-width: 112px;
+}
+
+.action-check .form-check-input {
+    margin-top: 0.18rem;
+}
+
+.action-field {
+    width: 150px;
+}
+
+.action-by {
+    width: 170px;
+}
+
+.action-file {
+    width: 230px;
+}
+
+.action-limit {
+    font-size: 10px;
+    line-height: 1.2;
+    max-width: 185px;
+}
+
+@media (max-width: 768px) {
+    .action-field,
+    .action-by,
+    .action-file {
+        width: 100%;
+    }
+
+    .action-limit {
+        max-width: none;
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+const currentAllocationId = "{{ allocation.id }}";
+
+function getCurrentDateTimeLocal() {
+
+    const now = new Date();
+
+    now.setMinutes(
+        now.getMinutes() - now.getTimezoneOffset()
+    );
+
+    return now.toISOString().slice(0, 16);
+}
+
+function startStage(btn) {
+
+    const row = btn.closest("tr");
+
+    const input = row.querySelector(".start-time");
+
+    if (input) {
+        input.value = getCurrentDateTimeLocal();
+    }
+}
+
+function finishStage(btn) {
+
+    const row = btn.closest("tr");
+
+    const input = row.querySelector(".finish-time");
+
+    if (input) {
+        input.value = getCurrentDateTimeLocal();
+    }
+}
+
+function getProgressStageName(select) {
+    const row = select.closest("tr");
+    const label = row ? row.querySelector("td b") : null;
+    return label ? label.innerText.trim() : "another progress row";
+}
+
+function findEmployeeDuplicate(select) {
+    const value = select.value;
+
+    if (!value) {
+        return null;
+    }
+
+    return Array.from(document.querySelectorAll(".progress-employee")).find(other => {
+        return other !== select && other.value === value;
+    });
+}
+
+function initEmployeeAssignmentChecks() {
+    document.querySelectorAll(".progress-employee").forEach(select => {
+        select.dataset.previousValue = select.value || "";
+
+        select.addEventListener("mousedown", function () {
+            this.dataset.previousValue = this.value || "";
+        });
+
+        select.addEventListener("focus", function () {
+            this.dataset.previousValue = this.value || "";
+        });
+
+        select.addEventListener("change", async function () {
+            const duplicate = findEmployeeDuplicate(this);
+            const employeeName = this.options[this.selectedIndex].text;
+            const currentStage = getProgressStageName(this);
+            let message = "";
+
+            if (duplicate) {
+                message =
+                    employeeName + " is already assigned to " +
+                    getProgressStageName(duplicate) +
+                    " on Jobcard {{ job.job_no }} / Reg No {{ job.claim.vehicle.registration_no }}. " +
+                    "Do you want to assign this employee to " +
+                    currentStage + " also?";
+            }
+
+            if (!message && this.value) {
+                const url =
+                    "{% url 'check_work_allocation_employee' %}" +
+                    "?employee_id=" + encodeURIComponent(this.value) +
+                    "&allocation_id=" + encodeURIComponent(currentAllocationId);
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.assigned) {
+                    message =
+                        employeeName + " is already working on Jobcard " +
+                        (data.job_no || "-") + " / " +
+                        "Reg No " + (data.registration_no || "-") + " / " +
+                        (data.stage || "-") +
+                        ". Do you want to assign this employee to " +
+                        currentStage + " also?";
+                }
+            }
+
+            if (message && !confirm(message)) {
+                this.value = this.dataset.previousValue || "";
+                return;
+            }
+
+            this.dataset.previousValue = this.value || "";
+        });
+    });
+
+    const form = document.getElementById("workAllocationForm");
+
+    if (form) {
+        form.addEventListener("submit", function (event) {
+            const invalidRow = Array.from(document.querySelectorAll("#workAllocationForm tbody tr")).find(row => {
+                const startInput = row.querySelector(".start-time");
+                const employeeSelect = row.querySelector(".progress-employee");
+                return startInput && startInput.value && employeeSelect && !employeeSelect.value;
+            });
+
+            if (!invalidRow) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const stageLabel = invalidRow.querySelector("td b");
+            const employeeSelect = invalidRow.querySelector(".progress-employee");
+
+            alert("Select employee for " + (stageLabel ? stageLabel.innerText.trim() : "this progress row") + " before saving.");
+
+            if (employeeSelect) {
+                employeeSelect.focus();
+            }
+        });
+    }
+}
+
+function initReinspectionImageLimits() {
+    const input = document.getElementById("reinspectionImages");
+
+    if (!input) {
+        return;
+    }
+
+    const existingCount = Number("{{ existing_reinspection_photo_count|default:0 }}");
+    const existingSize = Number("{{ existing_reinspection_photo_size_mb|default:0 }}") * 1024 * 1024;
+    const maxPhotos = Number("{{ reinspection_max_photos|default:25 }}");
+    const maxImageSize = Number("{{ reinspection_max_image_size_mb|default:8 }}") * 1024 * 1024;
+    const maxTotalSize = Number("{{ reinspection_max_total_size_mb|default:50 }}") * 1024 * 1024;
+
+    input.addEventListener("change", function () {
+        const files = Array.from(input.files || []);
+        const selectedSize = files.reduce((total, file) => total + file.size, 0);
+        const oversizedFile = files.find(file => file.size > maxImageSize);
+
+        if (existingCount + files.length > maxPhotos) {
+            alert("Maximum " + maxPhotos + " re-inspection images are allowed per jobcard.");
+            input.value = "";
+            return;
+        }
+
+        if (oversizedFile) {
+            alert(oversizedFile.name + " is too large. Maximum {{ reinspection_max_image_size_mb }} MB is allowed per image.");
+            input.value = "";
+            return;
+        }
+
+        if (existingSize + selectedSize > maxTotalSize) {
+            alert("Maximum {{ reinspection_max_total_size_mb }} MB total re-inspection image storage is allowed per jobcard.");
+            input.value = "";
+        }
+    });
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+        initEmployeeAssignmentChecks();
+        initReinspectionImageLimits();
+    });
+} else {
+    initEmployeeAssignmentChecks();
+    initReinspectionImageLimits();
+}
+
+</script>
+{% endblock %}

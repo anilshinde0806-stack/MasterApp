@@ -1,0 +1,123 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Insurance Master</h3>
+
+    <button class="btn btn-primary mb-3" id="addBtn">+ Add</button>
+
+    <table id="companyTable" class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>City</th>
+                <th>Mobile</th>
+                <th>GST NO</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+
+<!-- MODAL -->
+<div class="modal fade" id="companyModal">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Company</h5>
+      </div>
+
+      <div class="modal-body">
+        <form id="companyForm">
+            {% csrf_token %}
+            <input type="hidden" name="id" id="id">
+
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="ins_co_name" id="ins_co_name" placeholder="Company Name">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="city" id="city" placeholder="City">
+                </div>
+
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="mobile_no" id="mobile_no" placeholder="Mobile">
+                </div>
+            </div>
+        </form>
+
+        <div id="formErrors" class="text-danger"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-success" id="saveBtn">Save</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+let table;
+
+$(document).ready(function () {
+
+    table = $('#companyTable').DataTable({
+        ajax: '/data/',
+        columns: [
+            { data: 'ins_co_name' },
+            { data: 'city' },
+            { data: 'mobile_no' },
+            {
+                data: 'id',
+                render: function (data) {
+                    return `<button class="btn btn-sm btn-warning editBtn" data-id="${data}">Edit</button>`;
+                }
+            }
+        ]
+    });
+
+});
+
+// ADD
+$('#addBtn').click(function () {
+    $('#companyForm')[0].reset();
+    $('#id').val('');
+    $('#companyModal').modal('show');
+});
+
+// EDIT
+$('#companyTable').on('click', '.editBtn', function () {
+    let id = $(this).data('id');
+
+    $.get(`/get/${id}/`, function (data) {
+        $('#id').val(data.id);
+        $('#ins_co_name').val(data.ins_co_name);
+        $('#city').val(data.city);
+        $('#mobile_no').val(data.mobile_no);
+
+        $('#companyModal').modal('show');
+    });
+});
+
+// SAVE
+$('#saveBtn').click(function () {
+    $.post('/save/', $('#companyForm').serialize(), function (res) {
+        if (res.success) {
+            $('#companyModal').modal('hide');
+            table.ajax.reload();
+        } else {
+            $('#formErrors').html(JSON.stringify(res.errors));
+        }
+    });
+});
+</script>
+{% endblock %}

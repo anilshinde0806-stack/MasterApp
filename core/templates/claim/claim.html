@@ -1,0 +1,1618 @@
+
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-3">
+
+    <div class="card shadow-sm mb-3">
+    <div class="card-body">
+
+        <div class="row g-3 align-items-end">
+
+            <!-- FROM DATE -->
+            <div class="col-md-2">
+                <label class="form-label">
+                    From Date
+                </label>
+
+                <input type="date"
+                       id="from_date"
+                       class="form-control">
+            </div>
+
+            <!-- TO DATE -->
+            <div class="col-md-2">
+                <label class="form-label">
+                    To Date
+                </label>
+
+                <input type="date"
+                       id="to_date"
+                       class="form-control">
+            </div>
+
+            <!-- ADVISOR STATUS -->
+            <div class="col-md-3">
+                <label class="form-label">
+                    Advisor Status
+                </label>
+
+                <select id="advisor_filter"
+                        class="form-select">
+
+                    <option value="">
+                        All
+                    </option>
+
+                    <option value="blank">
+                        Pending Assign
+                    </option>
+
+                    <option value="assigned">
+                        Assigned
+                    </option>
+
+                </select>
+            </div>
+
+            <!-- SEARCH -->
+            <div class="col-md-3">
+                <label class="form-label">
+                    Search
+                </label>
+
+                <input type="text"
+                       id="quickSearch"
+                       class="form-control"
+                       placeholder="Search...">
+            </div>
+
+            <!-- BUTTON -->
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100"
+                        onclick="loadClaims()">
+
+                    Apply Filter
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+<input type="text" id="quickFilter" placeholder="Search..." class="form-control mb-2">
+
+    <button id="toggleColumns" class="btn btn-secondary mb-2">
+    ⚙ Show / Hide Columns
+    </button>
+
+
+<div id="columnManager" class="column-manager d-none">
+
+    <div class="cm-toolbar">
+        <input type="text"
+               id="columnSearch"
+               class="form-control"
+               placeholder="Search column...">
+
+        <button class="btn btn-success btn-sm"
+                onclick="saveColumnState()">
+            Save
+        </button>
+
+        <button class="btn btn-secondary btn-sm"
+                onclick="resetColumns()">
+            Reset
+        </button>
+    </div>
+
+    <div id="columnList"></div>
+</div>
+        <div id="columnPanel"
+     style="display:none; background:#fff; border:1px solid #ddd; padding:10px; border-radius:8px; max-height:250px; overflow:auto;">
+</div>
+        </div>
+       <div id="myGrid"
+
+         class="ag-theme-alpine"
+     style="height: calc(100vh - 180px); width: 100%;">
+</div>
+</div>
+    <!-- ========================================= -->
+<!-- CLAIM REGISTRATION MODAL -->
+<!-- ========================================= -->
+
+<div class="modal fade" id="claimModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+
+            <!-- HEADER -->
+            <div class="modal-header bg-primary text-white">
+                <h4 class="modal-title">
+                    Claim Registration
+                </h4>
+
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal">
+                </button>
+            </div>
+
+            <!-- BODY -->
+            <div class="modal-body bg-light">
+
+                <form id="claimForm">
+
+                    {% csrf_token %}
+
+                    <!-- ========================================= -->
+                    <!-- VEHICLE + CUSTOMER -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-dark text-white">
+                            Vehicle & Customer
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Claim No
+                                    </label>
+
+                                    {{ form.claim_no }}
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                          Registration No
+                                    </label>
+
+                                    {{ form.vehicle }}
+                                </div>
+
+
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Customer
+                                    </label>
+
+                                    {{ form.customer }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========================================= -->
+                    <!-- INSURANCE -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-success text-white">
+                            Insurance Details
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Insurance Company
+                                    </label>
+
+                                    {{ form.insurance_company }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Policy No
+                                    </label>
+
+                                    {{ form.policy_no }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Insurance Claim No
+                                    </label>
+
+                                    {{ form.ic_claim_no }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Claim Type
+                                    </label>
+
+                                    {{ form.claim_type }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========================================= -->
+                    <!-- VEHICLE INWARD -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-warning">
+                            Vehicle Inward
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Gate In Date Time
+                                    </label>
+
+                                    {{ form.gate_in_datetime }}
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label fw-bold">
+                                        Current KM
+                                    </label>
+
+                                    {{ form.km }}
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Fuel Level
+                                    </label>
+
+                                    {{ form.fuel_level }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Vehicle Inward Type
+                                    </label>
+
+                                    {{ form.vehicle_inward_type }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========================================= -->
+                    <!-- ACCIDENT -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-danger text-white">
+                            Accident Details
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Accident Date
+                                    </label>
+
+                                    {{ form.accident_date }}
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Intimation Date
+                                    </label>
+
+                                    {{ form.intimation_date }}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        Remarks
+                                    </label>
+
+                                    {{ form.remarks }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========================================= -->
+                    <!-- SURVEY -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-info text-white">
+                            Survey Details
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Survey Date
+                                    </label>
+
+                                    {{ form.survey_date }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Surveyor
+                                    </label>
+
+                                    {{ form.surveyor }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Survey Status
+                                    </label>
+
+                                    {{ form.survey_status }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========================================= -->
+                    <!-- PART ORDER -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-secondary text-white">
+                            Part Order Details
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Part Order Date
+                                    </label>
+
+                                    {{ form.part_order_date }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Part Order No
+                                    </label>
+
+                                    {{ form.part_order_No }}
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">
+                                        Part Order Status
+                                    </label>
+
+                                    {{ form.part_order_Status }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========================================= -->
+                    <!-- FINANCIAL -->
+                    <!-- ========================================= -->
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-header bg-dark text-white">
+                            Financial Details
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Estimated Amount
+                                    </label>
+
+                                    {{ form.estimated_amount }}
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Approved Amount
+                                    </label>
+
+                                    {{ form.approved_amount }}
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">
+                                        Claim Status
+                                    </label>
+
+                                    {{ form.status }}
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                </form>
+
+            </div>
+
+            <!-- FOOTER -->
+            <div class="modal-footer bg-white">
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                    Close
+                </button>
+
+                <button type="submit"
+                        form="claimForm"
+                        class="btn btn-success px-5">
+                    Save Claim
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+ </div>    <!-- Variant Modal -->
+ <div class="modal fade" id="variantModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Add Variant</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <div class="mb-3">
+            <label>Model</label>
+            <select id="variant_model" class="form-select"></select>
+        </div>
+
+        <div class="mb-3">
+            <label>Variant Name</label>
+            <input type="text" id="variant_name" class="form-control">
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-success" id="saveVariant">Save</button>
+      </div>
+
+    </div>
+  </div>
+ </div>
+   <!-- Model  Modal -->
+    <div class="modal fade" id="modelModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+
+              <div class="modal-header">
+                <h5 class="modal-title">Add Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+
+              <div class="modal-body">
+                <label>Model Name</label>
+                <input type="text" id="model_name" class="form-control">
+                <small id="model_error" class="text-danger"></small>
+              </div>
+
+              <div class="modal-footer">
+                <button class="btn btn-success" id="saveModel">Save</button>
+              </div>
+
+            </div>
+          </div>
+    </div>
+ <div class="modal fade" id="customerCardModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content shadow-lg rounded-4">
+
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">Customer Details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <div class="row g-3">
+
+          <div class="col-md-6">
+            <label class="fw-bold">Name</label>
+            <div id="c_name" class="form-control bg-light"></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="fw-bold">Mobile</label>
+            <div id="c_mobile" class="form-control bg-light"></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="fw-bold">Email</label>
+            <div id="c_email" class="form-control bg-light"></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="fw-bold">City</label>
+            <div id="c_city" class="form-control bg-light"></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="fw-bold">State</label>
+            <div id="c_state" class="form-control bg-light"></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="fw-bold">GST No</label>
+            <div id="c_gst" class="form-control bg-light"></div>
+          </div>
+
+          <div class="col-md-12">
+            <label class="fw-bold">Address</label>
+            <div id="c_address" class="form-control bg-light"></div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="columnModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5>Select Columns</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body" id="columnList1">
+        <!-- dynamic checkboxes -->
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!--ADD VEHICLE   & CUSTOMER -->
+
+
+
+
+<!-- ✅ jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- ✅ Select2 CSS (move to HEAD ideally) -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<!-- ✅ Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+<!-- ✅ INIT (ONLY ONCE, AFTER LOAD) -->
+
+
+
+
+<script>
+
+
+
+    const columnDefs = [
+
+    {
+        headerName: "Primary",
+        children: [
+            { field: "claim_no", headerName: "Claim No", pinned: "left", width: 130 },
+            { field: "vehicle__registration_no", headerName: "Reg No", pinned: "left", width: 120 },
+            { field: "vehicle__customer__name", headerName: "Customer", width: 160 },
+            { field: "vehicle__customer__mobile_no", headerName: "Mobile", width: 120 },
+            { field: "vehicle__model__name", headerName: "Model", width: 130 },
+            {
+                field: "claim_stage_name",
+                headerName: "Stage",
+                width: 160,
+                pinned: "right",
+                cellRenderer: params =>
+                    `<span class="badge bg-info text-dark">${params.value || ""}</span>`
+            },
+        ]
+    },
+
+    {
+        headerName: "Workflow",
+        children: [
+
+            { field: "status", headerName: "Status", width: 110 },
+            { field: "employee__name", headerName: "Advisor", width: 140 },
+            { field: "created_at", headerName: "Created", width: 120 },
+        ]
+    },
+
+    {
+        headerName: "Insurance",
+        children: [
+            { field: "claim_type", headerName: "Type", width: 110 },
+            { field: "insurance_company__ins_co_name", headerName: "Insurance Co", width: 160 },
+            { field: "policy_no", headerName: "Policy No", width: 130 },
+            { field: "ic_claim_no", headerName: "IC Claim No", width: 130 },
+            { field: "surveyor__name", headerName: "Surveyor", width: 140 },
+        ]
+    },
+
+    {
+        headerName: "Dates",
+        children: [
+            { field: "accident_date", headerName: "Accident", width: 120 },
+            { field: "intimation_date", headerName: "Intimation", width: 120 },
+            { field: "survey_date", headerName: "Survey", width: 120 },
+        ]
+    },
+
+    {
+        headerName: "Financial",
+        children: [
+            { field: "estimated_amount", headerName: "Estimate", type: "numericColumn", width: 120 },
+            { field: "approved_amount", headerName: "Approved", type: "numericColumn", width: 120 },
+        ]
+    },
+
+    {
+        headerName: "Notes",
+        children: [
+            { field: "remarks", headerName: "Remarks", width: 220 },
+        ]
+    },
+
+   {
+    headerName: "Action",
+    field: "id",
+    pinned: "right",
+    width: 150,
+
+    cellRenderer: function (params) {
+
+        // ❌ hide button if stage = Claim Created
+        if (params.data.claim_stage_name === "Claim Created") {
+
+            return `
+                <span class="badge bg-secondary">
+                    Pending For Advisor Assign
+                </span>
+            `;
+        }
+
+        // ✅ edit existing job
+        if (params.data.has_jobcard) {
+
+            return `
+                <button class="btn btn-sm btn-success"
+                        onclick="editJob(${params.data.jobcard_id})">
+
+                    <i class="fa fa-pen"></i>
+                    Edit Job
+
+                </button>
+            `;
+        }
+
+        // ✅ create new job
+        return `
+            <button class="btn btn-sm btn-primary"
+                    onclick="openJob(${params.value})">
+
+                <i class="fa fa-plus"></i>
+                Job Card
+
+            </button>
+        `;
+    }
+}
+];
+    // =========================
+    // FORM SUBMIT (AJAX)
+    // =========================
+    const cform = document.getElementById("claimForm");
+
+    if (cform) {
+        cform.addEventListener("submit", function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(cform);
+
+            fetch("", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken")
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log("SERVER RESPONSE:", data);  // 🔥 ADD THIS
+                if (data.status === "success") {
+
+                    showToast("Claim added successfully");
+
+                    lastAddedId = data.id;
+
+                    cform.reset();
+                    // 🔥 CLOSE MODAL
+                        bootstrap.Modal.getInstance(
+                            document.getElementById('claimModal')
+                        ).hide();
+                    loadVehicleGrid();
+
+                } else {
+                   //console.error("FORM ERRORS:", data. errors);  // 🔥 ADD
+                    //showToast("Error saving vehicle", "danger");
+                    // 🔥 CLEAR OLD ERRORS
+    document.querySelectorAll(".error-text").forEach(el => el.remove());
+
+    // 🔥 SHOW NEW ERRORS
+                    for (let field in data. Errors) {
+
+                        const input = document.getElementById("id_" + field);
+
+                        if (input) {
+                            const error = document.createElement("div");
+                            error.className = "text-danger error-text";
+                            error.innerText = data.errors[field][0];
+
+                            input.parentNode.appendChild(error);
+                        }
+                    }
+                }
+
+            });
+        });
+    }
+
+
+
+
+// =========================
+// GRID LOAD
+// =========================
+function loadVehicleGrid() {
+
+   fetch('/api/claim/?advisor_blank=1&t=' + new Date().getTime(), {
+        cache: "no-store"
+    })
+    .then(res => res.json())
+    .then(data => {
+
+      gridApi.setGridOption(
+        'rowData',
+        data
+    );
+
+        if (lastAddedId) {
+            setTimeout(() => highlightRow(lastAddedId), 200);
+        }
+
+    });
+}
+
+
+// =========================
+// HIGHLIGHT
+// =========================
+function highlightRow(id) {
+
+    gridApi.forEachNode(function(node) {
+        if (node.data.id === id) {
+
+            gridApi.ensureNodeVisible(node, 'middle');
+            node.setSelected(true);
+
+            const row = document.querySelector(`[row-id="${node.rowIndex}"]`);
+
+            if (row) {
+                row.classList.add("new-row-highlight");
+
+                setTimeout(() => {
+                    row.classList.remove("new-row-highlight");
+                }, 3000);
+            }
+        }
+    });
+}
+document.getElementById('claimModal').addEventListener('shown.bs.modal', function () {
+    document.getElementById("id_claim_no")?.focus();
+});
+
+// Add Customer Modal
+document.addEventListener("DOMContentLoaded", function () {
+
+    const customerSelect = new TomSelect("#id_vehicle", {
+
+        valueField: "id",
+        labelField: "text",
+        searchField: "text",
+
+        placeholder: "Search or create Vehicle...",
+
+        create: function(input, callback) {
+                //let mobile = prompt("Enter mobile number:");
+
+                fetch('/ajax/add-vehicle/', {
+                                            method: "POST",
+                                            headers: {
+                                            "Content-Type": "application/json",
+                                            "X-CSRFToken": getCookie("csrftoken")
+                                            },
+                                            body: JSON.stringify({
+                                                registration_no: input,
+                                                mobile: mobile
+                })
+        })
+     .then(res => res.json())
+       .then(data => {
+
+        if (data.status === "exists") {
+
+            showToast("Customer already exists, selected existing", "warning");
+
+            callback({
+                id: data.id,
+                text: data.text
+            });
+
+        } else if (data.status === "success") {
+
+            showToast("Vehicle created successfully");
+
+            callback({
+                id: data.id,
+                text: data.text
+            });
+
+        } else {
+            showToast(data.message || "Error", "danger");
+            callback();
+    }
+
+    })
+    .catch(() => callback());
+        },
+
+        load: function(query, callback) {
+            if (!query.length) return callback();
+
+            fetch(`/ajax/vehicle-search/?term=${query}`)
+                .then(res => res.json())
+                .then(data => callback(data.results))
+                .catch(() => callback());
+        },
+
+        onChange: function(value) {
+
+
+                    if (!value || value === "") {
+                        clearVehicleFields();
+                        return;
+                    }
+
+
+            fetch(`/ajax/vehicle-details/?id=${vehicleId}`)
+                .then(res => res.json())
+                .then(data => {
+
+                    if (data.status === "success") {
+
+                        document.getElementById("customer_mobile").value = data.data.mobile || "";
+                        document.getElementById("customer_email").value = data.data.email || "";
+                        document.getElementById("customer_city").value = data.data.city || "";
+                        document.getElementById("customer_gst").value = data.data.gst || "";
+                    }
+
+                });
+
+        }
+
+
+
+
+    });
+
+});
+
+
+function openCustomerCard(customerId) {
+      if (!customerId) {
+        showToast("Please select a customer first", "warning");
+        return;
+    }
+    fetch(`/ajax/customer-details/?id=${customerId}`)
+        .then(res => res.json())
+        .then(data => {
+
+            if (data.status === "success") {
+
+                const d = data.data;
+
+                document.getElementById("c_name").innerText = d.name || "-";
+                document.getElementById("c_mobile").innerText = d.mobile || "-";
+                document.getElementById("c_email").innerText = d.email || "-";
+                document.getElementById("c_city").innerText = d.city || "-";
+                document.getElementById("c_state").innerText = d.state || "-";
+                document.getElementById("c_gst").innerText = d.gst || "-";
+                document.getElementById("c_address").innerText = d.address || "-";
+
+                new bootstrap.Modal(document.getElementById("customerCardModal")).show();
+            }
+
+        });
+
+}
+function clearVehicleFields() {
+    document.querySelectorAll(
+        "#customer_mobile, #customer_email, #customer_city, #customer_gst"
+    ).forEach(el => el.value = "");
+}
+    function fillCustomer(d) {
+    document.getElementById("customer_mobile").value = d.mobile || "";
+    document.getElementById("customer_email").value = d.email || "";
+    document.getElementById("customer_city").value = d.city || "";
+    document.getElementById("customer_gst").value = d.gst || "";
+}
+document.getElementById('quickFilter')
+.addEventListener('input', function () {
+
+    gridApi.setGridOption(
+        'quickFilterText',
+        this.value
+    );
+
+});
+// Grid bottom code
+
+
+
+
+const columnGroups = {
+    "Vehicle Info": [
+        "registration_no",
+        "chassis_no",
+        "engine_no",
+        "color",
+        "sale_date",
+        "vehicle_type"
+    ],
+
+    "Model Info": [
+        "model__name",
+        "variant__name"
+    ],
+
+    "Customer Info": [
+        "customer__name"
+    ]
+};
+
+let gridApi = null;
+let draggedCol = null;
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    // =========================
+    // GRID
+    // =========================
+    gridApi = agGrid.createGrid(
+        document.querySelector("#myGrid"),
+        {
+            rowSelection: "single",
+
+            pagination: true,
+
+            defaultColDef: {
+                sortable: true,
+                filter: true,
+                resizable: true
+            },
+
+            columnDefs: columnDefs,
+          onRowDoubleClicked: function(event) {
+
+            const claimId = event.data.id;
+
+            window.location.href =`/claim/${claimId}/edit/`;
+
+        },
+
+                onGridReady: function(params) {
+            gridApi = params.api;
+        }
+        }
+
+    );
+
+
+    loadVehicleGrid();
+
+    restoreColumnState();
+
+    // =========================
+    // QUICK FILTER
+    // =========================
+    document
+        .getElementById("quickFilter")
+        .addEventListener("input", function () {
+
+            gridApi.setGridOption(
+                "quickFilterText",
+                this.value
+            );
+
+        });
+
+    // =========================
+    // TOGGLE COLUMN PANEL
+    // =========================
+    document
+        .getElementById("toggleColumns")
+        .addEventListener("click", function () {
+
+            toggleColumnPanel();
+
+        });
+
+    // =========================
+    // SEARCH INSIDE PANEL
+    // =========================
+    document
+            .getElementById("columnSearch")
+        .addEventListener("input", function () {
+
+            const term = this.value.toLowerCase();
+
+            document
+                .querySelectorAll(".cm-item")
+                .forEach(item => {
+
+                    item.style.display =
+                        item.innerText.toLowerCase().includes(term)
+                        ? "flex"
+                        : "none";
+
+                });
+
+        });
+
+});
+
+
+// ====================================
+// LOAD GRID DATA
+// ====================================
+function loadVehicleGrid() {
+
+    fetch('/api/claim/')
+        .then(res => res.json())
+        .then(data => {
+
+            gridApi.setGridOption(
+                "rowData",
+                data
+            );
+
+        });
+
+}
+
+
+// ====================================
+// OPEN PANEL
+// ====================================
+function toggleColumnPanel() {
+
+    const panel =
+        document.getElementById("columnManager");
+
+    panel.classList.toggle("d-none");
+
+    if (!panel.classList.contains("d-none")) {
+
+        buildColumnManager();
+
+    }
+}
+
+
+// ====================================
+// BUILD COLUMN MANAGER
+// ====================================
+function buildColumnManager() {
+
+    const container =
+        document.getElementById("columnList");
+
+    container.innerHTML = "";
+
+    const columns = gridApi.getColumns();
+
+    Object.keys(columnGroups).forEach(group => {
+
+        // GROUP TITLE
+        const title = document.createElement("div");
+
+        title.className = "cm-group";
+
+        title.innerText = group;
+
+        container.appendChild(title);
+
+        // COLUMNS
+        columnGroups[group].forEach(colId => {
+
+            const col =
+                columns.find(
+                    c => c.getColId() === colId
+                );
+
+            if (!col) return;
+
+            const item =
+                document.createElement("div");
+
+            item.className = "cm-item";
+
+            item.draggable = true;
+
+            item.dataset.col = colId;
+
+            item.innerHTML = `
+                <span>
+                    ${colId.replaceAll("_", " ")}
+                </span>
+
+                <input type="checkbox"
+                    ${col.isVisible() ? "checked" : ""}
+                >
+            `;
+
+            // ==================
+            // SHOW/HIDE
+            // ==================
+            item.querySelector("input")
+                .addEventListener("change", function () {
+
+                    gridApi.setColumnsVisible(
+                        [colId],
+                        this.checked
+                    );
+
+                    saveColumnState();
+
+                });
+
+            // ==================
+            // DRAG EVENTS
+            // ==================
+            item.addEventListener(
+                "dragstart",
+                dragStart
+            );
+
+            item.addEventListener(
+                "dragover",
+                dragOver
+            );
+
+            item.addEventListener(
+                "drop",
+                drop
+            );
+
+            container.appendChild(item);
+
+        });
+
+    });
+
+}
+
+
+// ====================================
+// DRAG START
+// ====================================
+function dragStart() {
+
+    draggedCol = this.dataset.col;
+
+}
+
+
+// ====================================
+// DRAG OVER
+// ====================================
+function dragOver(e) {
+
+    e.preventDefault();
+
+}
+
+
+// ====================================
+// DROP
+// ====================================
+function drop() {
+
+    const targetCol = this.dataset.col;
+
+    if (
+        !draggedCol ||
+        draggedCol === targetCol
+    ) return;
+
+    const state =
+        gridApi.getColumnState();
+
+    const fromIndex =
+        state.findIndex(
+            c => c.colId === draggedCol
+        );
+
+    const toIndex =
+        state.findIndex(
+            c => c.colId === targetCol
+        );
+
+    const moved =
+        state.splice(fromIndex, 1)[0];
+
+    state.splice(toIndex, 0, moved);
+
+    gridApi.applyColumnState({
+        state: state,
+        applyOrder: true
+    });
+
+    saveColumnState();
+
+    buildColumnManager();
+
+}
+
+
+// ====================================
+// SAVE
+// ====================================
+function saveColumnState() {
+
+    const state =
+        gridApi.getColumnState();
+
+    localStorage.setItem(
+        "vehicleGridColumns",
+        JSON.stringify(state)
+    );
+
+    showToast("Preferences saved");
+
+}
+
+
+// ====================================
+// RESTORE
+// ====================================
+function restoreColumnState() {
+
+    const saved =
+        localStorage.getItem(
+            "vehicleGridColumns"
+        );
+
+    if (!saved) return;
+
+    try {
+
+        gridApi.applyColumnState({
+            state: JSON.parse(saved),
+            applyOrder: true
+        });
+
+    } catch (err) {
+
+        console.error(err);
+
+    }
+
+}
+
+
+// ====================================
+// RESET
+// ====================================
+function resetColumns() {
+
+    localStorage.removeItem(
+        "vehicleGridColumns"
+    );
+
+    gridApi.resetColumnState();
+
+    buildColumnManager();
+
+    showToast("Columns reset");
+
+}
+
+
+    // FORM SUBMIT (AJAX)
+    // =========================
+    const form = document.getElementById("vehicleForm");
+
+    if (form) {
+        form.addEventListener("submit", function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+
+            fetch("", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken")
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log("SERVER RESPONSE:", data);  // 🔥 ADD THIS
+                if (data.status === "success") {
+
+                    showToast("Vehicle added successfully");
+
+                    lastAddedId = data.id;
+
+                    form.reset();
+                    // 🔥 CLOSE MODAL
+                        bootstrap.Modal.getInstance(
+                            document.getElementById('vehicleModal')
+                        ).hide();
+                    loadVehicleGrid();
+
+                } else {
+                   //console.error("FORM ERRORS:", data. errors);  // 🔥 ADD
+                    //showToast("Error saving vehicle", "danger");
+                    // 🔥 CLEAR OLD ERRORS
+    document.querySelectorAll(".error-text").forEach(el => el.remove());
+
+    // 🔥 SHOW NEW ERRORS
+                    for (let field in data. Errors) {
+
+                        const input = document.getElementById("id_" + field);
+
+                        if (input) {
+                            const error = document.createElement("div");
+                            error.className = "text-danger error-text";
+                            error.innerText = data.errors[field][0];
+
+                            input.parentNode.appendChild(error);
+                        }
+                    }
+                }
+
+            });
+        });
+    }
+
+
+    // =========================
+    // MODEL → VARIANT DEPENDENT
+    // =========================
+    const modelDropdown = document.getElementById("id_model");
+
+    if (modelDropdown) {
+        modelDropdown.addEventListener("change", function () {
+
+            fetch(`/ajax/load-variants/?model_id=${this.value}`)
+                .then(res => res.json())
+                .then(data => {
+
+                    const variantDropdown = document.getElementById("id_variant");
+
+                    variantDropdown.innerHTML = '<option value="">Select Variant</option>';
+
+                    data.forEach(v => {
+                        variantDropdown.innerHTML += `<option value="${v.id}">${v.name}</option>`;
+                    });
+
+                });
+
+        });
+    }
+
+
+    // =========================
+    // ADD MODEL
+    // =========================
+    const saveModelBtn = document.getElementById("saveModel");
+
+    if (saveModelBtn) {
+        saveModelBtn.addEventListener("click", function () {
+
+            const name = document.getElementById("model_name").value;
+            const errorBox = document.getElementById("model_error");
+
+            fetch('/ajax/add-model/', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: JSON.stringify({ name: name })
+            })
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.status === "error") {
+                    errorBox.innerText = data.message;
+                    return;
+                }
+
+                showToast("Model added successfully");
+
+                modelDropdown.innerHTML += `<option value="${data.id}" selected>${data.name}</option>`;
+
+                bootstrap.Modal.getInstance(document.getElementById('modelModal')).hide();
+
+                document.getElementById("model_name").value = "";
+                errorBox.innerText = "";
+            });
+        });
+    }
+
+
+    // =========================
+    // ADD VARIANT
+    // =========================
+    const saveVariantBtn = document.getElementById("saveVariant");
+
+    if (saveVariantBtn) {
+        saveVariantBtn.addEventListener("click", function () {
+
+            const modelId = document.getElementById("id_model").value;
+            const name = document.getElementById("variant_name").value;
+
+            if (!modelId) {
+                alert("Select model first");
+                return;
+            }
+
+            fetch('/ajax/add-variant/', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: JSON.stringify({
+                    model_id: modelId,
+                    name: name
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.status === "error") {
+                    showToast(data.message, "danger");
+                    return;
+                }
+
+                showToast("Variant added successfully");
+
+                const variantDropdown = document.getElementById("id_variant");
+                variantDropdown.innerHTML += `<option value="${data.id}" selected>${data.name}</option>`;
+
+                bootstrap.Modal.getInstance(document.getElementById('variantModal')).hide();
+
+                document.getElementById("variant_name").value = "";
+            });
+        });
+    }
+  function loadClaims() {
+
+    const fromDate =
+        document.getElementById("from_date").value;
+
+    const toDate =
+        document.getElementById("to_date").value;
+
+    const advisorFilter =
+        document.getElementById("advisor_filter").value;
+
+    let url =
+        '/api/claim/?t=' + new Date().getTime();
+
+    // DATE FILTER
+    if (fromDate) {
+        url += '&from_date=' + fromDate;
+    }
+
+    if (toDate) {
+        url += '&to_date=' + toDate;
+    }
+
+    // ADVISOR FILTER
+    if (advisorFilter === "blank") {
+        url += '&advisor_blank=1';
+    }
+
+    if (advisorFilter === "assigned") {
+        url += '&advisor_assigned=1';
+    }
+
+    fetch(url)
+
+    .then(res => res.json())
+
+    .then(data => {
+
+      gridApi.setGridOption(
+        'rowData',
+        data
+    );
+
+    });
+
+}
+function openJob(claimId) {
+
+    window.location.href =
+        `/jobCreate/${claimId}/`;
+}
+
+function editJob(jobId) {
+
+    window.location.href =
+        `/jobCard/${jobId}/edit/`;
+}
+</script>
+
+
+
+
+
+
+
+{% endblock %}

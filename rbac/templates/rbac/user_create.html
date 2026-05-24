@@ -1,0 +1,154 @@
+{% extends "registration/auth_base.html" %}
+
+{% block content %}
+
+<div class="card">
+
+<div class="card-header">
+
+Create User
+
+</div>
+
+<div class="card-body">
+
+<form method="POST">
+
+{% csrf_token %}
+
+<div class="mb-3">
+
+<label>User Name</label>
+
+<input class="form-control"
+name="username">
+
+</div>
+
+<div class="mb-3">
+
+<label>Password</label>
+
+<input class="form-control"
+name="password"
+type="password">
+
+</div>
+
+<hr>
+
+<h5>
+
+Menu Permission
+
+</h5>
+
+<ul class="tree">
+
+{% for menu in menus %}
+
+<li>
+
+<label>
+
+<input type="checkbox"
+
+name="menus"
+
+value="{{ menu.id }}"
+
+class="parent-menu">
+
+<b>
+
+{{ menu.name }}
+
+</b>
+
+</label>
+
+<ul>
+
+{% for sub in menu.menu_set.all %}
+
+<li>
+
+<label>
+
+<input type="checkbox"
+
+name="menus"
+
+value="{{ sub.id }}">
+
+{{ sub.name }}
+
+</label>
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+<button class="btn btn-success">
+
+Save User
+
+</button>
+
+</form>
+
+</div>
+
+</div>
+<script>
+
+    document
+    .querySelectorAll(
+    ".parent-menu"
+    )
+
+    .forEach(
+
+    e=>{
+
+    e.addEventListener(
+
+    "change",
+
+    function(){
+
+    this.closest("li")
+
+    .querySelectorAll(
+    "ul input"
+    )
+
+    .forEach(
+
+    c=>{
+
+    c.checked=
+    this.checked
+
+    }
+
+    )
+
+    }
+
+    )
+
+    }
+
+    )
+
+</script>
+{% endblock %}

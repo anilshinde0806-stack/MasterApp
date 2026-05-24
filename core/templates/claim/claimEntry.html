@@ -1,0 +1,3180 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Claim Entry{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-3">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><h3 class="mb-0"> Insurance Claim Registration</h3></div>
+        <div class="text-end">
+            <span class="badge bg-warning text-dark fs-6">
+                Pending From Days: {{ pending_days|default:0 }}
+            </span>
+        </div>
+    </div>
+
+    <!-- STEP BAR -->
+    <div class="step-bar mb-4">
+
+        {% for no, label in stage_steps %}
+        <div class="step {% if current_stage >= no %}active{% endif %}">
+            <div class="step-no">{{ no }}</div>
+            <div class="step-text">
+
+                                    <span class="stage-badge
+
+                                    {% if current_stage == no %}
+                                        current-stage
+                                    {% endif %}
+
+                                    ">
+
+                                        {{ label }}
+
+                                    </span>
+
+            </div>
+        </div>
+
+        {% if not forloop.last %}
+        <div class="step-line"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    <!-- FORM -->
+    <form action="{% if claim %}/claim/{{ claim.id }}/edit/{% else %}/claim/save/{% endif %}"
+          enctype="multipart/form-data" id="claimForm"
+          method="post">
+
+        {% csrf_token %}
+
+        <div class="row g-3">
+
+            <!-- LEFT -->
+            <div class="col-lg-8">
+
+                <!-- CLAIM INFO -->
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection1">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Claim Information</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <input id="claim_id"
+                                   name="id"
+                                   type="hidden"
+                                   value="{{ claim.id|default:'' }}">
+
+                            <div class="col-md-3">
+                                <label class="form-label">Claim No</label>
+                                {{ form.claim_no }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Claim Type</label>
+                                {{ form.claim_type }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Claim Created Date</label>
+                                <input class="form-control"
+                                       type="date"
+                                       name="claim_created_date"
+                                       value="{{ claim_created_date_value }}">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Status</label>
+
+                                {% if request.user.is_superuser %}
+                                {{ form.status }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       type="text"
+                                       value="{{ form.instance.status|default:'Open' }}">
+
+                                <input name="status"
+                                       type="hidden"
+                                       value="{{ form.instance.status|default:'Open' }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Vehicle</label>
+
+                                {% if claim and claim.id %}
+                                <div class="form-control bg-light fw-bold">
+                                    {{ claim.vehicle.registration_no }}
+
+                                    {% if claim.vehicle.model %}
+                                    - {{ claim.vehicle.model.name }}
+                                    {% endif %}
+                                </div>
+
+                                <input name="vehicle"
+                                       type="hidden"
+                                       value="{{ claim.vehicle.id }}">
+                                {% else %}
+                                <select class="form-select"
+                                        id="id_vehicle"
+                                        name="vehicle">
+                                </select>
+
+                                <small class="text-muted">
+                                    Search registration no
+                                </small>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Advisor</label>
+
+                                {% if can_change_advisor %}
+                                {{ form.employee }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       type="text"
+                                       value="{{ logged_emp.name }}">
+
+                                <input name="employee"
+                                       type="hidden"
+                                       value="{{ logged_emp.id }}">
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                {% if current_stage >= 3 %}
+
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection3">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Claim Intimation</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                <label class="form-label">Intimation Date</label>
+
+                                {% if current_stage == 3 or request.user.is_superuser or is_manager %}
+                                {{ form.intimation_date }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.intimation_date|date:'Y-m-d' }}">
+
+                                <input name="intimation_date"
+                                       type="hidden"
+                                       value="{{ claim.intimation_date|date:'Y-m-d' }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Insurance Company</label>
+
+                                {% if current_stage == 3 or request.user.is_superuser or is_manager %}
+                                {{ form.insurance_company }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.insurance_company|default:'' }}">
+
+                                <input name="insurance_company"
+                                       type="hidden"
+                                       value="{{ claim.insurance_company_id }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Policy No</label>
+
+                                {% if current_stage == 3 or request.user.is_superuser or is_manager %}
+                                {{ form.policy_no }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.policy_no|default:'' }}">
+
+                                <input name="policy_no"
+                                       type="hidden"
+                                       value="{{ claim.policy_no|default:'' }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Insurance Claim No</label>
+
+                                {% if current_stage == 3 or request.user.is_superuser or is_manager %}
+                                {{ form.ic_claim_no }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.ic_claim_no|default:'' }}">
+
+                                <input name="ic_claim_no"
+                                       type="hidden"
+                                       value="{{ claim.ic_claim_no|default:'' }}">
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+
+                {% if current_stage >= 4 %}
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Survey Details</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                <label class="form-label">Survey Date</label>
+
+                                {% if current_stage == 4 or request.user.is_superuser or is_manager %}
+                                {{ form.survey_date }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.survey_date|date:'Y-m-d' }}">
+
+                                <input name="survey_date"
+                                       type="hidden"
+                                       value="{{ claim.survey_date|date:'Y-m-d' }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Surveyor</label>
+
+                                {% if current_stage == 4 or request.user.is_superuser or is_manager %}
+                                {{ form.surveyor }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.surveyor.name|default:'' }}">
+
+                                <input name="surveyor"
+                                       type="hidden"
+                                       value="{{ claim.surveyor_id }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Survey Status</label>
+
+                                {% if current_stage == 4 or request.user.is_superuser or is_manager %}
+                                {{ form.survey_status }}
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.survey_status|default:'' }}">
+
+                                <input name="survey_status"
+                                       type="hidden"
+                                       value="{{ claim.survey_status|default:'' }}">
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if current_stage >= 5 %}
+
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection5">
+
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">
+                            Insurance Approval
+                        </h5>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <!-- APPROVAL DATE -->
+                            <div class="col-md-3">
+
+                                <label class="form-label">
+                                    Approval Date
+                                </label>
+
+                                {% if current_stage == 5 or request.user.is_superuser or is_manager %}
+
+                                {{ form.insurance_approval_date }}
+
+                                {% else %}
+
+                                <input class="form-control"
+                                       readonly
+                                       value="{{ claim.insurance_approval_date|date:'Y-m-d' }}">
+
+                                <input name="insurance_approval_date"
+                                       type="hidden"
+                                       value="{{ claim.insurance_approval_date|date:'Y-m-d' }}">
+
+                                {% endif %}
+
+                            </div>
+
+                            <!-- ASSESSMENT FILE -->
+                            <div class="col-md-3">
+
+                                <label class="form-label">
+                                    Assessment File
+                                </label>
+
+                                {% if current_stage == 5 or request.user.is_superuser or is_manager %}
+
+                                {{ form.assessment_file }}
+
+                                {% else %}
+
+                                {% if claim.assessment_file %}
+
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="{{ claim.assessment_file.url }}"
+                                   target="_blank">
+
+                                    View File
+
+                                </a>
+
+                                {% else %}
+
+                                <input class="form-control"
+                                       readonly
+                                       value="">
+
+                                {% endif %}
+
+                                {% endif %}
+
+                                {% if claim.jobcard %}
+
+                                <button class="btn btn-primary mt-2"
+                                        onclick="openAssessmentModal({{ claim.jobcard.id }})"
+                                        type="button">
+
+                                    Open Assessment
+
+                                </button>
+
+                                {% endif %}
+
+                            </div>
+                            <!-- NOTE -->
+                            <div class="col-md-12">
+
+                                <label class="form-label">
+                                    Insurance Co Note / Requirement
+                                </label>
+
+                                {% if current_stage == 5 or request.user.is_superuser or is_manager %}
+
+                                {{ form.insurance_note }}
+
+                                {% else %}
+
+                                <textarea class="form-control"
+                                          readonly>{{ claim.insurance_note }}</textarea>
+
+                                <input name="insurance_note"
+                                       type="hidden"
+                                       value="{{ claim.insurance_note|default:'' }}">
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                {% endif %}
+
+                {% if jobcard and current_stage >= 10 %}
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection10">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Re-Inspection</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <div class="form-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           id="claimReinspectionDone"
+                                           name="reinspection_done"
+                                           value="1"
+                                           {% if jobcard.reinspection_done %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold" for="claimReinspectionDone">
+                                        RI Done
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">RI Date</label>
+                                <input class="form-control"
+                                       type="date"
+                                       name="reinspection_date"
+                                       value="{{ jobcard.reinspection_date|date:'Y-m-d' }}">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">RI Done By</label>
+                                <input class="form-control"
+                                       type="text"
+                                       name="reinspection_done_by"
+                                       value="{{ jobcard.reinspection_done_by|default:'' }}">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Upload Images</label>
+                                <input class="form-control"
+                                       type="file"
+                                       id="claimReinspectionImages"
+                                       name="reinspection_images"
+                                       accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                                       multiple>
+                            </div>
+
+                            <div class="col-md-8">
+                                <small class="text-muted">
+                                    Max {{ reinspection_max_photos }} images,
+                                    {{ reinspection_max_image_size_mb }} MB each,
+                                    {{ reinspection_max_total_size_mb }} MB total.
+                                    Existing: {{ existing_reinspection_photo_count }} images /
+                                    {{ existing_reinspection_photo_size_mb }} MB.
+                                </small>
+                            </div>
+
+                            <div class="col-md-4 text-end">
+                                {% if jobcard.reinspection_photos.exists %}
+                                <a class="btn btn-outline-primary btn-sm"
+                                   href="/work-allocation/{{ jobcard.id }}/reinspection-photos/"
+                                   target="_blank">
+                                    View Images
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if claim and current_stage >= 11 %}
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection11">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Liability</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Pre-Invoice Send Date & Time</label>
+                                {{ form.pre_invoice_sent_at }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Pre-Invoice Part</label>
+                                {{ form.pre_invoice_part_amount }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Pre-Invoice Labour</label>
+                                {{ form.pre_invoice_labour_amount }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Pre-Invoice Total Amount</label>
+                                {{ form.pre_invoice_total_amount }}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Pre-Invoice Upload</label>
+                                {{ form.pre_invoice_file }}
+                                {% if claim.pre_invoice_file %}
+                                <a class="btn btn-outline-primary btn-sm mt-2"
+                                   href="{{ claim.pre_invoice_file.url }}"
+                                   target="_blank">
+                                    View Uploaded Pre-Invoice
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Insurance Co Liability Received Date & Time</label>
+                                {{ form.liability_received_at }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Liability / DO Amount</label>
+                                {{ form.liability_do_amount }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Upload DO Letter or E-mail</label>
+                                {{ form.liability_document }}
+                                {% if claim.liability_document %}
+                                <a class="btn btn-outline-primary btn-sm mt-2"
+                                   href="{{ claim.liability_document.url }}"
+                                   target="_blank">
+                                    View DO Letter / E-mail
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if claim and current_stage >= 12 %}
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection12">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Invoiced</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Invoice Date & Time</label>
+                                {{ form.invoice_datetime }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Invoice Amount</label>
+                                {{ form.invoice_amount }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Parts Amount</label>
+                                {{ form.invoice_parts_amount }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Labour Amount</label>
+                                {{ form.invoice_labour_amount }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Customer Difference Amount</label>
+                                {{ form.customer_difference_amount }}
+                                <small class="text-muted">Invoice Amount - DO Amount</small>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Payment Mode</label>
+                                {{ form.payment_mode }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Payment Details</label>
+                                {{ form.payment_details }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-lg-3 claim-side-col">
+                <div class="claim-side-sticky">
+
+                <!-- CUSTOMER SNAPSHOT -->
+                <div class="card compact-card shadow-sm mb-2">
+
+                    <div class="card-body py-2">
+
+                        <div class="row small">
+
+                            <div class="col-6">
+                                <b>Name</b><br>
+                                <span id="c_name">-</span>
+                            </div>
+
+                            <div class="col-6">
+                                <b>Mobile</b><br>
+                                <span id="c_mobile">-</span>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+
+                <!-- VEHICLE SNAPSHOT -->
+
+
+                <div class="card compact-card shadow-sm mb-2">
+                    <div class="card-body py-2">
+                        <div class="row small">
+
+                            <div class="col-6">
+                                <label>Registration</label>
+                                <div id="v_reg">-</div>
+                            </div>
+
+                            <div class="col-6">
+                                <label>Model</label>
+                                <div id="v_model">-</div>
+                            </div>
+
+                            <div class="col-6">
+                                <label>Variant</label>
+                                <div id="v_variant">-</div>
+                            </div>
+
+                            <div class="col-6">
+                                <label>Color</label>
+                                <div id="v_color">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+
+                        {% if claim and claim.id %}
+
+                        <div class="mb-3">
+
+                            <div class="workflow-row">
+
+                                <!-- CURRENT -->
+
+                                <div class="workflow-col">
+
+                                                                    <span class="workflow-label">
+
+                                                                        Current Stage :
+
+                                                                    </span>
+
+                                    <span class="stage-badge stage-{{ claim.claim_stage }}">
+
+                                                                        {{ claim.get_claim_stage_display }}
+
+                                                                    </span>
+
+                                </div>
+
+                                <!-- NEXT -->
+
+                                <div class="workflow-col">
+
+                                                                    <span class="workflow-label">
+
+                                                                        Next Stage :
+
+                                                                    </span>
+
+                                    <span class="next-stage">
+                                                                        {{ next_stage_label }}
+
+                                                                    </span>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="d-flex gap-2 mb-3">
+
+                            {% if claim.claim_stage > 1 %}
+                            <a class="btn btn-outline-secondary btn-sm w-50"
+                               href="{% url 'claim_edit' claim.id %}?move_stage=back">
+                                ← Previous
+                            </a>
+                            {% endif %}
+
+                            {% if claim.claim_stage < 14 %}
+                            <a class="btn btn-primary btn-sm w-50"
+                               href="{% url 'claim_edit' claim.id %}?move_stage=next" id="nextStageBtn">
+                                Next →
+                            </a>
+                            {% endif %}
+
+                        </div>
+
+                        {% else %}
+
+                        <div class="alert alert-secondary py-2">
+                            Save claim first to use workflow stages.
+                        </div>
+
+                        {% endif %}
+
+                        <button class="btn btn-success w-100 mb-2"
+                                type="submit">
+                            Save Claim
+                        </button>
+
+
+                    </div>
+
+                </div>
+
+            </div>
+            </div>
+        </div>
+
+    </form>
+
+
+    <!-- VEHICLE MODAL -->
+    <div class="modal fade"
+         id="vehicleModal"
+         tabindex="-1">
+
+        <div class="modal-dialog vehicle-modal-dialog">
+
+            <div class="modal-content">
+
+                <div class="modal-header bg-dark text-white">
+
+                    <h5 class="modal-title">
+                        Add Vehicle
+                    </h5>
+
+                    <button class="btn-close btn-close-white"
+                            data-bs-dismiss="modal"
+                            type="button">
+                    </button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <form id="vehicleForm"
+                          method="post">
+
+                        {% csrf_token %}
+
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.registration_no.label_tag }}
+                                {{ vehicle_form.registration_no }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.chassis_no.label_tag }}
+                                {{ vehicle_form.chassis_no }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.engine_no.label_tag }}
+                                {{ vehicle_form.engine_no }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.vehicle_type.label_tag }}
+                                {{ vehicle_form.vehicle_type }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.model.label_tag }}
+                                {{ vehicle_form.model }}
+                                <button class="btn btn-outline-primary ms-2" data-bs-target="#modelModal"
+                                        data-bs-toggle="modal"
+                                        type="button">
+                                    +
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.variant.label_tag }}
+                                {{ vehicle_form.variant }}
+                                <button class="btn btn-outline-primary ms-2" data-bs-target="#variantModal"
+                                        data-bs-toggle="modal"
+                                        type="button">
+                                    +
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.color.label_tag }}
+                                {{ vehicle_form.color }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.sale_date.label_tag }}
+                                {{ vehicle_form.sale_date }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ form.customer.label_tag }}
+                                {{ vehicle_form.customer }}
+                                <button class="btn btn-outline-secondary mt-2"
+                                        onclick="openCustomerCard(document.getElementById('id_customer').value)"
+                                        type="button">
+                                    👁 View Customer
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <div class="text-end mt-4">
+
+                            <button class="btn btn-success"
+                                    id="saveVehicleBtn"
+                                    type="button">
+
+
+                                Save Vehicle
+
+                            </button>
+
+                        </div>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+    <!-- Variant Modal -->
+    <div class="modal fade" id="variantModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Variant</h5>
+                    <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+                        <label>Model</label>
+                        <select class="form-select" id="variant_model"></select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label>Variant Name</label>
+                        <input class="form-control" id="variant_name" type="text">
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-success" id="saveVariant">Save</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <!-- Model  Modal -->
+    <div class="modal fade" id="modelModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Model</h5>
+                    <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+                </div>
+
+                <div class="modal-body">
+                    <label>Model Name</label>
+                    <input class="form-control" id="model_name" type="text">
+                    <small class="text-danger" id="model_error"></small>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-success" id="saveModel">Save</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer view -->
+    <div class="modal fade" id="customerCardModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Customer Details</h5>
+                    <button class="btn-close"
+                            data-bs-dismiss="modal"
+                            type="button"></button>
+                </div>
+
+                <div class="modal-body">
+                    <p>Name: <span id="modal_c_name"></span></p>
+                    <p>Mobile: <span id="modal_c_mobile"></span></p>
+                    <p>Email: <span id="modal_c_email"></span></p>
+                    <p>Address: <span id="modal_c_address"></span></p>
+                    <p>City: <span id="modal_c_city"></span></p>
+                    <p>State: <span id="modal_c_state"></span></p>
+                    <p>GST: <span id="modal_c_gst"></span></p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="assessmentModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen-xl-down assessment-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">Insurance Assessment</h5>
+                    <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="assessment-grid">
+
+                        <div>
+
+                            <h6 class="mb-2">
+                                Parts Assessment
+                            </h6>
+
+                            <table class="table table-bordered compact-table">
+
+                                <thead>
+
+                                <tr>
+
+                                    <th>Part</th>
+
+                                    <th>Part Description</th>
+
+                                    <th>Amount</th>
+
+                                    <th>Surveyor Assessment</th>
+                                    <th>Revised Amount</th>
+
+                                </tr>
+
+                                </thead>
+
+                                <tbody id="assessmentPartsBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                        <div>
+
+                            <h6 class="mb-2">
+                                Labour Assessment
+                            </h6>
+
+                            <table class="table table-bordered compact-table">
+
+                                <thead>
+
+                                <tr>
+
+                                    <th>Job Code</th>
+
+                                    <th>Job Description</th>
+
+                                    <th>Amount</th>
+
+                                    <th>Surveyor Assessment</th>
+                                    <th>Painting Deduction %</th>
+                                    <th>Revised Amount</th>
+
+                                </tr>
+
+                                </thead>
+
+                                <tbody id="assessmentLabourBody">
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+                        <div class="mt-3">
+                                             <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary"
+                                    onclick="addAssessmentPartRow()"
+                                    type="button">
+                                + Part
+                            </button>
+
+                            <button class="btn btn-outline-primary"
+                                    onclick="addAssessmentLabourRow()"
+                                    type="button">
+                                + Labour
+                            </button>
+                            </div>
+                          <h6 class="mb-2">Surveyor Approved Entries</h6>
+
+                           <table class="table table-bordered compact-table">
+                            <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Code / Part No</th>
+                                <th>Description</th>
+                                <th>Original Amount</th>
+                                <th>Surveyor Decision</th>
+                                <th>Approved Amount</th>
+                            </tr>
+                            </thead>
+
+                            <tbody id="surveyorApprovedBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">
+                                    No approved entries
+                                </td>
+                            </tr>
+                            </tbody>
+                             </table>
+                          </div>
+                          <div class="text-end mt-2">
+
+                          <button class="btn btn-outline-secondary"
+                                onclick="printAssessmentReport()"
+                                type="button">
+
+                            Print Assessment
+
+                        </button>
+
+                          <button class="btn btn-success"
+                                onclick="saveAssessment()"
+                                type="button">
+
+                            Save Assessment
+
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- CSS -->
+<style>
+    .current-stage{
+
+    position:relative;
+
+    animation:
+        stagePulse 1.5s infinite;
+
+    z-index:1;
+}
+.current-stage::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:-4px;
+
+    border-radius:20px;
+
+    background:#198754;
+
+    opacity:.25;
+
+    z-index:-1;
+
+    animation:
+        stageGlow 1.5s infinite;
+}
+.workflow-row{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    gap:10px;
+
+    padding:10px;
+
+    border-radius:12px;
+
+    background:#f8f9fa;
+
+    border:1px solid #e9ecef;
+
+    flex-wrap:wrap;
+}
+
+.workflow-col{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:8px;
+
+    flex-wrap:wrap;
+}
+
+.workflow-label{
+
+    font-size:11px;
+
+    font-weight:700;
+
+    color:#6c757d;
+
+    white-space:nowrap;
+}
+
+.next-stage{
+
+    padding:6px 12px;
+
+    border-radius:18px;
+
+    background:#eef4ff;
+
+    color:#0d6efd;
+
+    font-size:12px;
+
+    font-weight:600;
+
+    border:1px dashed #0d6efd;
+}
+
+.workflow-item{
+
+    margin-bottom:10px;
+}
+
+.workflow-item:last-child{
+
+    margin-bottom:0;
+}
+
+
+
+.stage-arrow{
+
+    font-size:20px;
+
+    font-weight:700;
+
+    color:#6c757d;
+}
+
+.next-stage{
+
+    padding:8px 14px;
+
+    border-radius:20px;
+
+    background:#eef4ff;
+
+    color:#0d6efd;
+
+    font-size:12px;
+
+    font-weight:600;
+
+    border:1px dashed #0d6efd;
+}
+    /* ASSESSMENT MODAL */
+
+.assessment-dialog{
+
+    max-width:95vw !important;
+
+    width:95vw;
+
+    margin:10px auto;
+}
+
+#assessmentModal .modal-content{
+
+    border-radius:14px;
+
+    height:90vh;
+}
+
+#assessmentModal .modal-body{
+
+    padding:10px;
+
+    overflow-y:auto;
+}
+
+/* COMPACT TABLE */
+
+.compact-table{
+
+    font-size:12px;
+
+    margin-bottom:8px;
+}
+
+.compact-table th{
+
+    background:#f8f9fa;
+
+    padding:6px;
+
+    white-space:nowrap;
+
+    position:sticky;
+
+    top:0;
+
+    z-index:5;
+}
+
+.compact-table td{
+
+    padding:4px 6px;
+
+    vertical-align:middle;
+}
+
+.compact-table .form-control,
+.compact-table .form-select{
+
+    min-height:30px;
+
+    font-size:12px;
+
+    padding:2px 6px;
+}
+
+/* PART + LABOUR IN SAME ROW */
+
+.assessment-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr 1fr;
+
+    gap:10px;
+}
+
+@media(max-width:992px){
+
+    .assessment-grid{
+
+        grid-template-columns:1fr;
+    }
+
+    .assessment-dialog{
+
+        width:100vw;
+
+        max-width:100vw !important;
+
+        margin:0;
+    }
+}
+/* CURRENT STAGE BLINK */
+
+.stage-badge{
+
+    position:relative;
+
+    animation:
+        stagePulse 1.5s infinite;
+
+}
+
+/* OUTER GLOW */
+
+.stage-badge::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:-4px;
+
+    border-radius:25px;
+
+    background:inherit;
+
+    opacity:.35;
+
+    z-index:-1;
+
+    animation:
+        stageGlow 1.5s infinite;
+}
+
+/* PULSE */
+
+@keyframes stagePulse{
+
+    0%{
+        transform:scale(1);
+    }
+
+    50%{
+        transform:scale(1.08);
+    }
+
+    100%{
+        transform:scale(1);
+    }
+}
+
+@keyframes stageGlow{
+
+    0%{
+        opacity:.25;
+    }
+
+    50%{
+        opacity:.55;
+    }
+
+    100%{
+        opacity:.25;
+    }
+}
+
+/* CLAIM CREATED */
+.stage-1 {
+    background: #6c757d;
+}
+
+/* ADVISOR ASSIGNED */
+.stage-2 {
+    background: #0d6efd;
+}
+
+/* INTIMATION */
+.stage-3 {
+    background: #17a2b8;
+}
+
+/* SURVEY */
+.stage-4 {
+    background: #fd7e14;
+}
+
+/* INSURANCE APPROVAL */
+.stage-5 {
+    background: #6610f2;
+}
+
+/* ESTIMATE CREATED */
+.stage-6 {
+    background: #198754;
+}
+
+/* JOB CARD CREATED */
+.stage-7 {
+    background: #20c997;
+}
+
+/* DELIVERY */
+.stage-8 {
+    background: #212529;
+}
+.sticky-right{
+    position: sticky;
+    top: 75px;
+}
+body{
+    background:#f4f6f9;
+}
+
+.step-bar{
+    overflow-x:auto;
+    white-space:nowrap;
+    flex-wrap:nowrap;
+}
+
+.step{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.step-no{
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    background:#dee2e6;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:600;
+}
+
+.step.active .step-no{
+    background:#198754;
+    color:#fff;
+}
+
+.step-line{
+    height:2px;
+    width:60px;
+    background:#ddd;
+    margin:0 15px;
+}
+
+.compact-card .card-body{
+    padding: 12px;
+}
+
+.compact-card .card-header{
+    padding: 10px 14px;
+}
+
+.compact-card .form-control,
+.compact-card .form-select{
+    min-height: 34px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+.compact-card label{
+    font-size: 11px;
+    margin-bottom: 2px;
+    color:#666;
+}
+
+.card-header{
+    border-bottom:1px solid #eee;
+}
+
+.form-control,
+.form-select{
+    min-height:44px;
+    border-radius:10px;
+}
+
+.form-control:focus,
+.form-select:focus{
+    box-shadow:none;
+    border-color:#198754;
+}
+
+.info-box{
+    margin-bottom:16px;
+}
+
+.info-box label{
+    display:block;
+    font-size:12px;
+    color:#888;
+}
+
+.info-box div{
+    font-weight:600;
+}
+
+.claim-side-col{
+    position: sticky;
+    top: 12px;
+    align-self: flex-start;
+    z-index: 10;
+}
+
+.claim-side-sticky{
+    position: static;
+}
+
+@media (max-width: 991.98px){
+    .claim-side-col{
+        position: static;
+    }
+}
+
+.ts-control{
+    min-height:44px !important;
+    border-radius:10px !important;
+}
+.step-bar {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    background: #fff;
+    padding: 12px 16px;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    gap: 8px;
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 115px;
+}
+
+.step-no {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.step-text {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.step-bar {
+    scrollbar-width: thin;
+    scroll-behavior: smooth;
+}
+
+.step-bar .step {
+    flex: 0 0 auto;
+    min-width: max-content;
+}
+
+.step-bar .stage-badge {
+    display: inline-block;
+    max-width: none;
+}
+
+.step-line {
+    flex: 0 0 38px;
+}
+
+.current-stage {
+    scroll-margin-inline: 120px;
+}
+
+.claim-stage-scroll-target {
+    scroll-margin-top: 95px;
+}
+
+.step.active .step-no {
+    background: #198754;
+    color: #fff;
+}
+
+.step-line {
+    height: 2px;
+    min-width: 30px;
+    background: #ddd;
+}
+</style>
+
+<script>
+function scrollCurrentStageIntoView() {
+    const currentStage = document.querySelector(".step-bar .current-stage");
+
+    if (!currentStage) {
+        return;
+    }
+
+    currentStage.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center"
+    });
+}
+
+function scrollCurrentClaimSectionIntoView() {
+    if (window.location.hash) {
+        return;
+    }
+
+    const currentStageNo = Number("{{ current_stage|default:1 }}");
+    const sectionByStage = {
+        1: "claimStageSection1",
+        2: "claimStageSection1",
+        3: "claimStageSection3",
+        4: "claimStageSection4",
+        5: "claimStageSection5",
+        6: "claimStageSection5",
+        7: "claimStageSection5",
+        8: "claimStageSection5",
+        9: "claimStageSection5",
+        10: "claimStageSection10",
+        11: "claimStageSection11",
+        12: "claimStageSection12",
+        13: "claimStageSection12",
+        14: "claimStageSection12"
+    };
+    const sectionId = sectionByStage[currentStageNo] || "claimStageSection1";
+    const target = document.getElementById(sectionId);
+
+    if (!target) {
+        return;
+    }
+
+    target.classList.add("claim-stage-scroll-target");
+
+    setTimeout(function () {
+        target.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }, 250);
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+        scrollCurrentStageIntoView();
+        scrollCurrentClaimSectionIntoView();
+    });
+} else {
+    scrollCurrentStageIntoView();
+    scrollCurrentClaimSectionIntoView();
+}
+
+    function checkOpenClaim(vehicleId) {
+
+        if (!vehicleId) return;
+
+        fetch(`/ajax/check-open-claim/?vehicle_id=${vehicleId}`)
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.exists) {
+                    showMessage(
+                        `Open claim already exists: ${data.claim_no}`,
+                        "danger"
+                    );
+
+                    document.getElementById("id_vehicle").tomselect.clear();
+                }
+
+            });
+    }
+    function validateStageBeforeNext() {
+
+        const currentStage = Number("{{ current_stage|default:1 }}");
+
+        function getVal(id) {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : "";
+        }
+
+        function showMissing(items) {
+            showMessage(
+                "Cannot move next. Missing: " + items.join(", "),
+                "danger"
+            );
+        }
+
+        let missing = [];
+          if (currentStage === 1) {
+           if (!getVal("id_employee")) {
+                missing.push("Claim Intimation Date");
+            }
+          }
+        // Stage 3 → Claim Intimation
+        if (currentStage === 3) {
+
+            if (!getVal("id_intimation_date")) {
+                missing.push("Select Advisor First");
+            }
+
+            if (!getVal("id_insurance_company")) {
+                missing.push("Insurance Company");
+            }
+
+            if (!getVal("id_policy_no")) {
+                missing.push("Policy No");
+            }
+
+            if (!getVal("id_ic_claim_no")) {
+                missing.push("Insurance Claim No");
+            }
+        }
+
+        // Stage 4 → Survey
+        if (currentStage === 4) {
+
+            if (!getVal("id_survey_date")) {
+                missing.push("Survey Date");
+            }
+
+            if (!getVal("id_surveyor")) {
+                missing.push("Surveyor");
+            }
+
+            if (!getVal("id_survey_status")) {
+                missing.push("Survey Status");
+            }
+        }
+
+        // Stage 5 → Approval
+        if (currentStage === 5) {
+
+            if (!getVal("id_insurance_approval_date")) {
+                missing.push("Insurance Approval Date");
+            }
+
+            const assessmentFile = document.getElementById("id_assessment_file");
+
+            if (assessmentFile && !assessmentFile.value) {
+                missing.push("Assessment File");
+            }
+        }
+
+        if (missing.length > 0) {
+            showMissing(missing);
+            return false;
+        }
+
+        return true;
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const nextStageBtn =
+            document.getElementById("nextStageBtn");
+
+        if (nextStageBtn) {
+
+            nextStageBtn.addEventListener("click", function (e) {
+
+                if (!validateStageBeforeNext()) {
+                    e.preventDefault();
+                    return false;
+                }
+
+            });
+        }
+
+    });
+    document.addEventListener(
+        "input",
+        function(e){
+
+            if(
+                !e.target.classList.contains(
+                    "labour-deduction"
+                )
+            ){
+                return;
+            }
+
+            const id =
+                e.target.dataset.id;
+
+            const deduction =
+                parseFloat(
+                    e.target.value || 0
+                );
+
+            const original =parseFloat(document.querySelector(`.labour-original[data-id="${id}"]`).innerText
+
+                );
+
+            const revised =original-(original* deduction/ 100);
+
+            document.querySelector(`.labour-revised[data-id="${id}"]`).value =
+
+                revised.toFixed(2);
+
+    });
+    let currentJobId = null;
+
+    function openAssessmentModal(jobId) {
+
+
+        currentJobId = jobId;
+
+        fetch(`/api/jobcard/${jobId}/assessment/?t=${Date.now()}`)
+            .then(res => res.json())
+            .then(data => {
+
+                let partHtml = "";
+
+                data.parts.forEach(p => {
+                    partHtml += `
+                        <tr>
+                            <td>${p.part_no}</td>
+                            <td>${p.description}</td>
+                            <td class="text-end">${p.amount}</td>
+                            <td>
+                                <select class="form-select form-select-sm part-decision" data-id="${p.id}">
+                                        <option value="Reject" ${p.decision === "Reject" ? "selected" : ""}>Reject</option>
+                                        <option value="New" ${p.decision === "New" ? "selected" : ""}>New</option>
+                                        <option value="Repair" ${p.decision === "Repair" ? "selected" : ""}>Repair</option>
+                                        <option value="KO" ${p.decision === "KO" ? "selected" : ""}>KO</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number"
+                                       class="form-control form-control-sm text-end part-revised"
+                                       data-id="${p.id}"
+                                       value="${p.revised_amount || p.amount}">
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById("assessmentPartsBody").innerHTML = partHtml;
+
+                let labourHtml = "";
+
+                data.labours.forEach(l => {
+                    labourHtml += `
+                        <tr>
+                            <td>${l.job_code}</td>
+                            <td>${l.description}</td>
+                           <td class="text-end"><span class="labour-original"
+                  data-id="${l.id}">
+
+                ${l.amount}
+
+            </td>
+                            <td>
+                                <select class="form-select form-select-sm labour-decision" data-id="${l.id}">
+                                  <option value="Reject" ${l.decision === "Reject" ? "selected" : ""}>Reject</option>
+                                    <option value="Approved" ${l.decision === "Approved" ? "selected" : ""}>Approved</option>
+
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number"
+
+                                   class="form-control form-control-sm labour-deduction"
+
+                                   data-id="${l.id}"
+
+                                   value="${l.deduction_percent || 0}"
+
+                                   min="0"
+
+                                   max="100">
+                            </td>
+                            <td>
+                                <input type="number"
+                                       class="form-control form-control-sm text-end labour-revised"
+                                       data-id="${l.id}"
+                                       value="${l.revised_amount || l.amount}">
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById("assessmentLabourBody").innerHTML = labourHtml;
+                     let approvedHtml = "";
+
+data.parts.forEach(p => {
+    if (["New", "Repair", "KO"].includes(p.decision)) {
+        approvedHtml += `
+            <tr>
+                <td>Part</td>
+                <td>${p.part_no}</td>
+                <td>${p.description}</td>
+                <td class="text-end">${p.amount}</td>
+                <td>${p.decision}</td>
+                <td class="text-end">${p.revised_amount || p.amount}</td>
+            </tr>
+        `;
+    }
+});
+
+data.labours.forEach(l => {
+    if (l.decision === "Approved") {
+        approvedHtml += `
+            <tr>
+                <td>Labour</td>
+                <td>${l.job_code}</td>
+                <td>${l.description}</td>
+                <td class="text-end">${l.amount}</td>
+                <td>${l.decision}</td>
+                <td class="text-end">${l.revised_amount || l.amount}</td>
+            </tr>
+        `;
+    }
+});
+
+document.getElementById("surveyorApprovedBody").innerHTML =
+    approvedHtml || `
+        <tr>
+            <td colspan="6" class="text-center text-muted">
+                No approved entries
+            </td>
+        </tr>
+    `;
+                bootstrap.Modal.getOrCreateInstance(
+                    document.getElementById("assessmentModal")
+                ).show();
+            });
+    }
+
+
+   function validateAssessmentRequiredFields() {
+    const requiredFields = [
+        {
+            selector: ".assessment-new-part-no",
+            label: "Part no"
+        },
+        {
+            selector: ".assessment-new-part-desc",
+            label: "Part description"
+        },
+        {
+            selector: ".assessment-new-part-amount",
+            label: "Part amount"
+        },
+        {
+            selector: ".assessment-new-labour-code",
+            label: "Job code"
+        },
+        {
+            selector: ".assessment-new-labour-desc",
+            label: "Job description"
+        },
+        {
+            selector: ".assessment-new-labour-amount",
+            label: "Labour amount"
+        }
+    ];
+
+    document
+        .querySelectorAll("#assessmentModal .is-invalid")
+        .forEach(el => el.classList.remove("is-invalid"));
+
+    for (const field of requiredFields) {
+        for (const input of document.querySelectorAll(field.selector)) {
+            if (!input.value.trim()) {
+                input.classList.add("is-invalid");
+                input.focus();
+                showToast(`${field.label} cannot be blank`, "danger");
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+document.addEventListener("input", function (e) {
+    if (!e.target.closest("#assessmentModal")) return;
+    if (!e.target.classList.contains("is-invalid")) return;
+    if (e.target.value.trim()) {
+        e.target.classList.remove("is-invalid");
+    }
+});
+
+   function saveAssessment() {
+    if (!validateAssessmentRequiredFields()) return;
+
+    let parts = [];
+    let labours = [];
+    const assessmentPrintWindow = window.open("", "_blank");
+
+    if (assessmentPrintWindow) {
+        assessmentPrintWindow.document.write(
+            "<!doctype html><title>Assessment Report</title><p>Saving assessment...</p>"
+        );
+    }
+
+    document.querySelectorAll(".part-revised").forEach(input => {
+        let id = input.dataset.id;
+
+        parts.push({
+            id: id,
+            revised_amount: input.value,
+            decision: document.querySelector(`.part-decision[data-id="${id}"]`).value
+        });
+    });
+
+    document.querySelectorAll(".assessment-new-part-no").forEach(input => {
+        const row = input.closest("tr");
+
+        parts.push({
+            id: "",
+            part_no: input.value.trim(),
+            description: row.querySelector(".assessment-new-part-desc").value.trim(),
+            amount: row.querySelector(".assessment-new-part-amount").value.trim(),
+            revised_amount: row.querySelector(".assessment-new-part-revised").value,
+            decision: row.querySelector(".assessment-new-part-decision").value,
+            is_new: true
+        });
+    });
+
+    document.querySelectorAll(".labour-revised").forEach(input => {
+        let id = input.dataset.id;
+
+        labours.push({
+            id: id,
+            revised_amount: input.value,
+            decision: document.querySelector(`.labour-decision[data-id="${id}"]`).value,
+            deduction_percent: document.querySelector(`.labour-deduction[data-id="${id}"]`).value
+        });
+    });
+
+    document.querySelectorAll(".assessment-new-labour-code").forEach(input => {
+        const row = input.closest("tr");
+
+        labours.push({
+            id: "",
+            job_code: input.value.trim(),
+            description: row.querySelector(".assessment-new-labour-desc").value,
+            amount: row.querySelector(".assessment-new-labour-amount").value.trim(),
+            revised_amount: row.querySelector(".assessment-new-labour-revised").value,
+            deduction_percent: row.querySelector(".assessment-new-labour-deduction").value,
+            decision: row.querySelector(".assessment-new-labour-decision").value,
+            is_new: true
+        });
+    });
+
+    fetch(`/api/jobcard/${currentJobId}/assessment/save/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({
+            parts: parts,
+            labours: labours
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "success") {
+            showToast("Assessment saved successfully");
+            printAssessmentReport(assessmentPrintWindow);
+            setTimeout(function () {
+                location.reload();
+            }, 500);
+        } else {
+            if (assessmentPrintWindow) assessmentPrintWindow.close();
+            showToast("Assessment save failed", "danger");
+        }
+    })
+    .catch(() => {
+        if (assessmentPrintWindow) assessmentPrintWindow.close();
+        showToast("Assessment save failed", "danger");
+    });
+}
+
+function printAssessmentReport(targetWindow) {
+    if (!currentJobId) {
+        showToast("Please open assessment first", "warning");
+        return;
+    }
+
+    const reportUrl = `/jobCard/${currentJobId}/assessment-print/`;
+
+    if (targetWindow) {
+        targetWindow.location.href = reportUrl;
+        return;
+    }
+
+    window.open(reportUrl, "_blank");
+}
+
+
+
+    /* ===============================
+       LOAD VEHICLE SNAPSHOT
+    ================================ */
+    function loadVehicleDetails(vehicleId) {
+
+        if (!vehicleId) return;
+
+        fetch(`/ajax/vehicle-details/?id=${vehicleId}&t=${Date.now()}`)
+
+            .then(res => res.json())
+
+            .then(data => {
+
+                if (data.status !== "success") return;
+
+                document.getElementById("v_reg").innerText =
+                    data.data.registration_no || "-";
+
+                document.getElementById("v_model").innerText =
+                    data.data.model || "-";
+
+                document.getElementById("v_variant").innerText =
+                    data.data.variant || "-";
+
+                document.getElementById("v_color").innerText =
+                    data.data.color || "-";
+
+                document.getElementById("c_name").innerText =
+                    data.data.customer_name || "-";
+
+                document.getElementById("c_mobile").innerText =
+                    data.data.mobile || "-";
+
+
+            });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const vehicleId = "{{ claim.vehicle.id|default:'' }}";
+
+        if (vehicleId) {
+            loadVehicleDetails(vehicleId);
+        }
+
+    });
+    /* ===============================
+       MAIN
+    ================================ */
+    document.addEventListener("DOMContentLoaded", function () {
+
+        /* AUTO GATE IN TIME */
+        const gateInput = document.getElementById("id_gate_in_datetime");
+
+        if (gateInput && !gateInput.value) {
+
+            const now = new Date();
+
+            now.setMinutes(
+                now.getMinutes() - now.getTimezoneOffset()
+            );
+
+            gateInput.value = now.toISOString().slice(0, 16);
+        }
+
+
+        /* ===============================
+           TOM SELECT VEHICLE
+        ================================ */
+        const vehicleEl = document.getElementById("id_vehicle");
+
+        if (vehicleEl) {
+
+            const vehicleSelect = new TomSelect(vehicleEl, {
+
+                valueField: "id",
+                labelField: "text",
+                searchField: "text",
+
+                create: false,
+                placeholder: "Search Registration No...",
+
+                load: function (query, callback) {
+
+                    if (!query.length) {
+                        callback([]);
+                        return;
+                    }
+
+                    fetch(`/ajax/vehicle-search/?term=${encodeURIComponent(query)}&t=${Date.now()}`)
+
+                        .then(res => res.json())
+
+                        .then(data => {
+
+                            callback(data.results || []);
+
+                            if (!data.results || data.results.length === 0) {
+
+                                const modalEl =
+                                    document.getElementById("vehicleModal");
+
+                                const modal =
+                                    bootstrap.Modal.getOrCreateInstance(modalEl);
+
+                                modal.show();
+
+                                setTimeout(function () {
+
+                                    const regInput =
+                                        document.getElementById("id_registration_no");
+
+                                    if (regInput) {
+                                        regInput.value = query;
+                                        regInput.focus();
+                                    }
+
+                                }, 300);
+                            }
+                        })
+
+                        .catch(function () {
+                            callback([]);
+                        });
+                },
+
+                onChange: function (value) {
+
+                    if (value) {
+                          checkOpenClaim(value);
+                        loadVehicleDetails(value);
+                    }
+                }
+            });
+
+
+            /* EDIT MODE AUTO LOAD */
+            const selectedVehicleId = vehicleEl.value;
+
+            if (selectedVehicleId) {
+
+                fetch(`/ajax/vehicle-details/?id=${selectedVehicleId}&t=${Date.now()}`)
+
+                    .then(res => res.json())
+
+                    .then(data => {
+
+                        if (data.status === "success") {
+
+                            const text =
+                                `${data.data.registration_no} - ${data.data.model}`;
+
+                            vehicleSelect.addOption({
+                                id: selectedVehicleId,
+                                text: text
+                            });
+
+                            vehicleSelect.setValue(selectedVehicleId);
+
+                            loadVehicleDetails(selectedVehicleId);
+                        }
+                    });
+            }
+        }
+
+
+        /* ===============================
+           SAVE VEHICLE MODAL
+        ================================ */
+        const saveVehicleBtn =
+            document.getElementById("saveVehicleBtn");
+
+        if (saveVehicleBtn) {
+
+            saveVehicleBtn.addEventListener("click", function () {
+
+                const vehicleForm =
+                    document.getElementById("vehicleForm");
+
+                const formData =
+                    new FormData(vehicleForm);
+
+                fetch("/ajax/add-vehicle/", {
+
+                    method: "POST",
+                    body: formData,
+
+                    headers: {
+                        "X-CSRFToken": getCookie("csrftoken")
+                    }
+
+                })
+
+                .then(res => res.json())
+
+                .then(data => {
+
+                    if (data.status === "success") {
+
+                        showToast("Vehicle Added");
+
+                        const modalEl =
+                            document.getElementById("vehicleModal");
+
+                        const modal =
+                            bootstrap.Modal.getInstance(modalEl);
+
+                        if (modal) {
+                            modal.hide();
+                        }
+
+                        const vehicleEl =
+                            document.getElementById("id_vehicle");
+
+                        if (vehicleEl && vehicleEl.tomselect) {
+
+                            vehicleEl.tomselect.addOption({
+                                id: data.id,
+                                text: data.text
+                            });
+
+                            vehicleEl.tomselect.setValue(data.id);
+
+                            loadVehicleDetails(data.id);
+                        }
+
+                    } else {
+
+                        showToast(
+                            data.message || "Vehicle save error",
+                            "danger"
+                        );
+                    }
+                })
+
+                .catch(err => {
+
+                    console.error(err);
+
+                    showToast(
+                        "Server Error",
+                        "danger"
+                    );
+                });
+            });
+        }
+
+
+        /* ===============================
+           MODEL → VARIANT FILTER
+        ================================ */
+        const modelDropdown =
+            document.getElementById("id_model");
+
+        if (modelDropdown) {
+
+            modelDropdown.addEventListener("change", function () {
+
+                fetch(`/ajax/load-variants/?model_id=${this.value}&t=${Date.now()}`)
+
+                    .then(res => res.json())
+
+                    .then(data => {
+
+                        const variantDropdown =
+                            document.getElementById("id_variant");
+
+                        variantDropdown.innerHTML =
+                            '<option value="">Select Variant</option>';
+
+                        data.forEach(v => {
+
+                            variantDropdown.innerHTML +=
+                                `<option value="${v.id}">${v.name}</option>`;
+                        });
+                    });
+            });
+        }
+
+
+        /* ===============================
+           ADD MODEL
+        ================================ */
+        const saveModelBtn =
+            document.getElementById("saveModel");
+
+        if (saveModelBtn) {
+
+            saveModelBtn.addEventListener("click", function () {
+
+                const name =
+                    document.getElementById("model_name").value;
+
+                const errorBox =
+                    document.getElementById("model_error");
+
+                fetch("/ajax/add-model/", {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCookie("csrftoken")
+                    },
+
+                    body: JSON.stringify({
+                        name: name
+                    })
+                })
+
+                .then(res => res.json())
+
+                .then(data => {
+
+                    if (data.status === "error") {
+                        errorBox.innerText = data.message;
+                        return;
+                    }
+
+                    showToast("Model added successfully");
+
+                    modelDropdown.innerHTML +=
+                        `<option value="${data.id}" selected>${data.name}</option>`;
+
+                    bootstrap.Modal
+                        .getInstance(document.getElementById("modelModal"))
+                        .hide();
+
+                    document.getElementById("model_name").value = "";
+                    errorBox.innerText = "";
+                });
+            });
+        }
+
+
+        /* ===============================
+           ADD VARIANT
+        ================================ */
+        const saveVariantBtn =
+            document.getElementById("saveVariant");
+
+        if (saveVariantBtn) {
+
+            saveVariantBtn.addEventListener("click", function () {
+
+                const modelId =
+                    document.getElementById("id_model").value;
+
+                const name =
+                    document.getElementById("variant_name").value;
+
+                if (!modelId) {
+                    showToast("Select model first", "danger");
+                    return;
+                }
+
+                fetch("/ajax/add-variant/", {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCookie("csrftoken")
+                    },
+
+                    body: JSON.stringify({
+                        model_id: modelId,
+                        name: name
+                    })
+                })
+
+                .then(res => res.json())
+
+                .then(data => {
+
+                    if (data.status === "error") {
+                        showToast(data.message, "danger");
+                        return;
+                    }
+
+                    showToast("Variant added successfully");
+
+                    const variantDropdown =
+                        document.getElementById("id_variant");
+
+                    variantDropdown.innerHTML +=
+                        `<option value="${data.id}" selected>${data.name}</option>`;
+
+                    bootstrap.Modal
+                        .getInstance(document.getElementById("variantModal"))
+                        .hide();
+
+                    document.getElementById("variant_name").value = "";
+                });
+            });
+        }
+
+
+        /* ===============================
+           SAVE NEXT
+        ================================ */
+        const saveNextBtn =
+            document.getElementById("saveNextBtn");
+
+        if (saveNextBtn) {
+
+            saveNextBtn.addEventListener("click", function () {
+
+                document.getElementById("claimForm").submit();
+            });
+        }
+
+
+        /* ===============================
+           FRONTEND VALIDATION
+        ================================ */
+        const claimForm =
+            document.getElementById("claimForm");
+
+        if (claimForm) {
+
+            claimForm.addEventListener("submit", function (e) {
+
+                const currentStage =
+                    Number("{{ current_stage|default:1 }}");
+
+                /* STAGE 1 / 2 */
+                if (currentStage === 1 ) {
+
+                    const vehicle =
+                        document.getElementById("id_vehicle");
+
+                    const advisor =
+                        document.getElementById("id_employee");
+
+                    if (vehicle && !vehicle.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please select Vehicle",
+                            "danger"
+                        );
+
+                        vehicle.focus();
+                        return;
+                    }
+
+                                            const currentStage =
+                            Number(
+                                "{{ current_stage|default:1 }}"
+                            );
+
+                        if (
+
+                             advisor
+
+                            && !advisor.value
+
+                        ){
+
+                            e.preventDefault();
+
+                            showToast(
+                                "Please select Advisor",
+                                "danger"
+                            );
+
+                            advisor.focus();
+
+                            return;
+                        }
+                 }
+
+
+                /* STAGE 3 */
+                if (currentStage === 3) {
+
+                    const intimationDate =
+                        document.getElementById("id_intimation_date");
+
+                    const insuranceCompany =
+                        document.getElementById("id_insurance_company");
+
+                    const policyNo =
+                        document.getElementById("id_policy_no");
+                    const ic_claim_No =
+                        document.getElementById("id_ic_claim_no");
+                    if (intimationDate && !intimationDate.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please enter Intimation Date",
+                            "danger"
+                        );
+
+                        intimationDate.focus();
+                        return;
+                    }
+
+                    if (insuranceCompany && !insuranceCompany.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please select Insurance Company",
+                            "danger"
+                        );
+
+                        insuranceCompany.focus();
+                        return;
+                    }
+
+                    if (policyNo && !policyNo.value.trim()) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please enter Policy No",
+                            "danger"
+                        );
+
+                        policyNo.focus();
+                        return;
+                    }
+                    if (ic_claim_No && !ic_claim_No.value.trim()) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please enter Insurance Claim  No",
+                            "danger"
+                        );
+
+                        ic_claim_No.focus();
+                        return;
+                    }
+                }
+
+
+                /* STAGE 4 */
+                if (currentStage === 4) {
+
+                    const surveyDate =
+                        document.getElementById("id_survey_date");
+
+                    const surveyor =
+                        document.getElementById("id_surveyor");
+
+                    if (surveyDate && !surveyDate.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please enter Survey Date",
+                            "danger"
+                        );
+
+                        surveyDate.focus();
+                        return;
+                    }
+
+                    if (surveyor && !surveyor.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please select Surveyor",
+                            "danger"
+                        );
+
+                        surveyor.focus();
+                        return;
+                    }
+                }
+
+
+                /* STAGE 5 */
+                if (currentStage === 5) {
+
+                    const approvalDate =
+                        document.getElementById("id_insurance_approval_date");
+
+                    const assessmentFile =
+                        document.getElementById("id_assessment_file");
+
+                    if (approvalDate && !approvalDate.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please enter Insurance Approval Date",
+                            "danger"
+                        );
+
+                        approvalDate.focus();
+                        return;
+                    }
+
+                    if (assessmentFile && !assessmentFile.value) {
+
+                        e.preventDefault();
+
+                        showToast(
+                            "Please upload Assessment File",
+                            "danger"
+                        );
+
+                        assessmentFile.focus();
+                        return;
+                    }
+                }
+            });
+        }
+
+    });
+
+        // Add Customer Modal
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const customerSelect = new TomSelect("#id_customer", {
+
+            valueField: "id",
+            labelField: "text",
+            searchField: "text",
+
+            placeholder: "Search or create customer...",
+
+            create: function(input, callback) {
+                 let mobile = prompt("Enter mobile number:");
+
+        fetch('/ajax/add-customer/', {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({
+                name: input,
+                mobile: mobile
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+
+            if (data.status === "exists") {
+
+                showToast("Customer already exists, selected existing", "warning");
+
+                callback({
+                    id: data.id,
+                    text: data.text
+                });
+
+            } else if (data.status === "success") {
+
+                showToast("Customer created successfully");
+
+                callback({
+                    id: data.id,
+                    text: data.text
+                });
+
+            } else {
+                showToast(data.message || "Error", "danger");
+                callback();
+            }
+
+        })
+        .catch(() => callback());
+            },
+
+            load: function(query, callback) {
+                if (!query.length) return callback();
+
+                fetch(`/ajax/customer-search/?term=${query}`)
+                    .then(res => res.json())
+                    .then(data => callback(data.results))
+                    .catch(() => callback());
+            },
+
+            onChange: function(value) {
+
+
+                        if (!value || value === "") {
+                            clearCustomerFields();
+                            return;
+                        }
+
+
+               fetch(`/ajax/customer-details/?id=${value}`)
+
+        .then(res => res.json())
+
+        .then(data => {
+
+            if (data.status !== "success") return;
+
+            const d = data.data;
+
+            const setValue = (id, value) => {
+
+                const el = document.getElementById(id);
+
+                if (el) {
+                    el.value = value || "";
+                }
+            };
+
+            setValue("customer_mobile", d.mobile);
+            setValue("customer_email", d.email);
+            setValue("customer_city", d.city);
+            setValue("customer_gst", d.gst);
+
+        })
+
+        .catch(err => {
+
+            console.error(err);
+
+            showToast(
+                "Customer details load failed",
+                "danger"
+            );
+        });
+            }
+
+        });
+
+    });
+    function openCustomerCard(customerId) {
+
+        if (!customerId) {
+            showToast("Please select a customer first", "warning");
+            return;
+        }
+
+        fetch(`/ajax/customer-details/?id=${customerId}`)
+            .then(res => res.json())
+            .then(data => {
+
+                if (data.status !== "success") return;
+
+                const d = data.data;
+
+                const setText = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerText = value || "-";
+                };
+
+                setText("modal_c_name", d.name);
+                setText("modal_c_mobile", d.mobile);
+                setText("modal_c_email", d.email);
+                setText("modal_c_address", d.address);
+                setText("modal_c_city", d.city);
+                setText("modal_c_state", d.state);
+                setText("modal_c_gst", d.gst);
+
+                const modalEl = document.getElementById("customerCardModal");
+
+                if (modalEl instanceof HTMLElement) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showToast("Unable to load customer details", "danger");
+            });
+    }
+
+        function clearCustomerFields() {
+        document.querySelectorAll(
+            "#customer_mobile, #customer_email, #customer_city, #customer_gst"
+        ).forEach(el => el.value = "");
+    }
+        function fillCustomer(d) {
+        document.getElementById("customer_mobile").value = d.mobile || "";
+        document.getElementById("customer_email").value = d.email || "";
+        document.getElementById("customer_city").value = d.city || "";
+        document.getElementById("customer_gst").value = d.gst || "";
+    }
+
+    function addAssessmentPartRow() {
+    document.getElementById("assessmentPartsBody").insertAdjacentHTML("beforeend", `
+        <tr>
+            <td>
+                <input class="form-control form-control-sm assessment-new-part-no"
+                       required
+                       placeholder="Part no">
+            </td>
+            <td>
+                <input class="form-control form-control-sm assessment-new-part-desc"
+                       required
+                       placeholder="Description">
+            </td>
+            <td>
+                <input type="number"
+                       class="form-control form-control-sm text-end assessment-new-part-amount"
+                       required
+                       value="0">
+            </td>
+            <td>
+                <select class="form-select form-select-sm assessment-new-part-decision">
+                    <option value="New">New</option>
+                    <option value="Repair">Repair</option>
+                    <option value="KO">KO</option>
+                    <option value="Reject">Reject</option>
+                </select>
+            </td>
+            <td>
+                <input type="number"
+                       class="form-control form-control-sm text-end assessment-new-part-revised"
+                       value="0">
+            </td>
+        </tr>
+    `);
+}
+
+function addAssessmentLabourRow() {
+    document.getElementById("assessmentLabourBody").insertAdjacentHTML("beforeend", `
+        <tr>
+            <td>
+                <input class="form-control form-control-sm assessment-new-labour-code"
+                       required
+                       placeholder="Job code">
+            </td>
+            <td>
+                <input class="form-control form-control-sm assessment-new-labour-desc"
+                       required
+                       placeholder="Description">
+            </td>
+            <td>
+                <input type="number"
+                       class="form-control form-control-sm text-end assessment-new-labour-amount labour-original"
+                       required
+                       value="0">
+            </td>
+            <td>
+                <select class="form-select form-select-sm assessment-new-labour-decision">
+                    <option value="Approved">Approved</option>
+                    <option value="Reject">Reject</option>
+                </select>
+            </td>
+            <td>
+                <input type="number"
+                       class="form-control form-control-sm labour-deduction assessment-new-labour-deduction"
+                       value="0"
+                       min="0"
+                       max="100">
+            </td>
+            <td>
+                <input type="number"
+                       class="form-control form-control-sm text-end assessment-new-labour-revised"
+                       value="0">
+            </td>
+        </tr>
+    `);
+}
+
+    document.addEventListener("change", function (e) {
+    if (!e.target.classList.contains("part-decision")) return;
+
+    const select = e.target;
+    const partId = select.dataset.id;
+    const decision = select.value;
+
+    if (decision !== "Repair") return;
+
+   addAssessmentLabourRow()
+});
+
+function initClaimReinspectionImageLimits() {
+    const input = document.getElementById("claimReinspectionImages");
+
+    if (!input) {
+        return;
+    }
+
+    const existingCount = Number("{{ existing_reinspection_photo_count|default:0 }}");
+    const existingSize = Number("{{ existing_reinspection_photo_size_mb|default:0 }}") * 1024 * 1024;
+    const maxPhotos = Number("{{ reinspection_max_photos|default:25 }}");
+    const maxImageSize = Number("{{ reinspection_max_image_size_mb|default:8 }}") * 1024 * 1024;
+    const maxTotalSize = Number("{{ reinspection_max_total_size_mb|default:50 }}") * 1024 * 1024;
+
+    input.addEventListener("change", function () {
+        const files = Array.from(input.files || []);
+        const selectedSize = files.reduce((total, file) => total + file.size, 0);
+        const oversizedFile = files.find(file => file.size > maxImageSize);
+
+        if (existingCount + files.length > maxPhotos) {
+            alert("Maximum " + maxPhotos + " re-inspection images are allowed per jobcard.");
+            input.value = "";
+            return;
+        }
+
+        if (oversizedFile) {
+            alert(oversizedFile.name + " is too large. Maximum {{ reinspection_max_image_size_mb }} MB is allowed per image.");
+            input.value = "";
+            return;
+        }
+
+        if (existingSize + selectedSize > maxTotalSize) {
+            alert("Maximum {{ reinspection_max_total_size_mb }} MB total re-inspection image storage is allowed per jobcard.");
+            input.value = "";
+        }
+    });
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initClaimReinspectionImageLimits);
+} else {
+    initClaimReinspectionImageLimits();
+}
+
+function initLiabilityTotalCalculation() {
+    const partInput = document.getElementById("id_pre_invoice_part_amount");
+    const labourInput = document.getElementById("id_pre_invoice_labour_amount");
+    const totalInput = document.getElementById("id_pre_invoice_total_amount");
+
+    if (!partInput || !labourInput || !totalInput) {
+        return;
+    }
+
+    function calculateTotal() {
+        const partAmount = parseFloat(partInput.value || "0") || 0;
+        const labourAmount = parseFloat(labourInput.value || "0") || 0;
+        totalInput.value = (partAmount + labourAmount).toFixed(2);
+    }
+
+    partInput.addEventListener("input", calculateTotal);
+    labourInput.addEventListener("input", calculateTotal);
+    calculateTotal();
+}
+
+function initLiabilityValidation() {
+    const claimForm = document.getElementById("claimForm");
+    const sentAtInput = document.getElementById("id_pre_invoice_sent_at");
+    const partInput = document.getElementById("id_pre_invoice_part_amount");
+    const labourInput = document.getElementById("id_pre_invoice_labour_amount");
+    const fileInput = document.getElementById("id_pre_invoice_file");
+    const liabilityAtInput = document.getElementById("id_liability_received_at");
+    const doAmountInput = document.getElementById("id_liability_do_amount");
+    const doFileInput = document.getElementById("id_liability_document");
+
+    if (!claimForm || !sentAtInput || !partInput || !labourInput || !fileInput || !liabilityAtInput || !doAmountInput || !doFileInput) {
+        return;
+    }
+
+    const hasExistingPreInvoiceFile = "{{ claim.pre_invoice_file|default:'' }}" !== "";
+    const hasExistingLiabilityFile = "{{ claim.liability_document|default:'' }}" !== "";
+
+    claimForm.addEventListener("submit", function (event) {
+        if (sentAtInput.value) {
+            const partAmount = parseFloat(partInput.value || "0") || 0;
+            const labourAmount = parseFloat(labourInput.value || "0") || 0;
+
+            if (partAmount <= 0) {
+                event.preventDefault();
+                alert("Enter Pre-Invoice Part amount before saving.");
+                partInput.focus();
+                return;
+            }
+
+            if (labourAmount <= 0) {
+                event.preventDefault();
+                alert("Enter Pre-Invoice Labour amount before saving.");
+                labourInput.focus();
+                return;
+            }
+
+            if (!hasExistingPreInvoiceFile && fileInput.files.length === 0) {
+                event.preventDefault();
+                alert("Upload Pre-Invoice file before saving.");
+                fileInput.focus();
+                return;
+            }
+        }
+
+        if (liabilityAtInput.value) {
+            const doAmount = parseFloat(doAmountInput.value || "0") || 0;
+
+            if (doAmount <= 0) {
+                event.preventDefault();
+                alert("Enter Liability / DO Amount before saving.");
+                doAmountInput.focus();
+                return;
+            }
+
+            if (!hasExistingLiabilityFile && doFileInput.files.length === 0) {
+                event.preventDefault();
+                alert("Upload DO Letter or E-mail before saving.");
+                doFileInput.focus();
+            }
+        }
+    });
+}
+
+function initInvoiceCalculation() {
+    const invoiceInput = document.getElementById("id_invoice_amount");
+    const doAmountInput = document.getElementById("id_liability_do_amount");
+    const differenceInput = document.getElementById("id_customer_difference_amount");
+
+    if (!invoiceInput || !doAmountInput || !differenceInput) {
+        return;
+    }
+
+    function calculateDifference() {
+        const invoiceAmount = parseFloat(invoiceInput.value || "0") || 0;
+        const doAmount = parseFloat(doAmountInput.value || "0") || 0;
+        differenceInput.value = (invoiceAmount - doAmount).toFixed(2);
+    }
+
+    invoiceInput.addEventListener("input", calculateDifference);
+    doAmountInput.addEventListener("input", calculateDifference);
+    calculateDifference();
+}
+
+function initInvoiceJobcardClosedValidation() {
+    const claimForm = document.getElementById("claimForm");
+    const invoiceDateInput = document.getElementById("id_invoice_datetime");
+    const invoiceInput = document.getElementById("id_invoice_amount");
+    const partsInput = document.getElementById("id_invoice_parts_amount");
+    const labourInput = document.getElementById("id_invoice_labour_amount");
+    const paymentModeInput = document.getElementById("id_payment_mode");
+    const paymentDetailsInput = document.getElementById("id_payment_details");
+
+    if (!claimForm || !invoiceDateInput || !invoiceInput || !partsInput || !labourInput || !paymentModeInput || !paymentDetailsInput) {
+        return;
+    }
+
+    const isJobcardClosed = "{{ is_jobcard_closed|yesno:'true,false' }}" === "true";
+
+    claimForm.addEventListener("submit", function (event) {
+        const hasInvoiceData =
+            invoiceDateInput.value ||
+            (parseFloat(invoiceInput.value || "0") || 0) > 0 ||
+            (parseFloat(partsInput.value || "0") || 0) > 0 ||
+            (parseFloat(labourInput.value || "0") || 0) > 0 ||
+            paymentModeInput.value ||
+            paymentDetailsInput.value.trim();
+
+        if (hasInvoiceData && !isJobcardClosed) {
+            event.preventDefault();
+            alert("First close the linked jobcard for this claim before saving invoice details.");
+            invoiceDateInput.focus();
+        }
+    });
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initLiabilityTotalCalculation);
+    document.addEventListener("DOMContentLoaded", initLiabilityValidation);
+    document.addEventListener("DOMContentLoaded", initInvoiceCalculation);
+    document.addEventListener("DOMContentLoaded", initInvoiceJobcardClosedValidation);
+} else {
+    initLiabilityTotalCalculation();
+    initLiabilityValidation();
+    initInvoiceCalculation();
+    initInvoiceJobcardClosedValidation();
+}
+</script>
+
+
+{% endblock %}

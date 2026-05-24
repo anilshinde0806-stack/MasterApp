@@ -1,0 +1,167 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Update Part Order{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-0">Update Part Order</h4>
+            <div class="text-muted small">
+                Job {{ job.job_no }} | {{ job.claim.vehicle.registration_no }} | {{ job.claim.vehicle.customer.name }}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if selected_header %}
+            <a class="btn btn-outline-primary"
+               target="_blank"
+               href="{% url 'part_order_print' selected_header.id %}">
+                Print
+            </a>
+            {% endif %}
+            <a class="btn btn-outline-secondary" href="{% url 'part_order_list' %}">Back</a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row small align-items-end g-2">
+                <div class="col-md-3"><b>Claim No:</b> {{ job.claim.claim_no }}</div>
+                <div class="col-md-3"><b>Model:</b> {{ job.claim.vehicle.model.name }}</div>
+                <div class="col-md-3"><b>Advisor:</b> {{ job.advisor.name|default:"" }}</div>
+                <div class="col-md-3"><b>Overall Status:</b> {{ job_part_order_status }}</div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">Order</label>
+                    <select class="form-select form-select-sm"
+                            onchange="if (this.value) window.location.href='{% url 'part_order_job_detail' job.id %}?order_id=' + this.value;">
+                        {% for header in headers %}
+                        <option value="{{ header.id }}" {% if selected_header and selected_header.id == header.id %}selected{% endif %}>
+                            {{ header.order_no|default:"Order" }} #{{ header.id }} | {{ header.status }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th style="min-width:120px">Part No</th>
+                        <th style="min-width:220px">Description</th>
+                        <th style="min-width:90px">Order Qty</th>
+                        <th style="min-width:90px">Received</th>
+                        <th style="min-width:145px">Status</th>
+                        <th style="min-width:130px">Order No</th>
+                        <th style="min-width:150px">Supplier</th>
+                        <th style="min-width:130px">Order Date</th>
+                        <th style="min-width:130px">Expected</th>
+                        <th style="min-width:130px">Received Date</th>
+                        <th style="min-width:150px">Tracking Ref</th>
+                        <th style="min-width:220px">Remarks</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>
+                            {% if order.part %}{{ order.part.part_no }}{% else %}{{ order.manual_part_no }}{% endif %}
+                            <input type="hidden" name="order_id[]" value="{{ order.id }}">
+                        </td>
+                        <td>{% if order.part %}{{ order.part.description }}{% else %}{{ order.manual_description }}{% endif %}</td>
+                        <td>
+                            <input class="form-control form-control-sm text-end"
+                                   name="order_{{ order.id }}_ordered_qty"
+                                   type="number"
+                                   step="0.01"
+                                   value="{{ order.ordered_qty }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm text-end"
+                                   name="order_{{ order.id }}_received_qty"
+                                   type="number"
+                                   step="0.01"
+                                   value="{{ order.received_qty }}">
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm" name="order_{{ order.id }}_status">
+                                {% for value, label in statuses %}
+                                <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_order_no"
+                                   value="{{ order.order_no }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_supplier"
+                                   value="{{ order.supplier }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_order_date"
+                                   type="date"
+                                   value="{{ order.order_date|date:'Y-m-d' }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_expected_date"
+                                   type="date"
+                                   value="{{ order.expected_date|date:'Y-m-d' }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_received_date"
+                                   type="date"
+                                   value="{{ order.received_date|date:'Y-m-d' }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_tracking_ref"
+                                   value="{{ order.tracking_ref }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm"
+                                   name="order_{{ order.id }}_remarks"
+                                   value="{{ order.remarks }}">
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="text-center text-muted" colspan="12">No parts found for this job card</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-end mt-3">
+            <button class="btn btn-success px-4" type="submit">Save Tracking</button>
+            {% if selected_header %}
+            <button class="btn btn-outline-success px-4"
+                    name="print_after_save"
+                    value="1"
+                    type="submit">
+                Save & Print
+            </button>
+            <a class="btn btn-outline-primary px-4"
+               target="_blank"
+               href="{% url 'part_order_print' selected_header.id %}">
+                Print
+            </a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,329 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Work Completion Report</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #000;
+        }
+
+        .no-print {
+            text-align: right;
+            margin-bottom: 8px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 3px 4px;
+            vertical-align: top;
+        }
+
+        th {
+            background: #e9eef5;
+            font-weight: 700;
+        }
+
+        .section {
+            background: #dce8f6;
+            text-align: center;
+            font-weight: 700;
+            font-size: 11px;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .tick {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .status-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            margin-bottom: 6px;
+        }
+
+        .status-box {
+            border: 1px solid #000;
+            padding: 5px;
+            min-height: 28px;
+        }
+
+        .status-label {
+            font-size: 9px;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .status-value {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .progress-line {
+            display: grid;
+            grid-template-columns: repeat({{ progress_rows|length|default:1 }}, 1fr);
+            margin-bottom: 6px;
+            border: 1px solid #000;
+        }
+
+        .progress-step {
+            padding: 4px 2px;
+            text-align: center;
+            border-right: 1px solid #000;
+            background: #f7f7f7;
+        }
+
+        .progress-step:last-child {
+            border-right: 0;
+        }
+
+        .progress-step.done {
+            background: #d9f2df;
+        }
+
+        .signature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
+            border-left: 1px solid #000;
+            border-top: 1px solid #000;
+        }
+
+        .signature-box {
+            height: 58px;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-weight: 700;
+            padding-bottom: 5px;
+        }
+
+        .small {
+            font-size: 9px;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print">
+    <button onclick="window.print()">Print</button>
+</div>
+
+<div class="title">Work Completion / QC / Re-Inspection Report</div>
+
+<table>
+    <tr>
+        <td><b>Jobcard No:</b> {{ job.job_no }}</td>
+        <td><b>Job Date:</b> {{ job.job_date|date:"d-m-Y" }}</td>
+        <td><b>Claim No:</b> {{ claim.claim_no }}</td>
+        <td><b>Reg No:</b> {{ claim.vehicle.registration_no }}</td>
+    </tr>
+    <tr>
+        <td><b>Customer:</b> {{ claim.vehicle.customer.name }}</td>
+        <td><b>Model:</b> {{ claim.vehicle.model.name }}</td>
+        <td><b>Variant:</b> {{ claim.vehicle.variant.name|default:"" }}</td>
+        <td><b>Advisor:</b> {{ job.advisor.name|default:"" }}</td>
+    </tr>
+    <tr>
+        <td><b>Allotment Date:</b> {{ allocation.allotment_date|date:"d-m-Y" }}</td>
+        <td><b>Delivery Date:</b> {{ allocation.delivery_date|date:"d-m-Y" }}</td>
+        <td><b>Parts Slip No:</b> {{ allocation.parts_slip_no|default:"" }}</td>
+        <td><b>Status:</b> {{ work_status }}</td>
+    </tr>
+</table>
+
+<div class="status-strip">
+    <div class="status-box">
+        <div class="status-label">Work Completed</div>
+        <div class="status-value">{% if job.repair_status == "Completed" %}YES{% else %}NO{% endif %}</div>
+    </div>
+    <div class="status-box">
+        <div class="status-label">QC Checked</div>
+        <div class="status-value">{% if job.qc_done %}YES{% else %}NO{% endif %}</div>
+    </div>
+    <div class="status-box">
+        <div class="status-label">RI Checked</div>
+        <div class="status-value">{% if job.reinspection_done %}YES{% else %}NO{% endif %}</div>
+    </div>
+    <div class="status-box">
+        <div class="status-label">Part Entry Complete</div>
+        <div class="status-value">{% if allocation.part_entry_complete %}YES{% else %}NO{% endif %}</div>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <td><b>RI Date:</b> {{ job.reinspection_date|date:"d-m-Y" }}</td>
+        <td><b>RI Done By:</b> {{ job.reinspection_done_by|default:"" }}</td>
+        <td><b>Report Date:</b> {% now "d-m-Y H:i" %}</td>
+    </tr>
+</table>
+
+<div class="progress-line">
+    {% for p in progress_rows %}
+    <div class="progress-step {% if p.finish_time %}done{% endif %}">
+        <b>{{ forloop.counter }}</b><br>
+        {{ p.get_stage_display }}
+    </div>
+    {% endfor %}
+</div>
+
+<table>
+    <tr>
+        <td class="section" colspan="7">Work Progress Data Entry</td>
+    </tr>
+    <tr>
+        <th style="width:5%">Sr</th>
+        <th style="width:20%">Stage</th>
+        <th style="width:15%">Start Time</th>
+        <th style="width:15%">Finish Time</th>
+        <th style="width:15%">Employee</th>
+        <th style="width:8%">Done</th>
+        <th>Remarks</th>
+    </tr>
+    {% for p in progress_rows %}
+    <tr>
+        <td class="center">{{ forloop.counter }}</td>
+        <td>{{ p.get_stage_display }}</td>
+        <td>{{ p.start_time|date:"d-m-Y H:i" }}</td>
+        <td>{{ p.finish_time|date:"d-m-Y H:i" }}</td>
+        <td>{{ p.employee.name|default:"" }}</td>
+        <td class="center tick">{% if p.finish_time %}Y{% else %}-{% endif %}</td>
+        <td>{{ p.remarks|default:"" }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<table>
+    <tr>
+        <td class="section" colspan="9">Part Line Item Entry</td>
+    </tr>
+    <tr>
+        <th style="width:5%">Sr</th>
+        <th style="width:14%">Part No</th>
+        <th>Description</th>
+        <th style="width:6%">Qty</th>
+        <th style="width:9%">Decision</th>
+        <th style="width:8%">Picked</th>
+        <th style="width:11%">Pick Date</th>
+        <th style="width:12%">KO Order No</th>
+        <th style="width:12%">ETA</th>
+    </tr>
+    {% for p in parts %}
+    <tr>
+        <td class="center">{{ forloop.counter }}</td>
+        <td>{{ p.job_part.part_no }}</td>
+        <td>{{ p.job_part.description }}</td>
+        <td class="right">{{ p.job_part.qty }}</td>
+        <td>{{ p.decision }}</td>
+        <td class="center">{% if p.pick_from_store %}YES{% else %}NO{% endif %}</td>
+        <td>{{ p.pick_date|date:"d-m-Y" }}</td>
+        <td>{{ p.ko_order_no|default:"" }}</td>
+        <td>{{ p.eta|date:"d-m-Y" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="9" class="center">No part entry found</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<table>
+    <tr>
+        <td class="section" colspan="7">Labour Line Item Entry</td>
+    </tr>
+    <tr>
+        <th style="width:5%">Sr</th>
+        <th style="width:14%">Job Code</th>
+        <th>Description</th>
+        <th style="width:10%">Decision</th>
+        <th style="width:12%">Revised Amt</th>
+        <th style="width:15%">Employee</th>
+        <th>Remarks</th>
+    </tr>
+    {% for l in labours %}
+    <tr>
+        <td class="center">{{ forloop.counter }}</td>
+        <td>{{ l.job_labour.job_code }}</td>
+        <td>{{ l.job_labour.description }}</td>
+        <td>{{ l.decision }}</td>
+        <td class="right">{{ l.revised_amount }}</td>
+        <td>{{ l.employee.name|default:"" }}</td>
+        <td>{{ l.remarks|default:"" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="7" class="center">No labour entry found</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<table>
+    <tr>
+        <td class="section">Remarks</td>
+    </tr>
+    <tr>
+        <td style="height:34px;">{{ allocation.remarks|default:"" }}</td>
+    </tr>
+</table>
+
+<div class="section" style="border:1px solid #000; border-bottom:0; padding:4px;">Signature Panel</div>
+<div class="signature-grid">
+    <div class="signature-box">Denter Sign</div>
+    <div class="signature-box">Painter Sign</div>
+    <div class="signature-box">Technician Sign</div>
+    <div class="signature-box">Floor Team Leader Sign</div>
+    <div class="signature-box">QC Checked By Sign</div>
+    <div class="signature-box">Part Executive Sign</div>
+    <div class="signature-box">Floor Incharge Sign</div>
+    <div class="signature-box">Department Head Sign</div>
+    <div class="signature-box">Final Approval Sign</div>
+</div>
+
+</body>
+</html>

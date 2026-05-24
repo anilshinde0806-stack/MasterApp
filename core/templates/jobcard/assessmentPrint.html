@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Assessment Report</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 6mm;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            color: #000;
+            font-family: "Times New Roman", serif;
+            font-size: 18px;
+            font-style: italic;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        td,
+        th {
+            border: 1px solid #000;
+            height: 34px;
+            padding: 4px 6px;
+            vertical-align: middle;
+        }
+
+        .blue {
+            background: #8fb3d9;
+        }
+
+        .cream {
+            background: #dfdcc5;
+        }
+
+        .heading {
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .section-title {
+            font-size: 30px;
+            letter-spacing: .5px;
+            text-align: center;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .value {
+            font-style: normal;
+            font-weight: 600;
+        }
+
+        .blank {
+            height: 54px;
+        }
+
+        .remarks {
+            height: 260px;
+            vertical-align: top;
+        }
+
+        .paint-count-box {
+            border: 1px solid #000;
+            height: 42px;
+            margin-bottom: 10px;
+            padding: 6px;
+            width: 100%;
+        }
+
+        .signature-space {
+            height: 74px;
+        }
+
+        .small-label {
+            font-size: 16px;
+        }
+
+        .no-print {
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 400;
+            margin-bottom: 8px;
+            text-align: right;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print">
+    <button onclick="window.print()">Print</button>
+</div>
+
+<table>
+    <colgroup>
+        <col style="width:10%">
+        <col style="width:27%">
+        <col style="width:11%">
+        <col style="width:15%">
+        <col style="width:15%">
+        <col style="width:22%">
+    </colgroup>
+
+    <tr>
+        <td colspan="6" class="blue blank"></td>
+    </tr>
+
+    <tr>
+        <td colspan="1">REG. NO</td>
+        <td class="value">{{ claim.vehicle.registration_no }}</td>
+        <td>INSURANCE</td>
+        <td class="value">{{ claim.insurance_company|default:"" }}</td>
+        <td colspan="2" class="blue heading">MANPOWER DETAILS</td>
+    </tr>
+    <tr>
+        <td colspan="1">MODEL</td>
+        <td class="value">{{ claim.vehicle.model.name|default:"" }}</td>
+        <td>SURVEYOR</td>
+        <td class="value">{{ claim.surveyor.name|default:"" }}</td>
+        <td>DENTER</td>
+        <td class="value">{{ repair_progress.employee.name|default:"" }}</td>
+    </tr>
+    <tr>
+        <td colspan="1" class="small-label">ALLOTMENT DATE</td>
+        <td class="value">{{ allocation.allotment_date|date:"d-m-Y"|default:"" }}</td>
+        <td>ADVISOR</td>
+        <td class="value">{{ job.advisor.name|default:"" }}</td>
+        <td>PAINTER</td>
+        <td class="value">{{ painting_progress.employee.name|default:"" }}</td>
+    </tr>
+    <tr>
+        <td colspan="1">DILIVERY DATE</td>
+        <td class="value">
+            {% if allocation.delivery_date %}{{ allocation.delivery_date|date:"d-m-Y" }}{% elif job.expected_delivery_datetime %}{{ job.expected_delivery_datetime|date:"d-m-Y" }}{% endif %}
+        </td>
+        <td>JOB NO</td>
+        <td class="value">{{ job.job_no }}</td>
+        <td>FITTER</td>
+        <td class="value">{{ fitting_progress.employee.name|default:"" }}</td>
+    </tr>
+
+    <tr>
+        <td class="cream center">Sr. No.</td>
+        <td colspan="3" class="blue section-title">NEW PANEL</td>
+        <td colspan="2"></td>
+    </tr>
+    <tr>
+        <td class="center">1</td>
+        <td colspan="3" class="value">{% if new_panel_rows.0 %}{{ new_panel_rows.0.part.description }}{% endif %}</td>
+        <td colspan="2" class="blue heading">WORKING STATUS DATE</td>
+    </tr>
+    <tr>
+        <td class="center">2</td>
+        <td colspan="3" class="value">{% if new_panel_rows.1 %}{{ new_panel_rows.1.part.description }}{% endif %}</td>
+        <td>DENTING DATE</td>
+        <td class="value">{{ repair_progress.finish_time|date:"d-m-Y"|default:"" }}</td>
+    </tr>
+    <tr>
+        <td class="center">3</td>
+        <td colspan="3" class="value">{% if new_panel_rows.2 %}{{ new_panel_rows.2.part.description }}{% endif %}</td>
+        <td>PINTING DATE</td>
+        <td class="value">{{ painting_progress.finish_time|date:"d-m-Y"|default:"" }}</td>
+    </tr>
+    <tr>
+        <td class="center">4</td>
+        <td colspan="3" class="value">{% if new_panel_rows.3 %}{{ new_panel_rows.3.part.description }}{% endif %}</td>
+        <td>FITTING DATE</td>
+        <td class="value">{{ fitting_progress.finish_time|date:"d-m-Y"|default:"" }}</td>
+    </tr>
+    <tr>
+        <td class="center">5</td>
+        <td colspan="3" class="value">{% if new_panel_rows.4 %}{{ new_panel_rows.4.part.description }}{% endif %}</td>
+        <td colspan="2" class="blue heading">REMARKS :-</td>
+    </tr>
+    <tr>
+        <td class="center">6</td>
+        <td colspan="3" class="value">{% if new_panel_rows.5 %}{{ new_panel_rows.5.part.description }}{% endif %}</td>
+        <td colspan="2" rowspan="16" class="remarks value">
+            <div class="paint-count-box">
+                Paint Panel Count :
+            </div>
+            Before Paint Photo Required<br>
+            KO Photo Required<br>
+            Repairing Photo Required<br>
+            <br>
+            {% if allocation and allocation.remarks %}{{ allocation.remarks }}{% else %}{{ job.repair_instructions }}{% endif %}
+        </td>
+    </tr>
+    <tr>
+        <td class="center">7</td>
+        <td colspan="3" class="value">{% if new_panel_rows.6 %}{{ new_panel_rows.6.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">8</td>
+        <td colspan="3" class="value">{% if new_panel_rows.7 %}{{ new_panel_rows.7.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">9</td>
+        <td colspan="3" class="value">{% if new_panel_rows.8 %}{{ new_panel_rows.8.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">10</td>
+        <td colspan="3" class="value">{% if new_panel_rows.9 %}{{ new_panel_rows.9.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">11</td>
+        <td colspan="3" class="value">{% if new_panel_rows.10 %}{{ new_panel_rows.10.part.description }}{% endif %}</td>
+    </tr>
+
+    <tr>
+        <td class="cream center">Sr. No.</td>
+        <td colspan="3" class="blue section-title">Repair Panel</td>
+    </tr>
+    <tr>
+        <td class="center">1</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.0 %}{{ repair_panel_rows.0.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">2</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.1 %}{{ repair_panel_rows.1.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">3</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.2 %}{{ repair_panel_rows.2.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">4</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.3 %}{{ repair_panel_rows.3.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">5</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.4 %}{{ repair_panel_rows.4.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">6</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.5 %}{{ repair_panel_rows.5.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">7</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.6 %}{{ repair_panel_rows.6.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">8</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.7 %}{{ repair_panel_rows.7.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">9</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.8 %}{{ repair_panel_rows.8.part.description }}{% endif %}</td>
+    </tr>
+    <tr>
+        <td class="center">10</td>
+        <td colspan="3" class="value">{% if repair_panel_rows.9 %}{{ repair_panel_rows.9.part.description }}{% endif %}</td>
+        <td colspan="2"></td>
+    </tr>
+
+    <tr>
+        <td colspan="2" class="signature-space"></td>
+        <td colspan="2" class="signature-space"></td>
+        <td colspan="2" class="signature-space"></td>
+    </tr>
+    <tr>
+        <td colspan="2" class="center">BP FLOOR INCHARGE</td>
+        <td colspan="2" class="center">ABSM</td>
+        <td colspan="2" class="center">BSM</td>
+    </tr>
+</table>
+
+<script>
+    window.addEventListener("load", function () {
+        window.print();
+    });
+</script>
+
+</body>
+</html>

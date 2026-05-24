@@ -1,0 +1,46 @@
+
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<style>
+    .modal-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    background: rgba(0, 0, 0, 0.5); /* overlay */
+}
+
+.modal-box {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    width: 400px;
+}
+</style>
+
+
+
+<div class="container mt-4">
+    <h4>Edit Insurance</h4>
+<p class="left">
+        <a href="{% url 'dashboard' %}">Closed</a>
+</p>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-success">Update</button>
+        <a href="{% url 'insurance' %}" class="btn btn-secondary">Back</a>
+    </form>
+</div>
+
+{% endblock %}

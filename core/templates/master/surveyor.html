@@ -1,0 +1,162 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Surveyor Master</h3>
+
+    <button class="btn btn-primary mb-3" id="addBtn">+ Add Surveyor</button>
+
+    <table id="surveyorTable" class="table table-striped">
+        <thead>
+            <tr>
+               <th>Name</th>
+            <th>Mobile</th>
+            <th>Email</th>
+            <th>License</th>
+            <th>Company</th>
+            <th>City</th>
+            <th>Action</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+
+<!-- MODAL -->
+<div class="modal fade" id="surveyorModal">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Company</h5>
+      </div>
+
+      <div class="modal-body">
+        <form id="surveyorForm">
+            {% csrf_token %}
+            <input type="hidden" name="id" id="id">
+
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="name" id="name" placeholder="Surveyor  Name">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="mobile_no" id="mobile_no" placeholder="Mobile">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="email" id="email" placeholder="Email">
+
+                    <div class="col-md-6 mb-2">
+                    <input class="form-control" name="license_no" id="license_no" placeholder="License No">
+                </div>
+                    <div class="col-md-6 mb-2">
+                    <input class="form-control" name="company" id="company" placeholder="company">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <input class="form-control" name="city" id="city" placeholder="City">
+                </div>
+
+
+            </div>
+            </div>
+        </form>
+
+        <div id="formErrors" class="text-danger"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-success" id="saveBtn">Save</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+let table;
+
+$(document).ready(function () {
+
+    table = $('#surveyorTable').DataTable({
+        ajax: '/surveyor/data/',
+        columns: [
+            { data: 'name' },
+            { data: 'mobile_no' },
+            { data: 'email' },
+            { data: 'license_no' },
+            { data: 'company' },
+            { data: 'city' },
+            {
+                data: 'id',
+                render: function (data) {
+                    return `<button class="btn btn-sm btn-warning editBtn" data-id="${data}">Edit</button>`;
+                }
+            }
+        ]
+    });
+
+});
+
+
+$('#addBtn').click(function () {
+    $('#surveyorForm')[0].reset();
+    $('#id').val('');
+    $('#surveyorModal').modal('show');
+});
+
+// EDIT
+$('#surveyorTable').on('click', '.editBtn', function () {
+    let id = $(this).data('id');
+
+    $.get(`/surveyor/get/${id}/`, function (data) {
+        $('#id').val(data.id);
+        $('#name').val(data.name);
+        $('#mobile_no').val(data.mobile_no);
+        $('#email').val(data.email);
+        $('#license_no').val(data.license_no);
+        $('#company').val(data.company);
+        $('#city').val(data.city);
+
+        $('#surveyorModal').modal('show');
+    });
+});
+
+// SAVE
+$('#saveBtn').click(function () {
+    $.post('/surveyor/save/', $('#surveyorForm').serialize(), function (res) {
+
+        if (res.success) {
+            $('#surveyorModal').modal('hide');
+            table.ajax.reload();
+        } else {
+            $('#formErrors').html(JSON.stringify(res.errors));
+        }
+
+    });
+});
+
+    document.getElementById("mobile_no").addEventListener("input", function () {
+
+    const value = this.value;
+
+    fetch(`/ajax/check-surveyor-mobile/?mobile=${value}`)
+        .then(res => res.json())
+        .then(data => {
+
+            if (data.exists) {
+                this.classList.add("is-invalid");
+            } else {
+                this.classList.remove("is-invalid");
+            }
+
+        });
+
+});
+</script>
+{% endblock %}

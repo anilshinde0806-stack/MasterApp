@@ -1,0 +1,26 @@
+{% for item in menu_items %}
+    <li class="nav-item {% if item.active %}active{% endif %}">
+
+     <div class="menu-link"
+     data-url="{% if item.url %}{% url item.url %}{% endif %}"
+     data-title="{{ item.title }}">
+
+    <span class="icon">
+        <i class="{{ item.icon }}"></i>
+    </span>
+
+    <span class="nav-link text-white">{{ item.title }}</span>
+
+    {% if item.children %}
+        <span class="arrow">▶</span>
+    {% endif %}
+</div>
+
+        {% if item.children %}
+            <ul class="submenu floating">
+                {% include "rbac/sidebar.html" with menu_items=item.children %}
+            </ul>
+        {% endif %}
+
+    </li>
+{% endfor %}

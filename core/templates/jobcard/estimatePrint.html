@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Estimate Print</title>
+
+    <style>
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            color: #000;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 4px;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f1f1f1;
+        }
+
+        .section {
+            background: #e9ecef;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .no-print {
+            text-align: right;
+            margin-bottom: 10px;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="no-print">
+    <button onclick="window.print()">Print</button>
+</div>
+
+<div class="title">REPAIR ESTIMATE</div>
+
+<table>
+    <tr>
+        <td><b>Estimate No:</b> {{ job.job_no }}</td>
+        <td><b>Date:</b> {{ job.job_date }}</td>
+        <td><b>Claim No:</b> {{ claim.claim_no }}</td>
+    </tr>
+    <tr>
+        <td><b>Advisor:</b> {{ job.advisor.name }}</td>
+        <td><b>Vehicle No:</b> {{ claim.vehicle.registration_no }}</td>
+        <td><b>KM:</b> {{ job.km }}</td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td class="section" colspan="2">Customer Details</td>
+        <td class="section" colspan="2">Vehicle Details</td>
+    </tr>
+
+    <tr>
+        <td><b>Name</b></td>
+        <td>{{ claim.vehicle.customer.name }}</td>
+        <td><b>Model</b></td>
+        <td>{{ claim.vehicle.model.name }}</td>
+    </tr>
+
+    <tr>
+        <td><b>Mobile</b></td>
+        <td>{{ claim.vehicle.customer.mobile_no }}</td>
+        <td><b>Variant</b></td>
+        <td>{{ claim.vehicle.variant.name|default:"" }}</td>
+    </tr>
+
+    <tr>
+        <td><b>Address</b></td>
+        <td>{{ claim.vehicle.customer.address|default:"" }}</td>
+        <td><b>Colour</b></td>
+        <td>{{ claim.vehicle.color|default:"" }}</td>
+    </tr>
+
+    <tr>
+        <td><b>Insurance Co</b></td>
+        <td>{{ claim.insurance_company|default:"" }}</td>
+        <td><b>Policy No</b></td>
+        <td>{{ claim.policy_no|default:"" }}</td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td class="section" colspan="6">Parts Estimate</td>
+    </tr>
+
+    <tr>
+        <th style="width:5%">Sr</th>
+        <th style="width:18%">Part No</th>
+        <th>Description</th>
+        <th style="width:8%">Qty</th>
+        <th style="width:12%">Rate</th>
+        <th style="width:12%">Amount</th>
+    </tr>
+
+    {% for p in parts %}
+    <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ p.part_no }}</td>
+        <td>{{ p.description }}</td>
+        <td class="right">{{ p.qty }}</td>
+        <td class="right">{{ p.rate }}</td>
+        <td class="right">{{ p.amount }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="6">No parts added</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<table>
+    <tr>
+        <td class="section" colspan="6">Labour Estimate</td>
+    </tr>
+
+    <tr>
+        <th style="width:5%">Sr</th>
+        <th style="width:18%">Job Code</th>
+        <th>Description</th>
+        <th style="width:10%">Hours</th>
+        <th style="width:12%">Rate</th>
+        <th style="width:12%">Amount</th>
+    </tr>
+
+    {% for l in labours %}
+    <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ l.job_code }}</td>
+        <td>{{ l.description }}</td>
+        <td class="right">{{ l.labour_hrs }}</td>
+        <td class="right">{{ l.rate }}</td>
+        <td class="right">{{ l.amount }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="6">No labour added</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<table>
+    <tr>
+        <td class="section" colspan="2">Estimate Summary</td>
+    </tr>
+
+    <tr>
+        <td class="right"><b>Parts Total</b></td>
+        <td class="right" style="width:150px;">{{ job.parts_total }}</td>
+    </tr>
+
+    <tr>
+        <td class="right"><b>Labour Total</b></td>
+        <td class="right">{{ job.labour_total }}</td>
+    </tr>
+
+    <tr>
+        <td class="right"><b>GST Amount</b></td>
+        <td class="right">{{ job.gst_amount }}</td>
+    </tr>
+
+    <tr>
+        <td class="right"><b>Net Estimate</b></td>
+        <td class="right"><b>{{ job.net_total }}</b></td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td class="section">Remarks / Repair Instructions</td>
+    </tr>
+    <tr>
+        <td style="height:50px;">
+            {{ job.repair_instructions|default:"" }}
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td class="center" style="height:55px;">
+            Customer Signature
+        </td>
+        <td class="center">
+            Advisor Signature
+        </td>
+        <td class="center">
+            Authorized Signature
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

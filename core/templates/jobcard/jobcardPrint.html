@@ -1,0 +1,787 @@
+{% load static %}
+
+<html>
+<head>
+    <title>Job Card - Customer Copy</title>
+
+    <style>
+        .inventory-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.inventory-print-table th,
+.inventory-print-table td {
+    border: 1px solid #000;
+    padding: 3px 5px;
+}
+
+.inventory-print-table th {
+    text-align: center;
+    font-weight: bold;
+}
+
+.inventory-print-table td {
+    vertical-align: middle;
+}
+
+.inventory-print-table .gap-cell {
+    border: none !important;
+    width: 12px;
+}
+        .damage-box {
+    position: relative;
+    width: 320px;
+    height: 180px;
+    background: transparent;
+    margin: auto;
+    overflow: hidden;
+}
+
+.damage-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+.damage-mark {
+
+    position: absolute;
+
+    width: 14px;
+    height: 14px;
+
+    background: #dc3545;
+
+    border: 2px solid #fff;
+
+    border-radius: 50%;
+
+    transform: translate(-50%, -50%);
+
+    cursor: pointer;
+
+    z-index: 5;
+}
+
+.scratch-line {
+
+    position: absolute;
+
+    height: 4px;
+
+    background: #ffc107;
+
+    border-radius: 10px;
+
+    transform-origin: left center;
+
+    cursor: pointer;
+
+    z-index: 4;
+}
+        .print-gauge-wrapper {
+
+    display: flex;
+    gap: 30px;
+
+    align-items: center;
+    justify-content: center;
+
+    margin-top: 10px;
+    margin-bottom: 15px;
+}
+
+.print-gauge-box {
+    text-align: center;
+}
+
+.mini-gauge {
+    position: relative;
+    width: 85px;
+    height: 42px;
+    margin: 4px auto 0;
+
+    border-top-left-radius: 85px;
+    border-top-right-radius: 85px;
+
+    border: 7px solid #dee2e6;
+    border-bottom: 0;
+}
+
+/* Gauge labels */
+.gauge-label {
+    position: absolute;
+    font-size: 9px;
+    font-weight: bold;
+    color: #444;
+}
+
+.empty {
+    left: -8px;
+    bottom: -2px;
+}
+
+.quarter {
+    left: 10px;
+    top: 8px;
+}
+
+.half {
+    left: 42px;
+    top: -8px;
+}
+
+.three {
+    right: 10px;
+    top: 8px;
+}
+
+.full {
+    right: -8px;
+    bottom: -2px;
+}
+
+.mini-needle {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 3px;
+    height: 36px;
+    background: #dc3545;
+    transform-origin: bottom center;
+}
+
+.mini-center {
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    width: 11px;
+    height: 11px;
+    background: #212529;
+    border-radius: 50%;
+    transform: translateX(-50%);
+}
+        .print-damage-box {
+    position: relative;
+    width: 300px;
+    margin: 8px auto;
+}
+
+.print-damage-img {
+    width: 100%;
+    display: block;
+}
+
+.print-dent {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: red;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    transform: translate(-35%, -50%);
+}
+
+.print-scratch {
+    position: absolute;
+    height: 3px;
+    background: #ffc107;
+    border: 1px solid #b8860b;
+    border-radius: 8px;
+    transform-origin: left center;
+}
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            color: #000;
+        }
+
+        .page {
+            width: 100%;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+
+        td, th {
+            border: 1px solid #000;
+            padding: 4px;
+            vertical-align: top;
+        }
+
+        .no-border td {
+            border: none;
+        }
+
+        .section {
+            background: #e9ecef;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .sign-box {
+            height: 55px;
+        }
+
+        .no-print {
+            text-align: right;
+            margin-bottom: 10px;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="no-print">
+    <button onclick="window.print()">Print</button>
+</div>
+
+<div class="page">
+
+    <div class="title">Job Card - Customer Copy</div>
+
+    <table>
+        <tr>
+            <td><b>Job Card No:</b> {{ job.job_no }}</td>
+            <td><b>Open Date/Time:</b> {{ job.created_at|date:"d/m/Y H:i" }}</td>
+            <td><b>Claim No:</b> {{ claim.claim_no }}</td>
+            <td><b>SR Type:</b> Accident</td>
+        </tr>
+        <tr>
+            <td><b>Gate In:</b> {{ job.gate_in_datetime|date:"d/m/Y H:i" }}</td>
+            <td><b>Advisor:</b> {{ job.advisor.name }}</td>
+            <td><b>Expected Delivery:</b> {{ job.expected_delivery_datetime|date:"d/m/Y H:i" }}</td>
+            <td><b>Current KM:</b> {{ job.km }}</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="section" colspan="2">Customer Details</td>
+            <td class="section" colspan="2">Vehicle Details</td>
+        </tr>
+
+        <tr>
+            <td><b>Name</b></td>
+            <td>{{ claim.vehicle.customer.name }}</td>
+            <td><b>Vehicle Reg No</b></td>
+            <td>{{ claim.vehicle.registration_no }}</td>
+        </tr>
+
+        <tr>
+            <td><b>Mobile</b></td>
+            <td>{{ claim.vehicle.customer.mobile_no }}</td>
+            <td><b>Model</b></td>
+            <td>{{ claim.vehicle.model.name }}</td>
+        </tr>
+
+        <tr>
+            <td><b>Address</b></td>
+            <td>
+                {{ claim.vehicle.customer.address|default:"" }}<br>
+                {{ claim.vehicle.customer.city|default:"" }}
+            </td>
+            <td><b>Variant / Colour</b></td>
+            <td>
+                {{ claim.vehicle.variant.name|default:"" }} /
+                {{ claim.vehicle.color|default:"" }}
+            </td>
+        </tr>
+
+        <tr>
+            <td><b>GST</b></td>
+            <td>{{ claim.vehicle.customer.gst_no|default:"" }}</td>
+            <td><b>Chassis / Engine</b></td>
+            <td>
+                {{ claim.vehicle.chassis_no|default:"" }} /
+                {{ claim.vehicle.engine_no|default:"" }}
+            </td>
+        </tr>
+    </table>
+                    <div class="section-title">Vehicle Condition & Inventory</div>
+
+                <table class="inventory-print-table">
+
+    <tr>
+        <th colspan="2">Normal Inventory</th>
+        <th class="gap-cell"></th>
+        <th colspan="5">Tyre Inventory</th>
+    </tr>
+
+    <tr>
+        <th>Inventory Item Name's</th>
+        <th>Yes/No/No's</th>
+        <th class="gap-cell"></th>
+        <th>Pos</th>
+        <th>Make</th>
+        <th>Size</th>
+        <th>Depth</th>
+        <th>Wheel Cap</th>
+    </tr>
+
+    {% for tyre in tyre_inventory %}
+    <tr>
+        {% if forloop.counter == 1 %}
+            <td>Jack</td>
+            <td>{% if jack %}Yes{% else %}No{% endif %}</td>
+        {% elif forloop.counter == 2 %}
+            <td>Tool Kit</td>
+            <td>{% if tool_kit %}Yes{% else %}No{% endif %}</td>
+        {% elif forloop.counter == 3 %}
+            <td>Mud Flap</td>
+            <td>{{ mud_flap_count }}</td>
+        {% elif forloop.counter == 4 %}
+            <td>Floor Mat</td>
+            <td>{{ floor_mat_count }}</td>
+        {% elif forloop.counter == 5 %}
+            <td>LH Mirror</td>
+            <td>{% if lh_mirror %}Yes{% else %}No{% endif %}</td>
+        {% endif %}
+
+        <td class="gap-cell"></td>
+
+        <td>{{ tyre.label }}</td>
+        <td>{{ tyre.make }}</td>
+        <td>{{ tyre.size }}</td>
+        <td>{{ tyre.depth }}</td>
+        <td>{{ tyre.wheel_cap }}</td>
+    </tr>
+    {% endfor %}
+
+    <tr>
+        <td>RH Mirror</td>
+        <td>{% if rh_mirror %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+    <tr>
+        <td>Center Mirror</td>
+        <td>{% if center_mirror %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+    <tr>
+        <td>Battery</td>
+        <td>{% if battery %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+    <tr>
+        <td>Stereo</td>
+        <td>{% if stereo %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+    <tr>
+        <td>Front Wiper</td>
+        <td>{% if frt_wiper %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+    <tr>
+        <td>Rear Wiper</td>
+        <td>{% if rr_wiper %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+    <tr>
+        <td>Extra Accessories</td>
+        <td>{% if accessories %}Yes{% else %}No{% endif %}</td>
+        <td class="gap-cell"></td>
+        <td colspan="5"></td>
+    </tr>
+
+</table>
+                                        <div class="section-title">
+                            Vehicle Fuel Status
+                        </div>
+
+                        <div class="print-gauge-wrapper">
+
+                            <!-- PETROL -->
+                            <div class="print-gauge-box">
+
+                                <div class="mini-gauge">
+
+                                    <div class="mini-needle"
+                                          style="transform: rotate({{ fuel_angle }}deg);">
+                                    </div>
+
+                                    <div class="mini-center"></div>
+                                    <div class="gauge-label empty">E</div>
+                            <div class="gauge-label quarter">1/4</div>
+                            <div class="gauge-label half">1/2</div>
+                            <div class="gauge-label three">3/4</div>
+                            <div class="gauge-label full">F</div>
+                                </div>
+
+                                <div class="text-center small fw-bold">
+                                        Fuel:
+                                        {{ fuel_label }}
+                                        ({{ fuel_percent }}%)
+                                    </div>
+
+                            </div>
+
+                            {% if is_cng_vehicle %}
+                            <!-- CNG -->
+                            <div class="print-gauge-box">
+
+                                <div class="mini-gauge">
+
+                                    <div class="mini-needle"
+                                         style="transform: rotate({{ cng_angle }}deg);">
+                                    </div>
+
+                                    <div class="mini-center"></div>
+                                    <div class="gauge-label empty">E</div>
+                            <div class="gauge-label quarter">1/4</div>
+                            <div class="gauge-label half">1/2</div>
+                            <div class="gauge-label three">3/4</div>
+                            <div class="gauge-label full">F</div>
+                                </div>
+
+                                <div class="text-center small fw-bold">
+                                    CNG:
+                                    {{ cng_label }}
+                                    ({{ cng_percent }}%)
+                                </div>
+
+                            </div>
+                            {% endif %}
+
+                        </div>
+                <div class="section-title">Vehicle Damage Marking</div>
+
+
+
+
+     <div class="damage-box" id="damageBox">
+                    <img src="{% static 'images/car-top-view.png' %}"
+                         class="damage-img">
+
+
+                    {% for mark in damage_marks %}
+                        {% if mark.type == "dent" %}
+                            <span class="print-dent" style="left: calc({{ mark.x }}% + 17px); top: {{ mark.y }}%;">
+                            </span>
+                        {% endif %}
+
+                        {% if mark.type == "scratch" %}
+                            <span class="print-scratch"
+                                  style="
+                                    left:{{ mark.x1 }}%;
+                                    top:{{ mark.y1 }}%;
+                                    width:{{ mark.length }}%;
+                                    transform: rotate({{ mark.angle }}deg);
+                                  ">
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+
+
+
+                <div style="font-size:11px;">
+                    <span style="color:red;">● Dent</span>
+                    &nbsp;&nbsp;
+                    <span style="color:#d39e00;">━ Scratch</span>
+                </div>
+         </div>
+    <table>
+        <tr>
+            <td class="section" colspan="6">
+                Customer Requests / Repair Advice
+            </td>
+        </tr>
+
+        <tr>
+            <th style="width:5%">Sr</th>
+            <th style="width:15%">Job Code</th>
+            <th>Repair Details</th>
+            <th style="width:10%">Std Hrs</th>
+            <th style="width:15%">Parts Estimate</th>
+            <th style="width:15%">Labour Estimate</th>
+        </tr>
+
+        {% for l in labours %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ l.job_code }}</td>
+            <td>{{ l.description }}</td>
+            <td class="right">{{ l.labour_hrs }}</td>
+            <td class="right">-</td>
+            <td class="right">{{ l.amount }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6">No labour details added</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <table>
+        <tr>
+            <td><b>Parts Total</b></td>
+            <td class="right">{{ job.parts_total }}</td>
+            <td><b>Labour Total</b></td>
+            <td class="right">{{ job.labour_total }}</td>
+        </tr>
+        <tr>
+            <td><b>GST</b></td>
+            <td class="right">{{ job.gst_amount }}</td>
+            <td><b>Estimated Bill</b></td>
+            <td class="right"><b>{{ job.net_total }}</b></td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="section">Repair Instructions</td>
+        </tr>
+        <tr>
+            <td style="height:45px;">
+                {{ job.repair_instructions|default:"" }}
+            </td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td style="width:33%" class="sign-box">
+                I authorize the dealer to execute the jobs using necessary material at my cost.I understand that the vehicle is being stored, repaired and tested at my risk. Date & Time :           Customer SIgn
+            </td>
+            <td style="width:33%" class="sign-box">
+                I certify that the work has been done to my satisfaction  and I have taken the delivery of the vehicle.  I have been offered old parts/salvage by dealership.
+            </td>
+            <td style="width:33%" class="sign-box">
+                I have been offered old parts/salvage by dealership.
+            </td>
+        </tr>
+
+        <tr>
+            <td class="center"><b>Customer Signature</b></td>
+            <td class="center"><b>Customer Signature</b></td>
+            <td class="center"><b>Date</b></td>
+        </tr>
+    </table>
+
+    <div class="center">
+        <b>Thank You!</b>
+    </div>
+
+</div>
+<div style="page-break-before: always;"></div>
+
+<div class="page">
+
+    <div class="title">Job Card - Workshop Copy</div>
+
+    <table>
+        <tr>
+            <td><b>Job Card No:</b> {{ job.job_no }}</td>
+            <td><b>Open Date/Time:</b> {{ job.created_at|date:"d/m/Y H:i" }}</td>
+            <td><b>Claim No:</b> {{ claim.claim_no }}</td>
+            <td><b>SR Type:</b> Accident</td>
+        </tr>
+        <tr>
+            <td><b>Vehicle Reg No:</b> {{ claim.vehicle.registration_no }}</td>
+            <td><b>Current KM:</b> {{ job.km }}</td>
+            <td><b>Advisor:</b> {{ job.advisor.name }}</td>
+            <td><b>Expected Delivery:</b> {{ job.expected_delivery_datetime|date:"d/m/Y H:i" }}</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="section" colspan="2">Customer Details</td>
+            <td class="section" colspan="2">Vehicle Details</td>
+        </tr>
+        <tr>
+            <td><b>Name</b></td>
+            <td>{{ claim.vehicle.customer.name }}</td>
+            <td><b>Model</b></td>
+            <td>{{ claim.vehicle.model.name }}</td>
+        </tr>
+        <tr>
+            <td><b>Mobile</b></td>
+            <td>{{ claim.vehicle.customer.mobile_no }}</td>
+            <td><b>Variant / Colour</b></td>
+            <td>{{ claim.vehicle.variant.name|default:"" }} / {{ claim.vehicle.color|default:"" }}</td>
+        </tr>
+        <tr>
+            <td><b>Address</b></td>
+            <td>{{ claim.vehicle.customer.address|default:"" }}</td>
+            <td><b>Chassis No</b></td>
+            <td>{{ claim.vehicle.chassis_no|default:"" }}</td>
+        </tr>
+        <tr>
+            <td><b>City</b></td>
+            <td>{{ claim.vehicle.customer.city|default:"" }}</td>
+            <td><b>Engine No</b></td>
+            <td>{{ claim.vehicle.engine_no|default:"" }}</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="section" colspan="7">Repair Advice by Service Advisor</td>
+        </tr>
+        <tr>
+            <th style="width:5%">Sr</th>
+            <th style="width:12%">Complaint Code</th>
+            <th style="width:12%">Job Code</th>
+            <th>Repair Details / Instructions</th>
+            <th style="width:10%">Std Hrs</th>
+            <th style="width:12%">Parts Est.</th>
+            <th style="width:12%">Labour Est.</th>
+        </tr>
+
+        {% for l in labours %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>ACR</td>
+            <td>{{ l.job_code }}</td>
+            <td>{{ l.description }}</td>
+            <td class="right">{{ l.labour_hrs }}</td>
+            <td class="right">-</td>
+            <td class="right">{{ l.amount }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7">No repair advice added</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <table>
+        <tr>
+            <td class="section" colspan="6">Spare Parts / Lubricants</td>
+        </tr>
+        <tr>
+            <th style="width:5%">Sr</th>
+            <th style="width:18%">Part No</th>
+            <th>Description</th>
+            <th style="width:8%">Qty</th>
+            <th style="width:12%">Rate</th>
+            <th style="width:12%">Amount</th>
+        </tr>
+
+        {% for p in parts %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ p.part_no }}</td>
+            <td>{{ p.description }}</td>
+            <td class="right">{{ p.qty }}</td>
+            <td class="right">{{ p.rate }}</td>
+            <td class="right">{{ p.amount }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6">No parts added</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <table>
+        <tr>
+            <td class="section" colspan="4">Job Allocation</td>
+        </tr>
+        <tr>
+            <td><b>Team Leader</b></td>
+            <td>________________________</td>
+            <td><b>Technician</b></td>
+            <td>________________________</td>
+        </tr>
+        <tr>
+            <td><b>Bay No</b></td>
+            <td>{{ job.bay_no|default:"" }}</td>
+            <td><b>Repair Status</b></td>
+            <td>{{ job.repair_status }}</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="section" colspan="4">Cost Summary</td>
+        </tr>
+        <tr>
+            <td><b>Parts Total</b></td>
+            <td class="right">{{ job.parts_total }}</td>
+            <td><b>Labour Total</b></td>
+            <td class="right">{{ job.labour_total }}</td>
+        </tr>
+        <tr>
+            <td><b>GST</b></td>
+            <td class="right">{{ job.gst_amount }}</td>
+            <td><b>Net Total</b></td>
+            <td class="right"><b>{{ job.net_total }}</b></td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="section">Repair Instructions</td>
+        </tr>
+        <tr>
+            <td style="height:55px;">
+                {{ job.repair_instructions|default:"" }}
+            </td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td style="height:45px;"><b>Add-on Jobs:</b><br>1.<br>2.</td>
+            <td style="height:45px;"><b>Pending Jobs:</b><br>1.<br>2.</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td class="center sign-box">Customer Signature</td>
+            <td class="center sign-box">Service Advisor Signature</td>
+            <td class="center sign-box">Team Leader Signature</td>
+            <td class="center sign-box">Quality Inspector Signature</td>
+        </tr>
+    </table>
+
+</div>
+</body>
+</html>

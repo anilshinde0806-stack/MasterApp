@@ -1,0 +1,155 @@
+{% load static %}
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Parts Order Print</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f3f4f6;
+            font-family: Arial, sans-serif;
+            color: #000;
+        }
+
+        .toolbar {
+            padding: 10px;
+            text-align: right;
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .sheet {
+            position: relative;
+            width: 210mm;
+            height: 297mm;
+            margin: 12px auto;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .print-text {
+            position: absolute;
+            font-size: 14px;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .small {
+            font-size: 12px;
+        }
+
+        .parts-area {
+            position: absolute;
+            left: 0;
+            top: 96mm;
+            width: 210mm;
+        }
+
+        .row-part {
+            position: relative;
+            height: 8mm;
+            font-size: 13px;
+            line-height: 8mm;
+        }
+
+        .part-no,
+        .part-desc,
+        .part-qty {
+            position: absolute;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .part-no {
+            left: 38mm;
+            width: 28mm;
+            text-align: left;
+        }
+
+        .part-desc {
+            left: 70mm;
+            width: 62mm;
+            text-align: left;
+        }
+
+        .part-qty {
+            left: 151mm;
+            width: 18mm;
+            text-align: right;
+        }
+
+        .qty {
+            text-align: right;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .toolbar {
+                display: none;
+            }
+
+            .sheet {
+                margin: 0;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="toolbar">
+    <button onclick="window.print()">Print</button>
+</div>
+
+<div class="sheet">
+    <div class="print-text" style="left: 32mm; top: 31mm;">DMS Ro Number</div>
+    <div class="print-text" style="left: 107mm; top: 31mm;">
+        {% if vehicle %}{{ vehicle.registration_no }}{% endif %}
+    </div>
+
+    <div class="print-text" style="left: 42mm; top: 47mm;">
+        {% if vehicle and vehicle.customer %}{{ vehicle.customer.name }}{% endif %}
+    </div>
+    <div class="print-text" style="left: 124mm; top: 47mm;">
+        {% if vehicle %}{{ vehicle.color }}{% endif %}
+    </div>
+    <div class="print-text" style="left: 188mm; top: 47mm;">
+        {% if vehicle and vehicle.model %}{{ vehicle.model.name }}{% endif %}
+    </div>
+
+    <div class="print-text" style="left: 193mm; top: 70mm;">
+        {% if header.order_date %}{{ header.order_date|date:"d-m-Y" }}{% endif %}
+    </div>
+
+    <div class="parts-area">
+        {% for line in lines|slice:":10" %}
+        <div class="row-part">
+            <div class="part-no">{% if line.part %}{{ line.part.part_no }}{% else %}{{ line.manual_part_no }}{% endif %}</div>
+            <div class="part-desc">{% if line.part %}{{ line.part.description }}{% else %}{{ line.manual_description }}{% endif %}</div>
+            <div class="part-qty">{{ line.ordered_qty }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+window.addEventListener("load", function () {
+    setTimeout(function () {
+        window.print();
+    }, 300);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Body shop</title>
+    <style>
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: Segoe UI;
+}
+
+td, th {
+    padding: 8px;
+    border: 1px solid #ccc;
+}
+
+td:focus {
+    outline: 2px solid #4CAF50;
+    background: #f0fff0;
+}
+</style>
+</head>
+<body>
+<h2>Data Grid</h2>
+<a href="/logout/">Logout</a>
+<button onclick="addRow()">+ Add Row</button>
+<table border="1" id="grid">
+  <tr>
+    <th>Item</th>
+    <th>Qty</th>
+    <th>Status</th>
+  </tr>
+
+  {% for row in data %}
+  <tr data-id="{{ row.id }}">
+    <td contenteditable="true" data-field="item_name">{{ row.item_name }}</td>
+    <td contenteditable="true" data-field="qty">{{ row.qty }}</td>
+    <td contenteditable="true" data-field="status">{{ row.status }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<script>
+document.querySelectorAll("#grid td").forEach(cell => {
+    cell.addEventListener("blur", function () {
+
+        let value = this.innerText;
+        let field = this.dataset.field;
+        let row = this.closest("tr");
+        let id = row.dataset.id;
+
+        fetch("/update-cell/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                id: id,
+                field: field,
+                value: value
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log("Saved");
+        });
+
+    });
+});
+
+
+   function addRow() {
+    fetch("/add-row/")
+    .then(res => res.json())
+    .then(data => {
+        console.log("Row added:", data);
+
+        let table = document.getElementById("grid");
+
+        let row = table.insertRow();
+
+        row.setAttribute("data-id", data.id);
+
+        row.innerHTML = `
+            <td contenteditable="true" data-field="item_name">${data.item}</td>
+            <td contenteditable="true" data-field="qty">${data.qty}</td>
+            <td contenteditable="true" data-field="status">${data.status}</td>
+        `;
+
+        attachCellEvents(); // re-bind events
+    })
+    .catch(err => {
+        console.error("Error:", err);
+        alert("Add row failed");
+    });
+}
+
+
+
+</script>
+</body>
+</html>

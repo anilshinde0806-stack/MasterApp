@@ -1,0 +1,31 @@
+{% for item in menu_items %}
+
+<li class="erp-menu-item">
+    {% if item.url %}
+    <div class="erp-menu-link"
+         data-url="{{ item.url}}">
+    {% else %}
+    <div class="erp-menu-link"
+         data-url="#">
+    {% endif %}
+        {% if item.icon %}
+            <i class="{{ item.icon }}"></i>
+        {% endif %}
+
+        <span>{{ item.title }}</span>
+
+        {% if item.children %}
+            <i class="fa fa-angle-down ms-1"></i>
+        {% endif %}
+
+    </div>
+
+    {% if item.children %}
+        <ul class="erp-submenu">
+            {% include "rbac/top_menu.html" with menu_items=item.children %}
+        </ul>
+    {% endif %}
+
+</li>
+
+{% endfor %}

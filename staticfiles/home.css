@@ -1,0 +1,57 @@
+.testimonials {
+  padding: 40px;
+  background: #f9f9f9;
+  text-align: center;
+}
+.testimonial-card {
+  margin: 15px auto;
+  max-width: 600px;
+  padding: 20px;
+  border-left: 5px solid #e91e63;
+  background: white;
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+
+.gallery {
+  padding: 40px;
+  background: #fff5f7;
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+.gallery-grid img {
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.booking-form {
+  max-width: 500px;
+  margin: 40px auto;
+  background: #fff;
+  padding: 25px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+}
+.booking-form form {
+  display: flex;
+  flex-direction: column;
+}
+.booking-form label {
+  margin-top: 10px;
+  font-weight: bold;
+}
+.booking-form input,
+.booking-form select {
+  padding: 8px;
+  margin-top: 5px;
+}
+.booking-form button {
+  margin-top: 20px;
+  padding: 10px;
+  background: #e91e63;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
