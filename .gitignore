@@ -1,0 +1,87 @@
+# ---------------------------
+# Python
+# ---------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Compiled extensions
+*.so
+
+# ---------------------------
+# Virtual Environment
+# ---------------------------
+.venv/
+venv/
+env/
+
+# ---------------------------
+# PyCharm
+# ---------------------------
+.idea/
+*.iml
+
+# ---------------------------
+# Django
+# ---------------------------
+*.log
+local_settings.py
+
+# SQLite (ignore only if used)
+db.sqlite3
+db.sqlite3-journal
+
+# Media uploads
+media/
+
+# Static collectstatic files
+staticfiles/
+
+# ---------------------------
+# Environment Variables
+# ---------------------------
+.env
+
+# ---------------------------
+# OS Files
+# ---------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------------------------
+# Python Packaging
+# ---------------------------
+build/
+dist/
+*.egg-info/
+
+# ---------------------------
+# Test / Cache
+# ---------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ---------------------------
+# VS Code (if used)
+# ---------------------------
+.vscode/
+
+# ---------------------------
+# PostgreSQL local files
+# ---------------------------
+*.pgsql
+.pgpass
+
+# ---------------------------
+# Node (if future React/mobile)
+# ---------------------------
+node_modules/
+
+# ---------------------------
+# Backup Files
+# ---------------------------
+*.bak
+*.tmp
+*.swp
