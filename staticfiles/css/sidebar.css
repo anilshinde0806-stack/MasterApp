@@ -89,6 +89,26 @@
         visibility .22s;
 }
 
+.erp-submenu .erp-menu-item {
+    position: relative;
+}
+
+.erp-submenu .erp-submenu {
+    top: 0;
+    left: 100%;
+    margin-left: 6px;
+    border-radius: 10px;
+    transform: translateX(12px) scale(.98);
+}
+
+.erp-submenu .erp-submenu.fly-left {
+    left: auto;
+    right: 100%;
+    margin-left: 0;
+    margin-right: 6px;
+    transform: translateX(-12px) scale(.98);
+}
+
 /* SHOW */
 
 .erp-menu-item:hover > .erp-submenu {
@@ -98,6 +118,14 @@
     visibility: visible;
 
     transform: translateY(0) scale(1);
+}
+
+.erp-submenu .erp-menu-item:hover > .erp-submenu {
+    transform: translateX(0) scale(1);
+}
+
+.erp-submenu .erp-menu-item:hover > .erp-submenu.fly-left {
+    transform: translateX(0) scale(1);
 }
 
 /* SUBMENU LINKS */
