@@ -12,27 +12,49 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+from datetime import timedelta
 
-import load_dotenv
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv()
+
+
+def env_bool(name, default=False):
+    return str(os.getenv(name, str(default))).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def env_list(name, default=""):
+    return [
+        item.strip()
+        for item in os.getenv(name, default).split(",")
+        if item.strip()
+    ]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-sp&v#exa1^+se_$=k#2v8^9tdv_%@=yb$3&-38l58&3t(7#&0#'
+# SECURITY WARNING: keep the secret key used in production secret.
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "dev-only-change-this-secret-key-before-live-deployment-2026"
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY WARNING: don't run with debug turned on in production.
+DEBUG = env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "192.168.29.251"
-]
+ALLOWED_HOSTS = env_list(
+    "ALLOWED_HOSTS",
+    "127.0.0.1,localhost,192.168.29.251"
+)
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
 
 
 # Application definition
@@ -50,19 +72,18 @@ INSTALLED_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     'rbac',
+    "mobile_api",
 ]
 
 MIDDLEWARE = [
-                'django.middleware.cache.UpdateCacheMiddleware',
-                'django.middleware.cache.FetchFromCacheMiddleware',
                 'django.middleware.security.SecurityMiddleware',
+                'whitenoise.middleware.WhiteNoiseMiddleware',
                 'django.contrib.sessions.middleware.SessionMiddleware',
                 'django.middleware.common.CommonMiddleware',
                 'django.middleware.csrf.CsrfViewMiddleware',
                 'django.contrib.auth.middleware.AuthenticationMiddleware',
                 'django.contrib.messages.middleware.MessageMiddleware',
                 'django.middleware.clickjacking.XFrameOptionsMiddleware',
-                'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -90,15 +111,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-load_dotenv()
 DATABASES = {
      'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'bodyshopdb',
-        'USER': 'postgres',
-        'PASSWORD': 'Admin@123',
-        'HOST': 'localhost',
-        'PORT': '5432',
+         "NAME": os.getenv("DB_NAME"),
+         "USER": os.getenv("DB_USER"),
+         "PASSWORD": os.getenv("DB_PASSWORD"),
+         "HOST": os.getenv("DB_HOST"),
+         "PORT": os.getenv("DB_PORT"),
     }
 }
 
@@ -153,10 +173,10 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-WHATSAPP_TOKEN = "YOUR_META_ACCESS_TOKEN"
-WHATSAPP_PHONE_NUMBER_ID = "917984801358"
-PDF_SECRET_TOKEN = "my-jobcard-pdf-token-123"
-SITE_URL = "http://127.0.0.1:8000"
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+PDF_SECRET_TOKEN = os.getenv("PDF_SECRET_TOKEN", "dev-pdf-token-change-before-live")
+SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "/"
@@ -167,3 +187,32 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 3600
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
+SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", not DEBUG)
+SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(os.getenv("JWT_ACCESS_MINUTES", "30"))),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("JWT_REFRESH_DAYS", "7"))),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": False,
+}

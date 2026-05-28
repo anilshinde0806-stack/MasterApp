@@ -26,6 +26,7 @@ urlpatterns = [
     path('', include('django.contrib.auth.urls')),
 
     path('', include('core.urls')),
+path("api/mobile/", include("mobile_api.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL,

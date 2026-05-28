@@ -1,0 +1,167 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}User Access{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">User Menu Access</h5>
+            {% if selected_user %}
+            <span class="badge bg-primary">{{ selected_user.username }}</span>
+            {% endif %}
+        </div>
+
+        <div class="card-body">
+            <form method="get" class="row g-2 align-items-end mb-3">
+                <div class="col-md-5">
+                    <label class="form-label">Select User</label>
+                    <select class="form-select" name="user_id" id="userSelect">
+                        <option value="">Select User</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" {% if selected_user_id == user.id|stringformat:"s" %}selected{% endif %}>
+                            {{ user.username }}
+                            {% if user.first_name or user.last_name %}
+                            - {{ user.get_full_name }}
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" type="submit">Load Access</button>
+                </div>
+            </form>
+
+            {% if selected_user %}
+            <form method="post" id="userAccessForm">
+                {% csrf_token %}
+                <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-outline-success btn-sm" type="button" id="checkAllMenus">
+                        Check All
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" type="button" id="uncheckAllMenus">
+                        Uncheck All
+                    </button>
+                </div>
+
+                <div class="access-panel">
+                    <ul class="access-tree">
+                        {% include "rbac/user_access_tree.html" with nodes=menu_tree %}
+                    </ul>
+                </div>
+
+                <div class="mt-3 text-end">
+                    <button class="btn btn-success px-4" type="submit">
+                        Save Access
+                    </button>
+                </div>
+            </form>
+            {% else %}
+            <div class="text-muted">Select a user to manage main menu and sub menu access.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .access-panel {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 12px;
+        max-height: calc(100vh - 285px);
+        overflow: auto;
+        background: #fff;
+    }
+
+    .access-tree {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+
+    .access-tree.child-tree {
+        padding-left: 28px;
+        margin-top: 6px;
+    }
+
+    .access-node {
+        margin: 4px 0;
+    }
+
+    .access-row {
+        padding: 6px 8px;
+        border-radius: 6px;
+    }
+
+    .access-row:hover {
+        background: #f8f9fa;
+    }
+
+    .form-check-label {
+        font-weight: 600;
+    }
+
+    .child-tree .form-check-label {
+        font-weight: 500;
+    }
+</style>
+
+<script>
+document.getElementById("userSelect")?.addEventListener("change", function () {
+    if (this.value) {
+        this.form.submit();
+    }
+});
+
+function setChildMenus(checkbox, checked) {
+    const li = checkbox.closest("li");
+
+    if (!li) {
+        return;
+    }
+
+    li.querySelectorAll("ul input.menu-check").forEach(child => {
+        child.checked = checked;
+    });
+}
+
+function updateParentMenus(checkbox) {
+    let childTree = checkbox.closest("ul.child-tree");
+
+    while (childTree) {
+        const parentLi = childTree.closest("li.access-node");
+        const parentCheck = parentLi?.querySelector(":scope > .access-row input.menu-check");
+
+        if (!parentCheck) {
+            break;
+        }
+
+        const children = Array.from(childTree.querySelectorAll(":scope > li > .access-row input.menu-check"));
+        parentCheck.checked = children.some(child => child.checked);
+        childTree = parentLi.parentElement.closest("ul.child-tree");
+    }
+}
+
+document.querySelectorAll(".menu-check").forEach(checkbox => {
+    checkbox.addEventListener("change", function () {
+        setChildMenus(this, this.checked);
+        updateParentMenus(this);
+    });
+});
+
+document.getElementById("checkAllMenus")?.addEventListener("click", function () {
+    document.querySelectorAll(".menu-check").forEach(checkbox => {
+        checkbox.checked = true;
+    });
+});
+
+document.getElementById("uncheckAllMenus")?.addEventListener("click", function () {
+    document.querySelectorAll(".menu-check").forEach(checkbox => {
+        checkbox.checked = false;
+    });
+});
+</script>
+{% endblock %}

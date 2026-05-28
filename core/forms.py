@@ -196,6 +196,7 @@ class ClaimForm(forms.ModelForm):
             'survey_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'surveyor': forms.Select(attrs={'class': 'form-select'}),
             'survey_status': forms.Select(attrs={'class': 'form-select'}),
+            'self_survey': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'estimated_amount': forms.NumberInput(attrs={'class': 'form-control'}),
             'approved_amount': forms.NumberInput(attrs={'class': 'form-control'}),
             'pre_invoice_sent_at': forms.DateTimeInput(attrs={
@@ -257,6 +258,23 @@ class ClaimForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 2
             }),
+            'delivery_datetime': forms.DateTimeInput(attrs={
+                'class': 'form-control',
+                'type': 'datetime-local'
+            }, format="%Y-%m-%dT%H:%M"),
+            'delivered_by': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'delivered_to': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'delivery_driver_name': forms.TextInput(attrs={
+                'class': 'form-control'
+            }),
+            'delivery_remarks': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2
+            }),
             'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
 
             "insurance_approval_date": forms.DateInput(attrs={
@@ -284,6 +302,7 @@ class ClaimForm(forms.ModelForm):
         self.fields["pre_invoice_sent_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["liability_received_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["invoice_datetime"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["delivery_datetime"].input_formats = ["%Y-%m-%dT%H:%M"]
 
         # =====================================
         # ONLY ADVISORS
@@ -293,6 +312,10 @@ class ClaimForm(forms.ModelForm):
             employee_type="Advisor",
             is_active=True
         )
+
+        self.fields["delivered_by"].queryset = Employee.objects.filter(
+            is_active=True
+        ).order_by("name")
 
         logged_emp = Employee.objects.filter(
             user=user

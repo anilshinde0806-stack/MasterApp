@@ -1,0 +1,25 @@
+{% for node in nodes %}
+<li class="menu-node">
+    <div class="menu-row {% if selected_menu and selected_menu.id == node.menu.id %}active{% endif %}">
+        <div>
+            {% if node.menu.icon %}
+            <i class="{{ node.menu.icon }}"></i>
+            {% endif %}
+            <b>{{ node.menu.name }}</b>
+            {% if node.menu.url %}
+            <span class="text-muted small ms-2">{{ node.menu.url }}</span>
+            {% endif %}
+        </div>
+        <a class="btn btn-sm btn-outline-primary"
+           href="{% url 'menu_manage' %}?menu_id={{ node.menu.id }}">
+            Edit
+        </a>
+    </div>
+
+    {% if node.children %}
+    <ul class="menu-tree child-tree">
+        {% include "rbac/menu_manage_tree.html" with nodes=node.children selected_menu=selected_menu %}
+    </ul>
+    {% endif %}
+</li>
+{% endfor %}

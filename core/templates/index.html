@@ -8,6 +8,77 @@ Dashboard
 
 <div class="container-fluid py-3">
 
+<div class="card border-0 shadow-sm mb-3 dashboard-filter">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input class="form-control"
+                       type="date"
+                       name="from_date"
+                       value="{{ filter_from_date }}">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input class="form-control"
+                       type="date"
+                       name="to_date"
+                       value="{{ filter_to_date }}">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Status For</label>
+                <select class="form-select" name="status_scope" id="statusScope">
+                    <option value="" {% if not filter_status_scope %}selected{% endif %}>All</option>
+                    <option value="claim" {% if filter_status_scope == "claim" %}selected{% endif %}>Claim</option>
+                    <option value="jobcard" {% if filter_status_scope == "jobcard" %}selected{% endif %}>Jobcard</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Main Status</label>
+                <select class="form-select" name="main_status" id="mainStatus">
+                    <option value="">All</option>
+                    {% for value, label in claim_status_choices %}
+                    <option value="{{ value }}"
+                            data-scope="claim"
+                            {% if filter_main_status == value and filter_status_scope == "claim" %}selected{% endif %}>
+                        Claim - {{ label }}
+                    </option>
+                    {% endfor %}
+                    {% for value, label in jobcard_status_choices %}
+                    <option value="{{ value }}"
+                            data-scope="jobcard"
+                            {% if filter_main_status == value and filter_status_scope == "jobcard" %}selected{% endif %}>
+                        Jobcard - {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Advisor</label>
+                <select class="form-select" name="advisor">
+                    <option value="">All</option>
+                    {% for advisor in advisor_options %}
+                    <option value="{{ advisor.id }}"
+                            {% if filter_advisor == advisor.id|stringformat:"s" %}selected{% endif %}>
+                        {{ advisor.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" type="submit">
+                    Apply Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ===================================== -->
 <!-- MANAGER / ADMIN DASHBOARD -->
 <!-- ===================================== -->
@@ -17,30 +88,55 @@ Dashboard
 <div class="row g-3 mb-3">
 
     <div class="col-md-3">
-        <div class="dash-card bg-primary">
-            <small>Total Claims</small>
-            <h3>{{ total_claims }}</h3>
-        </div>
-    </div>
-
-    <div class="col-md-3">
         <div class="dash-card bg-warning text-dark">
-            <small>Pending Claims</small>
+            <small>Total Pending Claims No</small>
             <h3>{{ pending_claims }}</h3>
         </div>
     </div>
 
     <div class="col-md-3">
-        <div class="dash-card bg-info text-dark">
-            <small>Work Allocation Pending</small>
-            <h3>{{ work_allocation_pending }}</h3>
+        <div class="dash-card bg-info text-dark stage-summary-card">
+            <small>Stage Wise Pending Claims</small>
+            <div class="stage-mini-list">
+                {% for s in stage_counts %}
+                {% if s.claim_stage != 14 %}
+                <span>
+                    {% if s.claim_stage == 1 %}Claim Created
+                    {% elif s.claim_stage == 2 %}Advisor Assigned
+                    {% elif s.claim_stage == 3 %}Estimate Created
+                    {% elif s.claim_stage == 4 %}Claim Intimation
+                    {% elif s.claim_stage == 5 %}Survey Done
+                    {% elif s.claim_stage == 6 %}Insurance Approval
+                    {% elif s.claim_stage == 7 %}Work Allocation
+                    {% elif s.claim_stage == 8 %}Repair In Progress
+                    {% elif s.claim_stage == 9 %}Work Completed
+                    {% elif s.claim_stage == 10 %}Re Inspection
+                    {% elif s.claim_stage == 11 %}Liability
+                    {% elif s.claim_stage == 12 %}Invoiced
+                    {% elif s.claim_stage == 13 %}Delivery
+                    {% else %}Unknown
+                    {% endif %}
+                    <b>{{ s.total }}</b>
+                </span>
+                {% endif %}
+                {% empty %}
+                <span>No Pending Stage <b>0</b></span>
+                {% endfor %}
+            </div>
         </div>
     </div>
 
     <div class="col-md-3">
         <div class="dash-card bg-success">
-            <small>Repair In Progress</small>
-            <h3>{{ repair_in_progress }}</h3>
+            <small>Closed Claims</small>
+            <h3>{{ closed_claims }}</h3>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-primary">
+            <small>Total Claims</small>
+            <h3>{{ total_claims }}</h3>
         </div>
     </div>
 
@@ -53,7 +149,7 @@ Dashboard
 <div class="card border-0 shadow-sm">
 
 <div class="card-header">
-Stage Wise Claims
+Stage Wise Pending Claims
 </div>
 
 <div class="card-body p-2">
@@ -72,6 +168,7 @@ Stage Wise Claims
 <tbody>
 
 {% for s in stage_counts %}
+{% if s.claim_stage != 14 %}
 
 <tr>
 
@@ -134,6 +231,7 @@ Stage Wise Claims
 
 </tr>
 
+{% endif %}
 {% endfor %}
 
 </tbody>
@@ -511,6 +609,25 @@ font-weight:700;
 
 }
 
+.stage-summary-card{
+padding:12px 14px;
+}
+
+.stage-mini-list{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:4px 10px;
+margin-top:6px;
+font-size:11px;
+}
+
+.stage-mini-list span{
+display:flex;
+justify-content:space-between;
+gap:8px;
+border-bottom:1px solid rgba(0,0,0,.08);
+}
+
 .card-header{
 
 font-weight:600;
@@ -523,6 +640,52 @@ font-size:13px;
 
 }
 
+.dashboard-filter .form-label{
+font-size:12px;
+font-weight:600;
+margin-bottom:3px;
+}
+
+.dashboard-filter .form-control,
+.dashboard-filter .form-select,
+.dashboard-filter .btn{
+min-height:34px;
+font-size:13px;
+}
+
 </style>
+
+<script>
+function syncDashboardStatusOptions() {
+    const scope = document.getElementById("statusScope");
+    const status = document.getElementById("mainStatus");
+
+    if (!scope || !status) {
+        return;
+    }
+
+    const selectedScope = scope.value;
+
+    status.querySelectorAll("option[data-scope]").forEach(option => {
+        const show = !selectedScope || option.dataset.scope === selectedScope;
+        option.hidden = !show;
+        option.disabled = !show;
+    });
+
+    if (status.selectedOptions.length && status.selectedOptions[0].disabled) {
+        status.value = "";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const scope = document.getElementById("statusScope");
+
+    syncDashboardStatusOptions();
+
+    if (scope) {
+        scope.addEventListener("change", syncDashboardStatusOptions);
+    }
+});
+</script>
 
 {% endblock %}

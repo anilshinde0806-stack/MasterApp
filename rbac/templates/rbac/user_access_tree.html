@@ -1,0 +1,27 @@
+{% for node in nodes %}
+<li class="access-node">
+    <div class="access-row">
+        <label class="form-check mb-0">
+            <input class="form-check-input menu-check"
+                   type="checkbox"
+                   name="menus"
+                   value="{{ node.menu.id }}"
+                   data-menu-id="{{ node.menu.id }}"
+                   data-parent-id="{{ node.menu.parent_id|default:'' }}"
+                   {% if node.checked %}checked{% endif %}>
+            <span class="form-check-label">
+                {% if node.menu.icon %}
+                <i class="{{ node.menu.icon }}"></i>
+                {% endif %}
+                {{ node.menu.name }}
+            </span>
+        </label>
+    </div>
+
+    {% if node.children %}
+    <ul class="access-tree child-tree">
+        {% include "rbac/user_access_tree.html" with nodes=node.children %}
+    </ul>
+    {% endif %}
+</li>
+{% endfor %}

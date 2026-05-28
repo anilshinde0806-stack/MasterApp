@@ -449,10 +449,73 @@ Job Card Creation
         min-height: 34px;
     }
 
+    .vehicle-photo-list {
+        max-height: 390px;
+        overflow-y: auto;
+        border: 1px solid #e1e5ea;
+        border-radius: 6px;
+        background: #f8fafc;
+    }
+
+    .vehicle-photo-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px;
+        padding: 8px;
+        border-bottom: 1px solid #e1e5ea;
+    }
+
+    .vehicle-photo-row:last-child {
+        border-bottom: 0;
+    }
+
+    .vehicle-photo-row input[type="file"] {
+        grid-column: 1 / -1;
+    }
+
+    .vehicle-photo-caption {
+        font-size: 12px;
+        line-height: 1.25;
+    }
+
+    .signature-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .signature-pad-wrap {
+        border: 1px solid #d6dee7;
+        border-radius: 6px;
+        background: #f8fafc;
+        padding: 8px;
+    }
+
+    .signature-pad-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .signature-pad {
+        width: 100%;
+        height: 135px;
+        display: block;
+        border: 1px dashed #9aa8b7;
+        border-radius: 4px;
+        background: #ffffff;
+        touch-action: none;
+    }
+
 </style>
 <form action="{% if job %}{% url 'jobcard_edit' job.id %}{% elif claim %}{% url 'jobcard_create_with_claim' claim.id %}{% else %}{% url 'jobCreate' %}{% endif %}"
       id="jobCardForm"
-      method="post">
+      method="post"
+      enctype="multipart/form-data">
     {% csrf_token %}
 
     {% if is_jobcard_locked %}
@@ -614,8 +677,7 @@ Job Card Creation
                             <select class="form-select" name="insurance_company" {% if is_jobcard_locked or job.repair_status == "Closed" and not can_reopen_jobcard %}disabled{% endif %}>
                                 <option value="">Select Insurance</option>
                                 {% for ins in insurance_companies %}
-                                <option %}
-                                        %}selected{% claim.insurance_company_id== endif if ins.id value="{{ ins.id }}" {%>
+                                <option value="{{ ins.id }}" {% if claim.insurance_company_id == ins.id %}selected{% endif %}>
                                     {{ ins.ins_co_name }}
                                 </option>
                                 {% endfor %}
@@ -636,6 +698,41 @@ Job Card Creation
             </div>
 
             <!-- INSTRUCTIONS -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Claim Documents</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    {% if claim %}
+                    <div class="row g-2">
+                        {% for slot in claim_document_slots %}
+                        <div class="col-md-6">
+                            <label>{{ slot.document_type }}</label>
+                            <div class="d-flex gap-2">
+                                <input class="form-control form-control-sm"
+                                       type="file"
+                                       name="{{ slot.input_name }}"
+                                       {% if is_jobcard_locked %}disabled{% endif %}>
+                                {% if slot.document and slot.document.file %}
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="{{ slot.document.file.url }}"
+                                   target="_blank">
+                                    View
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info py-2 mb-0">
+                        Link this jobcard with a claim to upload claim documents.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-2">
                     <h6 class="mb-0">Repair Instructions</h6>
@@ -1137,6 +1234,53 @@ Job Card Creation
                             type="button">
                         Clear Marks
                     </button>
+
+                    <hr class="my-2">
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="mb-0">Vehicle Photos</label>
+                        {% if job and job.vehicle_condition_photos.exists %}
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="{% url 'vehicle_condition_photo_view' job.id %}"
+                           target="_blank">
+                            View Photos
+                        </a>
+                        {% endif %}
+                    </div>
+
+                    {% if job %}
+                    <div class="small text-muted mb-2">
+                        Upload photo against each required vehicle view. Re-uploading the same view replaces the old photo.
+                    </div>
+                    <div class="vehicle-photo-list">
+                        {% for slot in vehicle_photo_slots %}
+                        <div class="vehicle-photo-row">
+                            <div class="vehicle-photo-caption">
+                                <b>{{ forloop.counter }}.</b> {{ slot.caption }}
+                                {% if slot.photo %}
+                                <span class="badge bg-success ms-1">Uploaded</span>
+                                {% endif %}
+                            </div>
+                            {% if slot.photo %}
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="{{ slot.photo.image.url }}"
+                               target="_blank">
+                                Open
+                            </a>
+                            {% endif %}
+                            <input class="form-control form-control-sm"
+                                   type="file"
+                                   name="{{ slot.input_name }}"
+                                   accept="image/*"
+                                   {% if is_jobcard_locked %}disabled{% endif %}>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info py-2 mb-0">
+                        Save jobcard first to upload vehicle photos.
+                    </div>
+                    {% endif %}
                     </fieldset>
 
                 </div>
@@ -1312,6 +1456,53 @@ Job Card Creation
                     <div><b>Mobile:</b> {{ claim.vehicle.customer.mobile_no }}</div>
                     <div><b>Vehicle:</b> {{ claim.vehicle.registration_no }}</div>
                     <div><b>Model:</b> {{ claim.vehicle.model.name }}</div>
+                </div>
+            </div>
+
+            <!-- SIGNATURES -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0">Signatures</h6>
+                </div>
+
+                <div class="card-body compact-form">
+                    <div class="signature-grid">
+                        <div class="signature-pad-wrap">
+                            <div class="signature-pad-header">
+                                <span>Advisor Signature</span>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        type="button"
+                                        onclick="clearSignaturePad('advisorSignaturePad')"
+                                        {% if is_jobcard_locked %}disabled{% endif %}>
+                                    Clear
+                                </button>
+                            </div>
+                            <canvas class="signature-pad"
+                                    id="advisorSignaturePad"
+                                    data-existing-src="{% if job and job.advisor_signature %}{{ job.advisor_signature.url }}{% endif %}"></canvas>
+                            <input type="hidden"
+                                   name="advisor_signature_data"
+                                   id="advisorSignatureData">
+                        </div>
+
+                        <div class="signature-pad-wrap">
+                            <div class="signature-pad-header">
+                                <span>Customer Signature</span>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        type="button"
+                                        onclick="clearSignaturePad('customerSignaturePad')"
+                                        {% if is_jobcard_locked %}disabled{% endif %}>
+                                    Clear
+                                </button>
+                            </div>
+                            <canvas class="signature-pad"
+                                    id="customerSignaturePad"
+                                    data-existing-src="{% if job and job.customer_signature %}{{ job.customer_signature.url }}{% endif %}"></canvas>
+                            <input type="hidden"
+                                   name="customer_signature_data"
+                                   id="customerSignatureData">
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1594,6 +1785,130 @@ Job Card Creation
         updateGauge("fuelRange", "fuelNeedle", "fuelText");
         updateGauge("cngRange", "cngNeedle", "cngText");
     });
+
+    const signaturePads = {};
+
+    function resizeSignaturePad(canvas, preserveImage = true) {
+        if (!canvas) return;
+
+        const oldImage = preserveImage ? canvas.toDataURL("image/png") : "";
+        const rect = canvas.getBoundingClientRect();
+        const scale = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.floor(rect.width * scale));
+        canvas.height = Math.max(1, Math.floor(rect.height * scale));
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#111827";
+
+        if (oldImage && oldImage !== "data:,") {
+            const image = new Image();
+            image.onload = function () {
+                ctx.drawImage(image, 0, 0, rect.width, rect.height);
+            };
+            image.src = oldImage;
+        }
+    }
+
+    function initSignaturePad(canvasId, hiddenId) {
+        const canvas = document.getElementById(canvasId);
+        const hidden = document.getElementById(hiddenId);
+        if (!canvas || !hidden) return;
+
+        const state = {
+            drawing: false,
+            changed: false,
+            hidden: hidden,
+        };
+        signaturePads[canvasId] = state;
+
+        resizeSignaturePad(canvas, false);
+
+        const existingSrc = canvas.dataset.existingSrc || "";
+        if (existingSrc) {
+            const image = new Image();
+            image.onload = function () {
+                const rect = canvas.getBoundingClientRect();
+                canvas.getContext("2d").drawImage(image, 0, 0, rect.width, rect.height);
+            };
+            image.src = existingSrc;
+        }
+
+        function point(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top
+            };
+        }
+
+        canvas.addEventListener("pointerdown", function (event) {
+            if (isJobcardLocked) return;
+            event.preventDefault();
+            const ctx = canvas.getContext("2d");
+            const p = point(event);
+            state.drawing = true;
+            state.changed = true;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            canvas.setPointerCapture(event.pointerId);
+        });
+
+        canvas.addEventListener("pointermove", function (event) {
+            if (isJobcardLocked || !state.drawing) return;
+            event.preventDefault();
+            const ctx = canvas.getContext("2d");
+            const p = point(event);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+        });
+
+        canvas.addEventListener("pointerup", function (event) {
+            if (!state.drawing) return;
+            event.preventDefault();
+            state.drawing = false;
+            hidden.value = canvas.toDataURL("image/png");
+            try {
+                canvas.releasePointerCapture(event.pointerId);
+            } catch {}
+        });
+
+        canvas.addEventListener("pointerleave", function () {
+            if (!state.drawing) return;
+            state.drawing = false;
+            hidden.value = canvas.toDataURL("image/png");
+        });
+    }
+
+    function clearSignaturePad(canvasId) {
+        if (isJobcardLocked) {
+            showToast("Closed jobcard is view only", "warning");
+            return;
+        }
+
+        const canvas = document.getElementById(canvasId);
+        const state = signaturePads[canvasId];
+        if (!canvas || !state) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        state.changed = true;
+        state.hidden.value = "__clear__";
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        initSignaturePad("advisorSignaturePad", "advisorSignatureData");
+        initSignaturePad("customerSignaturePad", "customerSignatureData");
+    });
+
+    window.addEventListener("resize", function () {
+        resizeSignaturePad(document.getElementById("advisorSignaturePad"));
+        resizeSignaturePad(document.getElementById("customerSignaturePad"));
+    });
+
     document.addEventListener("blur", function(e) {
 
         if (!e.target.matches('input[name="part_no[]"]')) return;

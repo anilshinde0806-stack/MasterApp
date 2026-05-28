@@ -1,0 +1,226 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Work Progress Images</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: Arial, sans-serif;
+            background: #f6f7f9;
+        }
+
+        .header {
+            margin-bottom: 14px;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar button {
+            border: 1px solid #9aa8b7;
+            background: #ffffff;
+            color: #1d2a35;
+            padding: 7px 12px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .toolbar button.danger {
+            background: #c92a2a;
+            border-color: #c92a2a;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .toolbar button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .selection-count {
+            font-size: 13px;
+            color: #46525c;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 14px;
+            user-select: none;
+        }
+
+        .photo {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 8px;
+            cursor: pointer;
+            position: relative;
+            transition: border-color 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+        }
+
+        .photo.selected {
+            border-color: #1f6fb2;
+            background: #edf6ff;
+            box-shadow: 0 0 0 2px rgba(31, 111, 178, 0.22);
+        }
+
+        .photo img {
+            width: 100%;
+            height: 190px;
+            display: block;
+            pointer-events: none;
+            object-fit: cover;
+            background: #eef1f4;
+        }
+
+        .photo input[type="checkbox"] {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 18px;
+            height: 18px;
+            pointer-events: none;
+        }
+
+        .meta {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h3>Work Progress Images</h3>
+        <div>
+            Jobcard: <b>{{ job.job_no }}</b>
+            {% if job.claim %}
+            | Claim: <b>{{ job.claim.claim_no }}</b>
+            {% endif %}
+            {% if job.claim and job.claim.vehicle %}
+            | Reg No: <b>{{ job.claim.vehicle.registration_no }}</b>
+            {% endif %}
+            | Stage: <b>{{ progress.get_stage_display }}</b>
+        </div>
+        {% if photos %}
+        <form id="photoSelectionForm" method="post" action="{% url 'work_progress_photo_view' progress.id %}">
+            {% csrf_token %}
+            <div class="toolbar">
+                <button type="submit"
+                        class="danger"
+                        id="deleteSelectedBtn"
+                        disabled>
+                    Delete Selected
+                </button>
+                <button type="button" id="selectAllBtn">Select All</button>
+                <button type="button" id="clearBtn">Clear</button>
+                <span class="selection-count" id="selectionCount">0 selected</span>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if photos %}
+    <div class="grid" id="photoGrid">
+        {% for photo in photos %}
+        <div class="photo" data-photo-card>
+            <input type="checkbox" name="photo_ids" value="{{ photo.id }}" form="photoSelectionForm" aria-label="Select image {{ forloop.counter }}">
+            <img src="{{ photo.image.url }}" alt="Work progress image {{ forloop.counter }}" draggable="false">
+            <div class="meta">Uploaded: {{ photo.uploaded_at|date:"d-m-Y H:i" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>No work progress images uploaded.</p>
+    {% endif %}
+
+    <script>
+        (function () {
+            const cards = Array.from(document.querySelectorAll("[data-photo-card]"));
+            const photoSelectionForm = document.getElementById("photoSelectionForm");
+            const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
+            const selectionCount = document.getElementById("selectionCount");
+            const selectAllBtn = document.getElementById("selectAllBtn");
+            const clearBtn = document.getElementById("clearBtn");
+            let isDragging = false;
+            let dragSelectState = true;
+
+            function setCardSelected(card, selected) {
+                const checkbox = card.querySelector("input[type='checkbox']");
+                checkbox.checked = selected;
+                card.classList.toggle("selected", selected);
+            }
+
+            function updateSelectionCount() {
+                const selectedCount = cards.filter(card => card.querySelector("input[type='checkbox']").checked).length;
+                if (selectionCount) {
+                    selectionCount.textContent = selectedCount + " selected";
+                }
+                if (deleteSelectedBtn) {
+                    deleteSelectedBtn.disabled = selectedCount === 0;
+                }
+            }
+
+            cards.forEach(card => {
+                const checkbox = card.querySelector("input[type='checkbox']");
+
+                card.addEventListener("mousedown", function (event) {
+                    event.preventDefault();
+                    isDragging = true;
+                    dragSelectState = !checkbox.checked;
+                    setCardSelected(card, dragSelectState);
+                    updateSelectionCount();
+                });
+
+                card.addEventListener("mouseenter", function () {
+                    if (!isDragging) {
+                        return;
+                    }
+                    setCardSelected(card, dragSelectState);
+                    updateSelectionCount();
+                });
+            });
+
+            document.addEventListener("mouseup", function () {
+                isDragging = false;
+            });
+
+            if (selectAllBtn) {
+                selectAllBtn.addEventListener("click", function () {
+                    cards.forEach(card => setCardSelected(card, true));
+                    updateSelectionCount();
+                });
+            }
+
+            if (clearBtn) {
+                clearBtn.addEventListener("click", function () {
+                    cards.forEach(card => setCardSelected(card, false));
+                    updateSelectionCount();
+                });
+            }
+
+            if (photoSelectionForm) {
+                photoSelectionForm.addEventListener("submit", function (event) {
+                    const selectedCount = cards.filter(card => card.querySelector("input[type='checkbox']").checked).length;
+                    if (selectedCount === 0) {
+                        event.preventDefault();
+                        alert("Please select at least one image.");
+                        return;
+                    }
+
+                    if (!confirm("Delete " + selectedCount + " selected image(s)?")) {
+                        event.preventDefault();
+                    }
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

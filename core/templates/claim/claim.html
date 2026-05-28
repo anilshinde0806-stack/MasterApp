@@ -35,7 +35,7 @@
             </div>
 
             <!-- ADVISOR STATUS -->
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">
                     Advisor Status
                 </label>
@@ -58,8 +58,31 @@
                 </select>
             </div>
 
+            <div class="col-md-2">
+                <label class="form-label">
+                    Claim Status
+                </label>
+
+                <select id="claim_status_filter"
+                        class="form-select">
+
+                    <option value="open" selected>
+                        Open
+                    </option>
+
+                    <option value="closed">
+                        Closed
+                    </option>
+
+                    <option value="all">
+                        All
+                    </option>
+
+                </select>
+            </div>
+
             <!-- SEARCH -->
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">
                     Search
                 </label>
@@ -1127,7 +1150,7 @@ document.addEventListener("DOMContentLoaded", function () {
 // ====================================
 function loadVehicleGrid() {
 
-    fetch('/api/claim/')
+    fetch('/api/claim/?claim_status=open')
         .then(res => res.json())
         .then(data => {
 
@@ -1561,8 +1584,13 @@ function resetColumns() {
     const advisorFilter =
         document.getElementById("advisor_filter").value;
 
+    const claimStatusFilter =
+        document.getElementById("claim_status_filter").value;
+
     let url =
         '/api/claim/?t=' + new Date().getTime();
+
+    url += '&claim_status=' + encodeURIComponent(claimStatusFilter || 'open');
 
     // DATE FILTER
     if (fromDate) {

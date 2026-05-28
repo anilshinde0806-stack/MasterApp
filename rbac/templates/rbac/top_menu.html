@@ -3,7 +3,7 @@
 <li class="erp-menu-item">
     {% if item.url %}
     <div class="erp-menu-link"
-         data-url="{{ item.url}}">
+         data-url="{{ item.href|default:item.url }}">
     {% else %}
     <div class="erp-menu-link"
          data-url="#">

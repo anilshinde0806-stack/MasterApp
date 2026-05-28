@@ -1,0 +1,140 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}My Work{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <div class="card border-0 shadow-sm mb-2">
+        <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">My Work - {{ logged_emp.name }}</h5>
+            <form class="d-flex gap-2 align-items-end flex-wrap" method="get">
+                <div>
+                    <label class="form-label mb-0 small fw-bold">From</label>
+                    <input class="form-control form-control-sm" type="date" name="from_date" value="{{ filter_from_date }}">
+                </div>
+                <div>
+                    <label class="form-label mb-0 small fw-bold">To</label>
+                    <input class="form-control form-control-sm" type="date" name="to_date" value="{{ filter_to_date }}">
+                </div>
+                <input type="hidden" name="status" value="{{ status_filter }}">
+                <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+            </form>
+        </div>
+
+        <div class="card-body py-2">
+            <div class="btn-group btn-group-sm">
+                <a class="btn {% if status_filter == 'new' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                   href="?status=new&from_date={{ filter_from_date }}&to_date={{ filter_to_date }}">
+                    My New Assign Job ({{ counts.new }})
+                </a>
+                <a class="btn {% if status_filter == 'wip' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                   href="?status=wip&from_date={{ filter_from_date }}&to_date={{ filter_to_date }}">
+                    WIP Jobs ({{ counts.wip }})
+                </a>
+                <a class="btn {% if status_filter == 'completed' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                   href="?status=completed&from_date={{ filter_from_date }}&to_date={{ filter_to_date }}">
+                    Completed Jobs ({{ counts.completed }})
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-2">
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Jobcard</th>
+                        <th>Claim</th>
+                        <th>Vehicle</th>
+                        <th>Customer</th>
+                        <th>Progress Stage</th>
+                        <th>Start</th>
+                        <th>Finish</th>
+                        <th>Photos</th>
+                        <th style="width:260px;">Action</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>
+                            <b>{{ row.job.job_no|default:"-" }}</b>
+                            {% if row.job %}
+                            <br><a class="small" href="{% url 'jobcard_edit' row.job.id %}" target="_blank">Open Jobcard</a>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.claim.claim_no|default:"-" }}</td>
+                        <td>
+                            <b>{{ row.vehicle.registration_no|default:"-" }}</b><br>
+                            <span class="small text-muted">{{ row.vehicle.model.name|default:"" }}</span>
+                        </td>
+                        <td>{{ row.vehicle.customer.name|default:"-" }}</td>
+                        <td>{{ row.stage_label }}</td>
+                        <td>{{ row.start_time|date:"d-m-Y H:i"|default:"-" }}</td>
+                        <td>{{ row.finish_time|date:"d-m-Y H:i"|default:"-" }}</td>
+                        <td>
+                            {% if row.photo_count %}
+                            <a class="btn btn-sm btn-outline-primary"
+                               href="{% url 'work_progress_photo_view' row.id %}"
+                               target="_blank">
+                                View {{ row.photo_count }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted small">No photos</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post"
+                                  action="{% url 'my_work_action' row.id %}"
+                                  enctype="multipart/form-data"
+                                  class="d-flex flex-column gap-1">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <input class="form-control form-control-sm"
+                                       type="file"
+                                       name="progress_photos"
+                                       accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                                       capture="environment"
+                                       multiple>
+                                <div class="d-flex gap-1">
+                                    {% if not row.start_time %}
+                                    <button class="btn btn-sm btn-success flex-fill"
+                                            name="action"
+                                            value="start"
+                                            type="submit">
+                                        Start
+                                    </button>
+                                    {% elif not row.finish_time %}
+                                    <button class="btn btn-sm btn-danger flex-fill"
+                                            name="action"
+                                            value="finish"
+                                            type="submit">
+                                        Finish
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-secondary flex-fill"
+                                            name="action"
+                                            value="photo"
+                                            type="submit">
+                                        Upload Photo
+                                    </button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">
+                            No jobs found for selected filter.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,4 +1,4 @@
-from rbac.models import RoleMenuPermission, Menu
+from rbac.models import RoleMenuPermission, Menu, UserMenuPermission
 from django.urls import reverse
 from django.urls import resolve
 
@@ -10,19 +10,24 @@ def menu_context(request):
 
     current_url = request.path  # 🔥 current page
 
-    # --- your existing RBAC logic ---
     if user.is_superuser:
         menus = Menu.objects.all().order_by("order")
     else:
-        if user.groups.exists():
+        user_menu_permissions = UserMenuPermission.objects.filter(
+            user=user
+        ).select_related("menu")
+
+        if user_menu_permissions.exists():
+            perms = user_menu_permissions.filter(can_view=True)
+            menus = [p.menu for p in perms]
+        elif user.groups.exists():
             perms = RoleMenuPermission.objects.filter(
                 group__in=user.groups.all(),
                 can_view=True
             ).select_related("menu")
+            menus = [p.menu for p in perms]
         else:
-            perms = []
-
-        menus = [p.menu for p in perms]
+            menus = []
 
         # include parents
         all_menus = {m.id: m for m in menus}
@@ -41,20 +46,24 @@ def menu_context(request):
 
     for m in menus:
         is_active = False
+        href = "#"
 
         # compare resolved URL
         try:
             from django.urls import reverse
             if m.url:
-                if reverse(m.url) == current_url:
+                href = reverse(m.url)
+                if href == current_url:
                     is_active = True
         except:
-            pass
+            if m.url:
+                href = "/" + m.url.strip("/")
 
         menu_dict[m.id] = {
             "id": m.id,
             "title": m.name,
             "url": m.url,
+            "href": href,
             "icon": m.icon,  # ✅ ADD THIS
             "parent_id": m.parent_id,
             "children": [],

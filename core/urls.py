@@ -2,7 +2,7 @@ from django.contrib.auth.views import LogoutView
 from django.urls import path
 
 import rbac
-from rbac.views import update_user_permission, user_create
+from rbac.views import menu_manage, update_user_permission, user_access, user_create
 from .views import dashboard, register_view
 from . import views
 urlpatterns = [
@@ -75,6 +75,8 @@ path("api/part-orders/line/<int:order_id>/delete/", views.delete_part_order_line
 path("api/jobcard/<int:job_id>/assessment/", views.jobcard_assessment_api,name="jobcard_assessment_api"),
 path("api/jobcard/<int:job_id>/assessment/save/",views.save_jobcard_assessment,name="save_jobcard_assessment"),
 path("jobCard/<int:pk>/assessment-print/", views.assessment_print, name="assessment_print"),
+path("jobCard/<int:job_id>/vehicle-condition-photos/", views.vehicle_condition_photo_view, name="vehicle_condition_photo_view"),
+path("jobCard/<int:job_id>/vehicle-condition-photos/download/", views.download_vehicle_condition_photos, name="download_vehicle_condition_photos"),
 path("ajax/part-lookup/", views.part_lookup, name="part_lookup"),
 path("jobCard/<int:pk>/print-preview/<str:token>/",views.jobcard_print_preview,name="jobcard_print_preview"),
 path( "jobCard/<int:pk>/print/<str:token>/", views.jobcard_print_pdf,name="jobcard_print"),
@@ -83,7 +85,10 @@ path("whatsapp_text_link/<int:pk>/", views.whatsapp_text_link,name="whatsapp_tex
 path("ajax/unread-notifications/",views.unread_notifications,name="unread_notifications"),
 path("ajax/notification/<int:pk>/read/",views.mark_notification_read,name="mark_notification_read"),
 path("work-allocation/",views.work_allocation_list,name="work_allocation_list"),
+path("my-work/", views.my_work_list, name="my_work_list"),
+path("my-work/<int:progress_id>/action/", views.my_work_action, name="my_work_action"),
 path("work-allocation/<int:job_id>/completion-report/", views.work_completion_report, name="work_completion_report"),
+path("work-allocation/progress/<int:progress_id>/photos/", views.work_progress_photo_view, name="work_progress_photo_view"),
 path("work-allocation/<int:job_id>/reinspection-photos/", views.reinspection_photo_view, name="reinspection_photo_view"),
 path("work-allocation/<int:job_id>/reinspection-photos/download/", views.download_reinspection_photos, name="download_reinspection_photos"),
 path("work-allocation/<int:job_id>/reinspection-photos/<int:photo_id>/delete/", views.delete_reinspection_photo, name="delete_reinspection_photo"),
@@ -92,4 +97,7 @@ path("ajax/work-allocation/check-employee/", views.check_work_allocation_employe
 path("ajax/unread-announcements/",views.unread_announcements,name="unread_announcements"),
 path("ajax/announcement/<int:pk>/read/",views.mark_announcement_read,name="mark_announcement_read"),
 path("user-create/",user_create,name="user_create"),
+path("user-access/",user_access,name="user_access"),
+path("menu-manage/",menu_manage,name="menu_manage"),
+path("update-user-permission/",update_user_permission,name="update_user_permission"),
 ]

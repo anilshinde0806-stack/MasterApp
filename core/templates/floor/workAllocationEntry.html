@@ -8,6 +8,7 @@
 
                 <form method="post" id="workAllocationForm" enctype="multipart/form-data">
 {% csrf_token %}
+<div id="clearProgressPhotoFields"></div>
 
 <!-- HEADER -->
 <div class="card border-0 shadow-sm mb-2">
@@ -84,6 +85,8 @@
                     <th>Click Start/Finish</th>
                     <th>Denter / Painter / Mechanic</th>
                     <th>Remarks</th>
+                    <th>Photos</th>
+                    <th style="width:80px;">Clear</th>
                 </tr>
             </thead>
 
@@ -145,6 +148,31 @@
                                name="progress_remarks[]"
                                class="form-control"
                                value="{{ row.remarks }}">
+                    </td>
+                    <td style="min-width:190px;">
+                        <input type="file"
+                               name="{{ row.photo_input_name }}"
+                               class="form-control form-control-sm"
+                               accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                               capture="environment"
+                               multiple>
+                        {% if row.photo_count %}
+                        <a href="{% url 'work_progress_photo_view' row.progress_id %}"
+                           target="_blank"
+                           class="btn btn-sm btn-outline-primary mt-1">
+                            View {{ row.photo_count }}
+                        </a>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger clear-progress-btn"
+                                data-stage="{{ row.stage }}"
+                                data-stage-label="{{ row.label }}"
+                                data-photo-count="{{ row.photo_count|default:0 }}"
+                                formnovalidate>
+                            Clear
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -358,7 +386,7 @@
 
                     <td>
                         <select name="labour_employee[]"
-                                class="form-select">
+                                class="form-select labour-employee">
                             <option value="">Select</option>
                             {% for emp in technicians %}
                             <option value="{{ emp.id }}"
@@ -413,8 +441,10 @@
                        type="checkbox"
                        id="markQcDone"
                        name="mark_qc_done"
+                       data-work-complete-dependent
                        value="1"
-                       {% if job.qc_done %}checked{% endif %}>
+                       {% if job.qc_done %}checked{% endif %}
+                       {% if not is_work_completed %}disabled{% endif %}>
                 <label class="form-check-label fw-bold" for="markQcDone">
                     QC Done
                 </label>
@@ -425,8 +455,10 @@
                        type="checkbox"
                        id="markReinspectionDone"
                        name="reinspection_done"
+                       data-work-complete-dependent
                        value="1"
-                       {% if job.reinspection_done %}checked{% endif %}>
+                       {% if job.reinspection_done %}checked{% endif %}
+                       {% if not is_work_completed %}disabled{% endif %}>
                 <label class="form-check-label fw-bold" for="markReinspectionDone">
                     Re-Inspection
                 </label>
@@ -437,8 +469,10 @@
                        type="checkbox"
                        id="partEntryComplete"
                        name="part_entry_complete"
+                       data-work-complete-dependent
                        value="1"
-                       {% if allocation.part_entry_complete %}checked{% endif %}>
+                       {% if allocation.part_entry_complete %}checked{% endif %}
+                       {% if not is_work_completed %}disabled{% endif %}>
                 <label class="form-check-label fw-bold" for="partEntryComplete">
                     Part Entry
                 </label>
@@ -449,7 +483,9 @@
                 <input class="form-control"
                        type="date"
                        name="reinspection_date"
-                       value="{{ job.reinspection_date|date:'Y-m-d' }}">
+                       data-work-complete-dependent
+                       value="{{ job.reinspection_date|date:'Y-m-d' }}"
+                       {% if not is_work_completed %}disabled{% endif %}>
             </div>
 
             <div class="action-field action-by">
@@ -457,7 +493,9 @@
                 <input class="form-control"
                        type="text"
                        name="reinspection_done_by"
-                       value="{{ job.reinspection_done_by|default:'' }}">
+                       data-work-complete-dependent
+                       value="{{ job.reinspection_done_by|default:'' }}"
+                       {% if not is_work_completed %}disabled{% endif %}>
             </div>
 
             <div class="action-file">
@@ -467,6 +505,8 @@
                        id="reinspectionImages"
                        name="reinspection_images"
                        accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                       data-work-complete-dependent
+                       {% if not is_work_completed %}disabled{% endif %}
                        multiple>
             </div>
 
@@ -474,6 +514,9 @@
                 Max {{ reinspection_max_photos }} / {{ reinspection_max_image_size_mb }}MB each /
                 {{ reinspection_max_total_size_mb }}MB total<br>
                 Existing {{ existing_reinspection_photo_count }} / {{ existing_reinspection_photo_size_mb }}MB
+                <span class="d-block text-danger" id="workCompleteGateHelp" {% if is_work_completed %}style="display:none !important;"{% endif %}>
+                    Tick Work Completed to enable QC, RI and Part Entry.
+                </span>
             </div>
 
             {% if job.reinspection_photos.exists %}
@@ -780,14 +823,181 @@ function initReinspectionImageLimits() {
     });
 }
 
+function initWorkCompletionGate() {
+    const workCompleted = document.getElementById("markWorkCompleted");
+    const dependentFields = Array.from(document.querySelectorAll("[data-work-complete-dependent]"));
+    const help = document.getElementById("workCompleteGateHelp");
+
+    if (!workCompleted || dependentFields.length === 0) {
+        return;
+    }
+
+    function applyGate() {
+        const enabled = workCompleted.checked;
+
+        dependentFields.forEach(field => {
+            field.disabled = !enabled;
+
+            if (!enabled) {
+                if (field.type === "checkbox") {
+                    field.checked = false;
+                } else if (field.type === "file") {
+                    field.value = "";
+                } else {
+                    field.value = "";
+                }
+            }
+        });
+
+        if (help) {
+            help.style.setProperty("display", enabled ? "none" : "block", "important");
+        }
+    }
+
+    workCompleted.addEventListener("change", applyGate);
+    applyGate();
+}
+
+function findWorkCompletionBlocker() {
+    const unfinishedProgressRow = Array.from(document.querySelectorAll("#workAllocationForm tbody tr")).find(row => {
+        const startInput = row.querySelector(".start-time");
+        const finishInput = row.querySelector(".finish-time");
+        return startInput && finishInput && startInput.value && !finishInput.value;
+    });
+
+    if (unfinishedProgressRow) {
+        const stageLabel = unfinishedProgressRow.querySelector("td b");
+        return {
+            message: "Finish " + (stageLabel ? stageLabel.innerText.trim() : "started progress row") + " before marking Work Completed.",
+            focus: unfinishedProgressRow.querySelector(".finish-time")
+        };
+    }
+
+    const missingLabourEmployeeRow = Array.from(document.querySelectorAll(".labour-employee")).find(select => !select.value);
+
+    if (missingLabourEmployeeRow) {
+        const row = missingLabourEmployeeRow.closest("tr");
+        const labourCodeCell = row ? row.children[1] : null;
+        return {
+            message: "Select employee for labour line " + (labourCodeCell ? labourCodeCell.innerText.trim() : "") + " before marking Work Completed.",
+            focus: missingLabourEmployeeRow
+        };
+    }
+
+    return null;
+}
+
+function initWorkCompletedValidation() {
+    const workCompleted = document.getElementById("markWorkCompleted");
+    const form = document.getElementById("workAllocationForm");
+
+    if (!workCompleted || !form) {
+        return;
+    }
+
+    workCompleted.addEventListener("change", function () {
+        if (!workCompleted.checked) {
+            return;
+        }
+
+        const blocker = findWorkCompletionBlocker();
+        if (!blocker) {
+            return;
+        }
+
+        alert(blocker.message);
+        workCompleted.checked = false;
+        workCompleted.dispatchEvent(new Event("change"));
+        if (blocker.focus) {
+            blocker.focus();
+        }
+    });
+
+    form.addEventListener("submit", function (event) {
+        if (!workCompleted.checked) {
+            return;
+        }
+
+        const blocker = findWorkCompletionBlocker();
+        if (!blocker) {
+            return;
+        }
+
+        event.preventDefault();
+        alert(blocker.message);
+        if (blocker.focus) {
+            blocker.focus();
+        }
+    });
+}
+
+function initProgressClearConfirmation() {
+    const hiddenContainer = document.getElementById("clearProgressPhotoFields");
+
+    document.querySelectorAll(".clear-progress-btn").forEach(button => {
+        button.addEventListener("click", function(event) {
+            const label = button.dataset.stageLabel || "this progress row";
+            const stage = button.dataset.stage || "";
+            const photoCount = Number(button.dataset.photoCount || "0");
+            const photoText = photoCount > 0
+                ? " Uploaded progress photo(s) will be deleted after Save Allocation."
+                : "";
+
+            if (!confirm("Clear " + label + " on screen? Start time, finish time, employee, remarks will be blank." + photoText + " Click Save Allocation to commit.")) {
+                event.preventDefault();
+                return;
+            }
+
+            const row = button.closest("tr");
+
+            if (row) {
+                const startInput = row.querySelector(".start-time");
+                const finishInput = row.querySelector(".finish-time");
+                const employeeSelect = row.querySelector(".progress-employee");
+                const remarksInput = row.querySelector('input[name="progress_remarks[]"]');
+                const fileInput = row.querySelector('input[type="file"]');
+
+                if (startInput) startInput.value = "";
+                if (finishInput) finishInput.value = "";
+                if (employeeSelect) {
+                    employeeSelect.value = "";
+                    employeeSelect.dataset.previousValue = "";
+                }
+                if (remarksInput) remarksInput.value = "";
+                if (fileInput) fileInput.value = "";
+            }
+
+            if (stage && hiddenContainer) {
+                const existing = hiddenContainer.querySelector(
+                    'input[value="' + stage.replace(/"/g, '\\"') + '"]'
+                );
+
+                if (!existing) {
+                    const input = document.createElement("input");
+                    input.type = "hidden";
+                    input.name = "clear_progress_photo_stage[]";
+                    input.value = stage;
+                    hiddenContainer.appendChild(input);
+                }
+            }
+        });
+    });
+}
+
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
         initEmployeeAssignmentChecks();
         initReinspectionImageLimits();
+        initWorkCompletionGate();
+        initWorkCompletedValidation();
+        initProgressClearConfirmation();
     });
 } else {
     initEmployeeAssignmentChecks();
     initReinspectionImageLimits();
+    initWorkCompletionGate();
+    initWorkCompletedValidation();
+    initProgressClearConfirmation();
 }
 
 </script>

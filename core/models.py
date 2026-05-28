@@ -384,6 +384,9 @@ class Claim(models.Model):
         null=True,
         blank=True
     )
+
+    self_survey = models.BooleanField(default=False)
+
     insurance_approval_date = models.DateField(null=True, blank=True)
 
     insurance_note = models.TextField(blank=True)
@@ -539,6 +542,40 @@ class Claim(models.Model):
     )
 
     payment_details = models.TextField(
+        blank=True
+    )
+
+    DELIVERY_TO_CHOICES = [
+        ("Customer Self", "Customer Self"),
+        ("Customer Representative", "Customer Representative"),
+        ("Drop By Driver", "Drop By Driver"),
+    ]
+
+    delivery_datetime = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    delivered_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="delivered_claims"
+    )
+
+    delivered_to = models.CharField(
+        max_length=40,
+        choices=DELIVERY_TO_CHOICES,
+        blank=True
+    )
+
+    delivery_driver_name = models.CharField(
+        max_length=100,
+        blank=True
+    )
+
+    delivery_remarks = models.TextField(
         blank=True
     )
 
@@ -710,6 +747,18 @@ class JobCard(models.Model):
 
     ready_for_delivery = models.BooleanField(default=False)
 
+    advisor_signature = models.ImageField(
+            upload_to="jobcard_signatures/",
+            blank=True,
+            null=True
+        )
+
+    customer_signature = models.ImageField(
+            upload_to="jobcard_signatures/",
+            blank=True,
+            null=True
+        )
+
     # =========================
     # META
     # =========================
@@ -750,6 +799,52 @@ class JobCardReInspectionPhoto(models.Model):
         )
 
         uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
+def vehicle_condition_photo_upload_path(instance, filename):
+        claim_no = "unknown_claim"
+
+        if (
+            instance.job
+            and instance.job.claim
+            and instance.job.claim.claim_no
+        ):
+            claim_no = instance.job.claim.claim_no
+
+        safe_claim_no = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in claim_no
+        )
+        safe_caption = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in instance.caption
+        )
+
+        return f"jobcard_vehicle_condition/{safe_claim_no}/{safe_caption}_{filename}"
+
+
+class JobCardVehicleConditionPhoto(models.Model):
+        job = models.ForeignKey(
+            JobCard,
+            on_delete=models.CASCADE,
+            related_name="vehicle_condition_photos"
+        )
+
+        caption = models.CharField(max_length=100)
+
+        image = models.ImageField(
+            upload_to=vehicle_condition_photo_upload_path
+        )
+
+        uploaded_at = models.DateTimeField(auto_now=True)
+
+        class Meta:
+            constraints = [
+                models.UniqueConstraint(
+                    fields=["job", "caption"],
+                    name="unique_jobcard_vehicle_condition_caption"
+                )
+            ]
 
 class ClaimDocument(models.Model):
         claim = models.ForeignKey(
@@ -1253,6 +1348,48 @@ class WorkProgress(models.Model):
         remarks = models.TextField(
             blank=True
         )
+
+
+def work_progress_photo_upload_path(instance, filename):
+        claim_no = "unknown_claim"
+        job_no = "unknown_job"
+        stage = "progress"
+
+        if instance.progress and instance.progress.allocation and instance.progress.allocation.job:
+            job = instance.progress.allocation.job
+            job_no = job.job_no or job_no
+            if job.claim and job.claim.claim_no:
+                claim_no = job.claim.claim_no
+            stage = instance.progress.stage or stage
+
+        safe_claim_no = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in claim_no
+        )
+        safe_job_no = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in job_no
+        )
+        safe_stage = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in stage
+        )
+
+        return f"work_progress_photos/{safe_claim_no}/{safe_job_no}/{safe_stage}/{filename}"
+
+
+class WorkProgressPhoto(models.Model):
+        progress = models.ForeignKey(
+            WorkProgress,
+            on_delete=models.CASCADE,
+            related_name="photos"
+        )
+
+        image = models.ImageField(
+            upload_to=work_progress_photo_upload_path
+        )
+
+        uploaded_at = models.DateTimeField(auto_now_add=True)
 
 class WorkAllocationPart(models.Model):
         allocation = models.ForeignKey(

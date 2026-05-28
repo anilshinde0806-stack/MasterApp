@@ -51,7 +51,16 @@
 
         {% csrf_token %}
 
+        {% if is_claim_locked %}
+        <div class="alert alert-warning py-2">
+            This claim is closed. Normal users can view it only; only Admin or Manager can re-open it.
+        </div>
+        {% endif %}
+
         <div class="row g-3">
+            {% if is_claim_locked %}
+            <fieldset disabled>
+            {% endif %}
 
             <!-- LEFT -->
             <div class="col-lg-8">
@@ -229,6 +238,38 @@
                             </div>
 
                         </div>
+
+                        <hr>
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <h6 class="mb-0">Claim Documents</h6>
+                            </div>
+
+                            {% for slot in claim_document_slots %}
+                            <div class="col-md-3">
+                                <label class="form-label">{{ slot.document_type }}</label>
+
+                                {% if current_stage == 3 or request.user.is_superuser or is_manager %}
+                                <input class="form-control"
+                                       type="file"
+                                       name="{{ slot.input_name }}">
+                                {% endif %}
+
+                                {% if slot.document and slot.document.file %}
+                                <a class="btn btn-sm btn-outline-primary mt-2"
+                                   href="{{ slot.document.file.url }}"
+                                   target="_blank">
+                                    View Uploaded
+                                </a>
+                                {% elif current_stage != 3 and not request.user.is_superuser and not is_manager %}
+                                <input class="form-control"
+                                       readonly
+                                       value="">
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 {% endif %}
@@ -289,6 +330,82 @@
                                 <input name="survey_status"
                                        type="hidden"
                                        value="{{ claim.survey_status|default:'' }}">
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label d-block">Self Survey</label>
+
+                                {% if not is_claim_locked and current_stage >= 4 %}
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           id="id_self_survey"
+                                           name="self_survey"
+                                           value="on"
+                                           {% if claim.self_survey %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold" for="id_self_survey">
+                                        Self Survey
+                                    </label>
+                                </div>
+                                {% else %}
+                                <input class="form-control"
+                                       readonly
+                                       value="{% if claim.self_survey %}Yes{% else %}No{% endif %}">
+                                {% if claim.self_survey %}
+                                <input name="self_survey"
+                                       type="hidden"
+                                       value="on">
+                                {% endif %}
+                                {% endif %}
+                            </div>
+
+                            <div class="col-12" id="selfSurveyPhotoSection" {% if not claim.self_survey %}style="display:none;"{% endif %}>
+                                <hr>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">Self Survey / Vehicle Condition Photos</h6>
+                                    {% if jobcard and jobcard.vehicle_condition_photos.exists %}
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       href="{% url 'vehicle_condition_photo_view' jobcard.id %}"
+                                       target="_blank">
+                                        View Photos
+                                    </a>
+                                    {% endif %}
+                                </div>
+
+                                {% if jobcard %}
+                                <div class="row g-2">
+                                    {% for slot in vehicle_photo_slots %}
+                                    <div class="col-md-3">
+                                        <label class="form-label">{{ forloop.counter }}. {{ slot.caption }}</label>
+                                        <div class="d-flex gap-1 align-items-center flex-wrap">
+                                            <label class="btn btn-sm btn-outline-primary mb-0 self-survey-upload-btn"
+                                                   for="selfSurveyPhoto{{ slot.index }}">
+                                                Upload
+                                            </label>
+                                            <input class="d-none self-survey-photo-input"
+                                                   id="selfSurveyPhoto{{ slot.index }}"
+                                                   type="file"
+                                                   name="{{ slot.input_name }}"
+                                                   accept="image/*"
+                                                   {% if is_claim_locked or not claim.self_survey %}disabled{% endif %}>
+                                            <span class="small text-muted self-survey-file-name">No file</span>
+                                        </div>
+
+                                        {% if slot.photo %}
+                                        <a class="btn btn-sm btn-outline-secondary mt-1"
+                                           href="{{ slot.photo.image.url }}"
+                                           target="_blank">
+                                            Open
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <div class="alert alert-info py-2 mb-0">
+                                    Create jobcard first, then self survey photos can be uploaded/viewed here.
+                                </div>
                                 {% endif %}
                             </div>
 
@@ -430,7 +547,7 @@
                                            id="claimReinspectionDone"
                                            name="reinspection_done"
                                            value="1"
-                                           {% if jobcard.reinspection_done %}checked{% endif %}>
+                                           {% if is_reinspection_done %}checked{% endif %}>
                                     <label class="form-check-label fw-bold" for="claimReinspectionDone">
                                         RI Done
                                     </label>
@@ -606,6 +723,44 @@
                     </div>
                 </div>
                 {% endif %}
+
+                {% if claim and current_stage >= 13 %}
+                <div class="card compact-card border-0 shadow-sm mb-2"
+                     id="claimStageSection13">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Delivery</h5>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Delivery Date & Time</label>
+                                {{ form.delivery_datetime }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Delivered By</label>
+                                {{ form.delivered_by }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Delivered To</label>
+                                {{ form.delivered_to }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Driver Name</label>
+                                {{ form.delivery_driver_name }}
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label">Remarks</label>
+                                {{ form.delivery_remarks }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             <div class="col-lg-3 claim-side-col">
                 <div class="claim-side-sticky">
@@ -714,14 +869,15 @@
 
                         <div class="d-flex gap-2 mb-3">
 
-                            {% if claim.claim_stage > 1 %}
+                            {% if claim.claim_stage > 1 and not is_claim_locked %}
                             <a class="btn btn-outline-secondary btn-sm w-50"
+                               id="prevStageBtn"
                                href="{% url 'claim_edit' claim.id %}?move_stage=back">
                                 ← Previous
                             </a>
                             {% endif %}
 
-                            {% if claim.claim_stage < 14 %}
+                            {% if claim.claim_stage < 14 and not is_claim_locked %}
                             <a class="btn btn-primary btn-sm w-50"
                                href="{% url 'claim_edit' claim.id %}?move_stage=next" id="nextStageBtn">
                                 Next →
@@ -739,6 +895,7 @@
                         {% endif %}
 
                         <button class="btn btn-success w-100 mb-2"
+                                {% if is_claim_locked %}disabled{% endif %}
                                 type="submit">
                             Save Claim
                         </button>
@@ -751,6 +908,10 @@
             </div>
             </div>
         </div>
+
+        {% if is_claim_locked %}
+        </fieldset>
+        {% endif %}
 
     </form>
 
@@ -1088,6 +1249,38 @@
 
                     </div>
 
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="dmsJobNoModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white py-2">
+                    <h6 class="modal-title">DMS Jobcard No</h6>
+                    <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Enter DMS Jobcard No</label>
+                    <input class="form-control"
+                           id="dmsJobNoInput"
+                           type="text"
+                           placeholder="DMS Jobcard No">
+                    <div class="text-danger small mt-2 d-none" id="dmsJobNoError">
+                        DMS Jobcard No is required.
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-outline-secondary btn-sm"
+                            data-bs-dismiss="modal"
+                            type="button">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary btn-sm"
+                            onclick="confirmDmsJobNoAndSaveAssessment()"
+                            type="button">
+                        Continue
+                    </button>
                 </div>
             </div>
         </div>
@@ -1640,8 +1833,8 @@ function scrollCurrentClaimSectionIntoView() {
         10: "claimStageSection10",
         11: "claimStageSection11",
         12: "claimStageSection12",
-        13: "claimStageSection12",
-        14: "claimStageSection12"
+        13: "claimStageSection13",
+        14: "claimStageSection13"
     };
     const sectionId = sectionByStage[currentStageNo] || "claimStageSection1";
     const target = document.getElementById(sectionId);
@@ -1761,6 +1954,17 @@ if (document.readyState === "loading") {
             }
         }
 
+        if (currentStage === 8) {
+            missing.push("Work Completed must be marked from Work Allocation");
+        }
+
+        if (
+            currentStage === 7
+            && "{{ has_repair_progress_started|yesno:'1,0' }}" !== "1"
+        ) {
+            missing.push("Start at least one progress stage from Work Allocation");
+        }
+
         if (missing.length > 0) {
             showMissing(missing);
             return false;
@@ -1773,6 +1977,8 @@ if (document.readyState === "loading") {
 
         const nextStageBtn =
             document.getElementById("nextStageBtn");
+        const prevStageBtn =
+            document.getElementById("prevStageBtn");
 
         if (nextStageBtn) {
 
@@ -1783,6 +1989,28 @@ if (document.readyState === "loading") {
                     return false;
                 }
 
+            });
+        }
+
+        if (prevStageBtn) {
+            prevStageBtn.addEventListener("click", function(e) {
+                const currentStage = Number("{{ current_stage|default:1 }}");
+                const hasRepairProgress =
+                    "{{ has_repair_progress_data|yesno:'1,0' }}" === "1";
+
+                if (currentStage >= 8 && hasRepairProgress) {
+                    e.preventDefault();
+                    showMessage(
+                        "Cannot move previous. Repair progress has started. First clear progress rows and uploaded progress photos from Work Allocation.",
+                        "danger"
+                    );
+                    return false;
+                }
+
+                if (!confirm("Move claim to previous stage?")) {
+                    e.preventDefault();
+                    return false;
+                }
             });
         }
 
@@ -1819,6 +2047,7 @@ if (document.readyState === "loading") {
 
     });
     let currentJobId = null;
+    let currentJobNo = "";
 
     function openAssessmentModal(jobId) {
 
@@ -1828,6 +2057,7 @@ if (document.readyState === "loading") {
         fetch(`/api/jobcard/${jobId}/assessment/?t=${Date.now()}`)
             .then(res => res.json())
             .then(data => {
+                currentJobNo = data.job_no || "";
 
                 let partHtml = "";
 
@@ -2002,18 +2232,11 @@ document.addEventListener("input", function (e) {
     }
 });
 
-   function saveAssessment() {
+   function collectAssessmentPayload() {
     if (!validateAssessmentRequiredFields()) return;
 
     let parts = [];
     let labours = [];
-    const assessmentPrintWindow = window.open("", "_blank");
-
-    if (assessmentPrintWindow) {
-        assessmentPrintWindow.document.write(
-            "<!doctype html><title>Assessment Report</title><p>Saving assessment...</p>"
-        );
-    }
 
     document.querySelectorAll(".part-revised").forEach(input => {
         let id = input.dataset.id;
@@ -2065,20 +2288,83 @@ document.addEventListener("input", function (e) {
         });
     });
 
+    if (parts.length === 0 && labours.length === 0) {
+        showToast("Add at least one Part or Labour line before saving assessment", "danger");
+        return null;
+    }
+
+    return {
+        parts: parts,
+        labours: labours
+    };
+}
+
+function saveAssessment() {
+    const payload = collectAssessmentPayload();
+    if (!payload) return;
+
+    if ((currentJobNo || "").startsWith("JOB-")) {
+        const dmsInput = document.getElementById("dmsJobNoInput");
+        const dmsError = document.getElementById("dmsJobNoError");
+        if (dmsInput) {
+            dmsInput.value = "";
+        }
+        if (dmsError) {
+            dmsError.classList.add("d-none");
+        }
+        bootstrap.Modal.getOrCreateInstance(
+            document.getElementById("dmsJobNoModal")
+        ).show();
+        return;
+    }
+
+    submitAssessmentPayload(payload);
+}
+
+function confirmDmsJobNoAndSaveAssessment() {
+    const input = document.getElementById("dmsJobNoInput");
+    const error = document.getElementById("dmsJobNoError");
+    const value = (input ? input.value : "").trim();
+
+    if (!value) {
+        if (error) error.classList.remove("d-none");
+        if (input) input.focus();
+        return;
+    }
+
+    const payload = collectAssessmentPayload();
+    if (!payload) return;
+    payload.job_no = value;
+
+    bootstrap.Modal.getOrCreateInstance(
+        document.getElementById("dmsJobNoModal")
+    ).hide();
+    submitAssessmentPayload(payload);
+}
+
+function submitAssessmentPayload(payload) {
+    const assessmentPrintWindow = window.open("", "_blank");
+
+    if (assessmentPrintWindow) {
+        assessmentPrintWindow.document.write(
+            "<!doctype html><title>Assessment Report</title><p>Saving assessment...</p>"
+        );
+    }
+
     fetch(`/api/jobcard/${currentJobId}/assessment/save/`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "X-CSRFToken": getCookie("csrftoken")
         },
-        body: JSON.stringify({
-            parts: parts,
-            labours: labours
-        })
+        body: JSON.stringify(payload)
     })
     .then(res => res.json())
     .then(data => {
         if (data.status === "success") {
+            if (payload.job_no) {
+                currentJobNo = payload.job_no;
+            }
             showToast("Assessment saved successfully");
             printAssessmentReport(assessmentPrintWindow);
             setTimeout(function () {
@@ -2086,7 +2372,7 @@ document.addEventListener("input", function (e) {
             }, 500);
         } else {
             if (assessmentPrintWindow) assessmentPrintWindow.close();
-            showToast("Assessment save failed", "danger");
+            showToast(data.message || "Assessment save failed", "danger");
         }
     })
     .catch(() => {
@@ -3163,16 +3449,129 @@ function initInvoiceJobcardClosedValidation() {
     });
 }
 
+function initDeliveryDriverName() {
+    const deliveredToInput = document.getElementById("id_delivered_to");
+    const driverNameInput = document.getElementById("id_delivery_driver_name");
+
+    if (!deliveredToInput || !driverNameInput) {
+        return;
+    }
+
+    function updateDriverRequirement() {
+        const isDriverDrop = deliveredToInput.value === "Drop By Driver";
+        driverNameInput.required = isDriverDrop;
+        driverNameInput.closest(".col-md-3").style.display = isDriverDrop ? "" : "none";
+
+        if (!isDriverDrop) {
+            driverNameInput.value = "";
+        }
+    }
+
+    deliveredToInput.addEventListener("change", updateDriverRequirement);
+    updateDriverRequirement();
+}
+
+function initClaimClosedValidation() {
+    const claimForm = document.getElementById("claimForm");
+    const deliveryDateInput = document.getElementById("id_delivery_datetime");
+    const deliveredByInput = document.getElementById("id_delivered_by");
+    const deliveredToInput = document.getElementById("id_delivered_to");
+    const driverNameInput = document.getElementById("id_delivery_driver_name");
+
+    if (!claimForm || !deliveryDateInput || !deliveredByInput || !deliveredToInput || !driverNameInput) {
+        return;
+    }
+
+    const isClaimLocked = "{{ is_claim_locked|yesno:'true,false' }}" === "true";
+
+    if (isClaimLocked) {
+        claimForm.querySelectorAll("input, select, textarea, button").forEach(el => {
+            if (el.type !== "hidden") {
+                el.disabled = true;
+            }
+        });
+        return;
+    }
+
+    claimForm.addEventListener("submit", function (event) {
+        const deliveryComplete =
+            deliveryDateInput.value &&
+            deliveredByInput.value &&
+            deliveredToInput.value &&
+            (
+                deliveredToInput.value !== "Drop By Driver" ||
+                driverNameInput.value.trim()
+            );
+
+        if (!deliveryComplete) {
+            return;
+        }
+
+        if (!confirm("This claim will be closed. Normal users cannot edit it later. Only Admin or Manager can re-open it. Do you want to continue?")) {
+            event.preventDefault();
+        }
+    });
+}
+
+function initSelfSurveyPhotos() {
+    const selfSurvey = document.getElementById("id_self_survey");
+    const photoSection = document.getElementById("selfSurveyPhotoSection");
+    const photoInputs = Array.from(document.querySelectorAll(".self-survey-photo-input"));
+    const uploadButtons = Array.from(document.querySelectorAll(".self-survey-upload-btn"));
+
+    if (!selfSurvey || !photoSection) {
+        return;
+    }
+
+    function toggleSelfSurveyPhotos() {
+        const enabled = selfSurvey.checked;
+        photoSection.style.display = enabled ? "" : "none";
+        photoInputs.forEach(input => {
+            input.disabled = !enabled;
+            if (!enabled) {
+                input.value = "";
+                const nameLabel = input.closest(".d-flex")?.querySelector(".self-survey-file-name");
+                if (nameLabel) {
+                    nameLabel.textContent = "No file";
+                }
+            }
+        });
+        uploadButtons.forEach(button => {
+            button.classList.toggle("disabled", !enabled);
+            button.style.pointerEvents = enabled ? "" : "none";
+            button.style.opacity = enabled ? "" : "0.55";
+        });
+    }
+
+    photoInputs.forEach(input => {
+        input.addEventListener("change", function () {
+            const nameLabel = input.closest(".d-flex")?.querySelector(".self-survey-file-name");
+            if (nameLabel) {
+                nameLabel.textContent = input.files && input.files[0] ? input.files[0].name : "No file";
+            }
+        });
+    });
+
+    selfSurvey.addEventListener("change", toggleSelfSurveyPhotos);
+    toggleSelfSurveyPhotos();
+}
+
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initLiabilityTotalCalculation);
     document.addEventListener("DOMContentLoaded", initLiabilityValidation);
     document.addEventListener("DOMContentLoaded", initInvoiceCalculation);
     document.addEventListener("DOMContentLoaded", initInvoiceJobcardClosedValidation);
+    document.addEventListener("DOMContentLoaded", initDeliveryDriverName);
+    document.addEventListener("DOMContentLoaded", initClaimClosedValidation);
+    document.addEventListener("DOMContentLoaded", initSelfSurveyPhotos);
 } else {
     initLiabilityTotalCalculation();
     initLiabilityValidation();
     initInvoiceCalculation();
     initInvoiceJobcardClosedValidation();
+    initDeliveryDriverName();
+    initClaimClosedValidation();
+    initSelfSurveyPhotos();
 }
 </script>
 

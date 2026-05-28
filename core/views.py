@@ -1,16 +1,19 @@
 import math
 import os
 import zipfile
+import base64
 from io import BytesIO
 
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
+from django.core.files.base import ContentFile
 from django.contrib.sites import requests
 from django.db import IntegrityError
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.template.loader import get_template
+from django.utils.dateparse import parse_date
 from django.views.decorators.cache import never_cache
 from psycopg import rows
 from xhtml2pdf import pisa
@@ -20,7 +23,8 @@ from .forms import VehicleForm, InsuranceCompanyForm, CustomerForm, SurveyorForm
 from .models import InsuranceCompany, VehicleModel, Customer, ColumnPreference, Surveyor, JobCardPart, \
     JobCardLabour, JobCardAssessmentPart, JobCardAssessmentLabour, JobCardTyreInventory, \
     CommunicationLog, UserNotification, ClaimStageCode, WorkProgress, WorkAllocation, AnnouncementRead, Announcement, \
-    PartOrder, PartOrderHeader, WorkAllocationPart, WorkAllocationLabour, JobCardReInspectionPhoto
+    PartOrder, PartOrderHeader, WorkAllocationPart, WorkAllocationLabour, JobCardReInspectionPhoto, \
+    JobCardVehicleConditionPhoto, ClaimDocument, WorkProgressPhoto
 
 
 REINSPECTION_MAX_PHOTOS_PER_JOBCARD = getattr(settings, "REINSPECTION_MAX_PHOTOS_PER_JOBCARD", 25)
@@ -28,6 +32,40 @@ REINSPECTION_MAX_IMAGE_SIZE_MB = getattr(settings, "REINSPECTION_MAX_IMAGE_SIZE_
 REINSPECTION_MAX_TOTAL_SIZE_MB = getattr(settings, "REINSPECTION_MAX_TOTAL_SIZE_MB", 50)
 REINSPECTION_MAX_IMAGE_SIZE_BYTES = REINSPECTION_MAX_IMAGE_SIZE_MB * 1024 * 1024
 REINSPECTION_MAX_TOTAL_SIZE_BYTES = REINSPECTION_MAX_TOTAL_SIZE_MB * 1024 * 1024
+
+VEHICLE_CONDITION_PHOTO_CAPTIONS = [
+    "Front View",
+    "Front Right Corner View",
+    "Full Right View",
+    "Rear Right Corner View",
+    "Rear View",
+    "Rear Left Corner View",
+    "Full Left View",
+    "Front Left Corner View",
+    "Engine Compartment",
+    "Windshield Glass",
+    "Instrument Cluster Photo",
+    "Full Dashboard Photo",
+    "Interior View Photo",
+    "Chassis No View",
+    "Rear Glass View",
+    "Dicky View",
+    "Jack & Tools View",
+    "Stepney View",
+    "Other View 1",
+    "Other View 2",
+]
+
+CLAIM_DOCUMENT_TYPES = [
+    "RC Book",
+    "Driving License",
+    "Insurance Policy",
+    "Aadhar Card",
+    "PAN Card",
+    "Claim Form",
+    "Other 1",
+    "Other 2",
+]
 
 
 def get_reinspection_photo_storage_size(job):
@@ -45,13 +83,323 @@ def get_reinspection_photo_storage_size(job):
     return total_size
 
 
+def vehicle_condition_photo_input_name(index):
+    return f"vehicle_condition_photo_{index}"
+
+
+def get_vehicle_condition_photo_slots(job):
+    existing = {}
+    if job:
+        existing = {
+            photo.caption: photo
+            for photo in job.vehicle_condition_photos.all()
+        }
+
+    return [
+        {
+            "index": index,
+            "caption": caption,
+            "input_name": vehicle_condition_photo_input_name(index),
+            "photo": existing.get(caption),
+        }
+        for index, caption in enumerate(VEHICLE_CONDITION_PHOTO_CAPTIONS, start=1)
+    ]
+
+
+def save_vehicle_condition_photos(request, job):
+    for index, caption in enumerate(VEHICLE_CONDITION_PHOTO_CAPTIONS, start=1):
+        image = request.FILES.get(vehicle_condition_photo_input_name(index))
+        if not image:
+            continue
+
+        photo = JobCardVehicleConditionPhoto.objects.filter(
+            job=job,
+            caption=caption,
+        ).first()
+
+        if photo and photo.image:
+            photo.image.delete(save=False)
+
+        if photo:
+            photo.image = image
+            photo.save()
+        else:
+            JobCardVehicleConditionPhoto.objects.create(
+                job=job,
+                caption=caption,
+                image=image,
+            )
+
+
+def save_signature_data(job, field_name, data_url):
+    data_url = (data_url or "").strip()
+    field = getattr(job, field_name)
+
+    if data_url == "__clear__":
+        if field:
+            field.delete(save=False)
+        setattr(job, field_name, None)
+        return True
+
+    if not data_url.startswith("data:image/png;base64,"):
+        return False
+
+    try:
+        image_data = base64.b64decode(data_url.split(",", 1)[1])
+    except (ValueError, IndexError):
+        return False
+
+    if field:
+        field.delete(save=False)
+
+    filename = f"{job.job_no}_{field_name}.png".replace("/", "_")
+    setattr(job, field_name, ContentFile(image_data, name=filename))
+    return True
+
+
+def save_jobcard_signatures(request, job):
+    changed = False
+    changed = save_signature_data(
+        job,
+        "advisor_signature",
+        request.POST.get("advisor_signature_data")
+    ) or changed
+    changed = save_signature_data(
+        job,
+        "customer_signature",
+        request.POST.get("customer_signature_data")
+    ) or changed
+
+    if changed:
+        job.save(update_fields=["advisor_signature", "customer_signature"])
+
+
+def claim_document_input_name(index):
+    return f"claim_document_{index}"
+
+
+def get_claim_document_slots(claim):
+    existing = {}
+    if claim:
+        existing = {
+            document.document_type: document
+            for document in ClaimDocument.objects.filter(claim=claim)
+        }
+
+    return [
+        {
+            "index": index,
+            "document_type": document_type,
+            "input_name": claim_document_input_name(index),
+            "document": existing.get(document_type),
+        }
+        for index, document_type in enumerate(CLAIM_DOCUMENT_TYPES, start=1)
+    ]
+
+
+def save_claim_documents(request, claim):
+    if not claim:
+        return
+
+    for index, document_type in enumerate(CLAIM_DOCUMENT_TYPES, start=1):
+        uploaded_file = request.FILES.get(claim_document_input_name(index))
+        if not uploaded_file:
+            continue
+
+        document = ClaimDocument.objects.filter(
+            claim=claim,
+            document_type=document_type,
+        ).first()
+
+        if document and document.file:
+            document.file.delete(save=False)
+
+        if document:
+            document.file = uploaded_file
+            document.save()
+        else:
+            ClaimDocument.objects.create(
+                claim=claim,
+                document_type=document_type,
+                file=uploaded_file,
+            )
+
+
+def progress_photo_input_name(stage):
+    safe_stage = "".join(
+        char if char.isalnum() or char in ["-", "_"] else "_"
+        for char in str(stage or "")
+    )
+    return f"progress_photo_{safe_stage}"
+
+
+def is_repair_resource(employee):
+    if not employee:
+        return False
+
+    role_text = f"{employee.employee_type or ''} {employee.designation or ''}".upper()
+    return any(
+        keyword in role_text
+        for keyword in ["TECHNICIAN", "DENTER", "PAINTER"]
+    )
+
+
+def my_work_base_queryset(employee, from_date=None, to_date=None):
+    progress = (
+        WorkProgress.objects
+        .select_related(
+            "allocation",
+            "allocation__job",
+            "allocation__job__claim",
+            "allocation__job__claim__vehicle",
+            "allocation__job__claim__vehicle__customer",
+            "allocation__job__claim__vehicle__model",
+            "employee",
+        )
+        .prefetch_related("photos")
+        .filter(employee=employee)
+    )
+
+    if from_date:
+        progress = progress.filter(allocation__job__created_at__date__gte=from_date)
+
+    if to_date:
+        progress = progress.filter(allocation__job__created_at__date__lte=to_date)
+
+    return progress
+
+
+def apply_my_work_status_filter(progress, status_filter):
+    if status_filter == "wip":
+        return progress.filter(start_time__isnull=False, finish_time__isnull=True)
+
+    if status_filter == "completed":
+        return progress.filter(finish_time__isnull=False)
+
+    return progress.filter(start_time__isnull=True)
+
+
+def my_work_row_payload(progress):
+    job = progress.allocation.job if progress.allocation_id else None
+    claim = job.claim if job and job.claim_id else None
+    vehicle = claim.vehicle if claim and claim.vehicle_id else None
+
+    return {
+        "id": progress.id,
+        "stage": progress.stage,
+        "stage_label": progress.get_stage_display(),
+        "start_time": progress.start_time,
+        "finish_time": progress.finish_time,
+        "remarks": progress.remarks or "",
+        "photo_count": progress.photos.count(),
+        "job": job,
+        "claim": claim,
+        "vehicle": vehicle,
+    }
+
+
+def start_work_progress(progress):
+    if not progress.start_time:
+        progress.start_time = timezone.now()
+        progress.save(update_fields=["start_time"])
+        return True
+    return False
+
+
+def finish_work_progress(progress):
+    changed = False
+    if not progress.start_time:
+        progress.start_time = timezone.now()
+        changed = True
+    if not progress.finish_time:
+        progress.finish_time = timezone.now()
+        changed = True
+    progress.save(update_fields=["start_time", "finish_time"])
+    return changed
+
+
+def save_work_progress_uploaded_photos(request, progress):
+    for image in request.FILES.getlist("progress_photos"):
+        WorkProgressPhoto.objects.create(
+            progress=progress,
+            image=image
+        )
+
+
+def is_admin_or_manager_user(user, employee=None):
+    if not user or not user.is_authenticated:
+        return False
+
+    role_text = f"{employee.employee_type if employee else ''} {employee.designation if employee else ''}".upper()
+    return (
+        user.is_superuser
+        or "MANAGER" in role_text
+        or "ADMIN" in role_text
+        or user.groups.filter(name__iexact="Manager").exists()
+    )
+
+
+def create_user_notification(user, title, message, url=""):
+    if not user:
+        return
+
+    UserNotification.objects.create(
+        user=user,
+        title=title,
+        message=message,
+        url=url or "",
+    )
+
+
+def notify_jobcard_advisor(job, title, message):
+    if not job:
+        return
+
+    advisor_user = None
+    if job.advisor_id and job.advisor and job.advisor.user_id:
+        advisor_user = job.advisor.user
+    elif job.claim_id and job.claim and job.claim.employee_id and job.claim.employee.user_id:
+        advisor_user = job.claim.employee.user
+
+    create_user_notification(
+        advisor_user,
+        title,
+        message,
+        f"/jobCard/{job.id}/edit/",
+    )
+
+
+def notify_work_progress_change(progress, action_label):
+    job = progress.allocation.job if progress and progress.allocation_id else None
+    if not job:
+        return
+
+    vehicle = job.claim.vehicle if job.claim_id and job.claim and job.claim.vehicle_id else None
+    registration_no = vehicle.registration_no if vehicle else "-"
+    message = (
+        f"Jobcard {job.job_no} {progress.get_stage_display()} "
+        f"{action_label} for {registration_no}"
+    )
+    notify_jobcard_advisor(
+        job,
+        "Repair Work Progress Updated",
+        message,
+    )
+
+
 # Create your views here.
 @login_required
 @login_required
 def dashboard(request):
+    from datetime import date
+    from django.utils.dateparse import parse_date
+
     logged_emp = Employee.objects.filter(
         user=request.user
     ).first()
+
+    if is_repair_resource(logged_emp):
+        return redirect("my_work_list")
 
     claims = Claim.objects.none()
     jobcards = JobCard.objects.none()
@@ -94,9 +442,46 @@ def dashboard(request):
             employee__isnull=True
         )
 
+    today = date.today()
+    default_from_date = today.replace(day=1)
+    from_date = parse_date(request.GET.get("from_date") or "") or default_from_date
+    to_date = parse_date(request.GET.get("to_date") or "") or today
+    status_scope = request.GET.get("status_scope") or ""
+    main_status = request.GET.get("main_status") or ""
+    advisor_id = request.GET.get("advisor") or ""
+
+    if from_date:
+        claims = claims.filter(created_at__date__gte=from_date)
+        jobcards = jobcards.filter(created_at__date__gte=from_date)
+
+    if to_date:
+        claims = claims.filter(created_at__date__lte=to_date)
+        jobcards = jobcards.filter(created_at__date__lte=to_date)
+
+    if advisor_id:
+        claims = claims.filter(employee_id=advisor_id)
+        jobcards = jobcards.filter(advisor_id=advisor_id)
+
+    if main_status:
+        if status_scope == "claim":
+            claims = claims.filter(status=main_status)
+        elif status_scope == "jobcard":
+            jobcards = jobcards.filter(repair_status=main_status)
+        else:
+            claims = claims.filter(status=main_status)
+            jobcards = jobcards.filter(repair_status=main_status)
+
+    advisor_options = Employee.objects.filter(
+        is_active=True
+    ).filter(
+        Q(employee_type__iexact="Advisor")
+        | Q(designation__iexact="Advisor")
+    ).order_by("name")
+
     # MANAGER REPORT DEFAULTS
     total_claims = 0
     pending_claims = 0
+    closed_claims = 0
     work_allocation_pending = 0
     repair_in_progress = 0
     total_estimate_value = 0
@@ -106,36 +491,40 @@ def dashboard(request):
     recent_jobs = []
 
     if show_manager_dashboard:
-        total_claims = Claim.objects.count()
+        total_claims = claims.count()
 
-        pending_claims = Claim.objects.exclude(
+        pending_claims = claims.exclude(
             claim_stage=ClaimStageCode.CLOSED
         ).count()
 
-        work_allocation_pending = Claim.objects.filter(
+        closed_claims = claims.filter(
+            claim_stage=ClaimStageCode.CLOSED
+        ).count()
+
+        work_allocation_pending = claims.filter(
             claim_stage=ClaimStageCode.WORK_ALLOCATION
         ).count()
 
-        repair_in_progress = Claim.objects.filter(
+        repair_in_progress = claims.filter(
             claim_stage=ClaimStageCode.REPAIR_IN_PROGRESS
         ).count()
 
         stage_counts = (
-            Claim.objects
+            claims
             .values("claim_stage")
             .annotate(total=Count("id"))
             .order_by("claim_stage")
         )
 
         advisor_counts = (
-            Claim.objects
+            claims
             .values("employee__name")
             .annotate(total=Count("id"))
             .order_by("-total")[:10]
         )
 
         recent_jobs = (
-            JobCard.objects
+            jobcards
             .select_related(
                 "claim",
                 "claim__vehicle",
@@ -145,7 +534,7 @@ def dashboard(request):
         )
 
         total_estimate_value = (
-                JobCard.objects
+                jobcards
                 .aggregate(total=Sum("grand_total"))
                 .get("total") or 0
         )
@@ -160,16 +549,35 @@ def dashboard(request):
 
         "total_claims": total_claims,
         "pending_claims": pending_claims,
+        "closed_claims": closed_claims,
         "work_allocation_pending": work_allocation_pending,
         "repair_in_progress": repair_in_progress,
         "stage_counts": stage_counts,
         "advisor_counts": advisor_counts,
         "recent_jobs": recent_jobs,
         "total_estimate_value": total_estimate_value,
+        "advisor_options": advisor_options,
+        "filter_from_date": from_date.strftime("%Y-%m-%d"),
+        "filter_to_date": to_date.strftime("%Y-%m-%d"),
+        "filter_status_scope": status_scope,
+        "filter_main_status": main_status,
+        "filter_advisor": advisor_id,
+        "claim_status_choices": Claim.STATUS_CHOICES,
+        "jobcard_status_choices": [
+            ("Open", "Open"),
+            ("Completed", "Completed"),
+            ("Closed", "Closed"),
+            ("Cancellation", "Cancellation"),
+        ],
     })
 
 
+@login_required
 def register_view(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Only Admin can create users.")
+        return redirect("dashboard")
+
     if request.method == 'POST':  # ✅ use uppercase
         form = UserCreationForm(request.POST)
         if form.is_valid():
@@ -197,6 +605,7 @@ def logout_view(request):
     return redirect('login')  # 'home' should be the name of your homepage URLlogin_required
 
 
+@login_required
 def insurance_list(request):
     context = {
 
@@ -216,11 +625,13 @@ def insurance_list(request):
     return render(request, 'insurance/list.html', context)
 
 
+@login_required
 def insurance_data(request):
     data = list(InsuranceCompany.objects.values())
     return JsonResponse({'data': data})
 
 
+@login_required
 def insurance_get(request, pk):
     obj = get_object_or_404(InsuranceCompany, pk=pk)
     return JsonResponse({
@@ -231,6 +642,7 @@ def insurance_get(request, pk):
     })
 
 
+@login_required
 def insurance_save(request):
     if request.method == 'POST':
         pk = request.POST.get('id')
@@ -248,6 +660,7 @@ def insurance_save(request):
         return JsonResponse({'success': False, 'errors': form.errors})
 
 
+@login_required
 def insurance_edit(request, pk):
     obj = get_object_or_404(InsuranceCompany, pk=pk)
     form = InsuranceCompanyForm(request.POST or None, instance=obj)
@@ -259,6 +672,7 @@ def insurance_edit(request, pk):
     return render(request, 'insurance/edit.html', {'form': form})
 
 
+@login_required
 def vehicle_list(request):
     return render(request, 'master/vehicle_list.html')
 
@@ -266,6 +680,7 @@ def vehicle_list(request):
 from .models import VehicleVariant
 
 
+@login_required
 def load_variants(request):
     model_id = request.GET.get('model_id')
     variants = VehicleVariant.objects.filter(model_id=model_id).values('id', 'name')
@@ -294,7 +709,6 @@ def vehicle_list_api(request):
     return JsonResponse(data, safe=False)
 
 
-from django.views.decorators.csrf import csrf_exempt
 from .models import Vehicle
 
 from django.views.decorators.http import require_POST
@@ -359,6 +773,7 @@ def vehicle_update_api(request, pk):
         }, status=500)
 
 
+@login_required
 def vehicle_create(request):
     if request.method == 'POST':
         form = VehicleForm(request.POST)
@@ -386,6 +801,7 @@ def vehicle_create(request):
     })
 
 
+@login_required
 def check_registration(request):
     reg = request.GET.get('registration_no')
 
@@ -398,6 +814,7 @@ def check_registration(request):
     })
 
 
+@login_required
 def add_model_ajax(request):
     if request.method == "POST":
         data = json.loads(request.body)
@@ -418,6 +835,7 @@ def add_model_ajax(request):
         })
 
 
+@login_required
 def add_variant_ajax(request):
     if request.method == "POST":
         data = json.loads(request.body)
@@ -443,6 +861,7 @@ def add_variant_ajax(request):
         })
 
 
+@login_required
 def check_customer(request):
     name = request.GET.get("name", "").strip()
     mobile = request.GET.get("mobile", "").strip()
@@ -455,6 +874,7 @@ def check_customer(request):
     return JsonResponse({"exists": exists})
 
 
+@login_required
 def customer_search(request):
     term = request.GET.get('term')
 
@@ -473,6 +893,7 @@ def customer_search(request):
     return JsonResponse({'results': results})
 
 
+@login_required
 def add_customer(request):
     data = json.loads(request.body)
 
@@ -509,6 +930,7 @@ def add_customer(request):
     })
 
 
+@login_required
 def get_customer_details(request):
     customer_id = request.GET.get("id")
 
@@ -549,6 +971,7 @@ def get_customer_details(request):
         })
 
 
+@login_required
 def customer_list(request):
     context = {
 
@@ -573,11 +996,13 @@ def customer_list(request):
     )
 
 
+@login_required
 def customer_data(request):
     data = list(Customer.objects.values())
     return JsonResponse({'data': data})
 
 
+@login_required
 def customer_get(request, id):
     obj = Customer.objects.get(id=id)
     return JsonResponse({
@@ -590,6 +1015,7 @@ def customer_get(request, id):
     })
 
 
+@login_required
 def customer_save(request):
     if request.method == "POST":
 
@@ -613,6 +1039,7 @@ def customer_save(request):
     # core/views.py
 
 
+@login_required
 def save_column_pref(request):
     # ✅ Handle GET (for testing / safety)
     if request.method == "GET":
@@ -665,6 +1092,7 @@ def save_column_pref(request):
     })
 
 
+@login_required
 def load_column_pref(request):
     screen = request.GET.get("screen")
     name = request.GET.get("name", "default")
@@ -681,16 +1109,19 @@ def load_column_pref(request):
         return JsonResponse({"state": []})
 
 
+@login_required
 def surveyor_page(request):
     form = SurveyorForm()
     return render(request, "master/surveyor.html", {"form": form})
 
 
+@login_required
 def surveyor_data(request):
     data = list(Surveyor.objects.values())
     return JsonResponse({"data": data})
 
 
+@login_required
 def surveyor_save(request):
     if request.method == "POST":
         try:
@@ -717,11 +1148,13 @@ def surveyor_save(request):
     return JsonResponse({"error": "Invalid request"}, status=400)
 
 
+@login_required
 def surveyor_get(request, id):
     data = Surveyor.objects.filter(id=id).values().first()
     return JsonResponse(data)
 
 
+@login_required
 def check_surveyor_mobile(request):
     mobile = request.GET.get("mobile")
 
@@ -730,16 +1163,19 @@ def check_surveyor_mobile(request):
     return JsonResponse({"exists": exists})
 
 
+@login_required
 def employee_page(request):
     form = EmployeeForm()
     return render(request, "master/employee.html", {"form": form})
 
 
+@login_required
 def employee_data(request):
     data = list(Employee.objects.values())
     return JsonResponse({"data": data})
 
 
+@login_required
 def employee_save(request):
     if request.method == "POST":
 
@@ -760,6 +1196,7 @@ def employee_save(request):
     return JsonResponse({"error": "Invalid request"}, status=400)
 
 
+@login_required
 def employee_get(request, id):
     data = Employee.objects.filter(id=id).values().first()
     return JsonResponse(data)
@@ -847,6 +1284,7 @@ def claim_page(request):
         "can_change_advisor": can_change_advisor,
         "current_stage": current_stage,
         "pending_days": pending_days,
+        "claim_document_slots": get_claim_document_slots(None),
         "claims": claims,
         "breadcrumbs": [
 
@@ -926,6 +1364,7 @@ def jobList_page(request):
 from .models import Employee
 
 
+@login_required
 def claim_save(request, pk=None):
     claim = None
 
@@ -992,10 +1431,12 @@ def claim_save(request, pk=None):
             "form": form,
             "claim": claim,
             "pending_days": pending_days,
+            "claim_document_slots": get_claim_document_slots(claim),
         }
     )
 
 
+@login_required
 def claim_data(request):
     data = Claim.objects.select_related(
         'vehicle',
@@ -1033,6 +1474,12 @@ def claim_list_api(request):
 
     from_date = request.GET.get("from_date")
     to_date = request.GET.get("to_date")
+    claim_status = request.GET.get("claim_status", "open").strip().lower()
+
+    if claim_status == "closed":
+        claims = claims.filter(claim_stage=ClaimStageCode.CLOSED)
+    elif claim_status != "all":
+        claims = claims.exclude(claim_stage=ClaimStageCode.CLOSED)
 
     if from_date:
         claims = claims.filter(created_at__date__gte=from_date)
@@ -1101,7 +1548,7 @@ def claim_list_api(request):
     return JsonResponse(data, safe=False)
 
 
-@csrf_exempt
+@login_required
 def add_vehicle(request):
     if request.method != "POST":
         return JsonResponse({
@@ -1158,6 +1605,7 @@ def add_vehicle(request):
 from django.db.models import Q
 
 
+@login_required
 def vehicle_search(request):
     term = request.GET.get('term', '').strip()
 
@@ -1188,6 +1636,7 @@ def vehicle_search(request):
     })
 
 
+@login_required
 def get_vehicle_details(request):
     vehicle_id = request.GET.get("id")
 
@@ -1275,11 +1724,47 @@ def claim_edit(request, pk=None):
             pk=pk
         )
 
+    logged_emp = Employee.objects.filter(
+        user=request.user
+    ).first()
+    role = (
+        logged_emp.employee_type.upper()
+        if logged_emp else ""
+    )
+    can_reopen_claim = (
+        request.user.is_superuser
+        or role == "MANAGER"
+        or request.user.groups.filter(name__iexact="Manager").exists()
+    )
+
+    if (
+        claim
+        and int(claim.claim_stage or 0) == ClaimStageCode.CLOSED
+        and claim.status != "Closed"
+    ):
+        claim.status = "Closed"
+        claim.save(update_fields=["status"])
+
+    is_claim_locked = bool(
+        claim
+        and (
+            int(claim.claim_stage or 0) == ClaimStageCode.CLOSED
+            or claim.status == "Closed"
+        )
+        and not can_reopen_claim
+    )
+
     # =====================================
     # POST
     # =====================================
 
     if request.method == "POST":
+        if is_claim_locked:
+            messages.error(
+                request,
+                "Closed claim cannot be updated. Only Admin or Manager can re-open it."
+            )
+            return redirect("claim_edit", pk=claim.id)
 
         form = ClaimForm(
             request.POST,
@@ -1344,10 +1829,6 @@ def claim_edit(request, pk=None):
                 )
                 return redirect("claim_edit", pk=obj.id if obj.id else pk)
 
-            logged_emp = Employee.objects.filter(
-                user=request.user
-            ).first()
-
             # =====================================
             # AUTO ASSIGN ADVISOR
             # =====================================
@@ -1380,7 +1861,10 @@ def claim_edit(request, pk=None):
                     and obj.liability_do_amount > 0
                     and has_liability_document
             ):
-                obj.claim_stage = ClaimStageCode.INVOICED
+                if claim and claim.claim_stage >= ClaimStageCode.INVOICED:
+                    obj.claim_stage = claim.claim_stage
+                else:
+                    obj.claim_stage = ClaimStageCode.INVOICED
             elif (
                     obj.insurance_approval_date
                     and obj.assessment_file
@@ -1411,6 +1895,20 @@ def claim_edit(request, pk=None):
 
                 obj.claim_stage = ClaimStageCode.CLAIM_CREATED
 
+            delivery_complete = (
+                obj.delivery_datetime
+                and obj.delivered_by
+                and obj.delivered_to
+                and (
+                    obj.delivered_to != "Drop By Driver"
+                    or obj.delivery_driver_name
+                )
+            )
+
+            if delivery_complete:
+                obj.claim_stage = ClaimStageCode.CLOSED
+                obj.status = "Closed"
+
             # =====================================
             # SAVE
             # =====================================
@@ -1418,6 +1916,9 @@ def claim_edit(request, pk=None):
             is_new = obj.pk is None
 
             obj.save()
+            save_claim_documents(request, obj)
+            if jobcard and obj.self_survey:
+                save_vehicle_condition_photos(request, jobcard)
             claim_created_date = parse_date(
                 request.POST.get("claim_created_date") or ""
             )
@@ -1439,11 +1940,20 @@ def claim_edit(request, pk=None):
 
             if jobcard:
                 uploaded_reinspection_images = request.FILES.getlist("reinspection_images")
-                has_reinspection_post = (
-                    "reinspection_done" in request.POST
-                    or "reinspection_date" in request.POST
-                    or "reinspection_done_by" in request.POST
-                    or bool(uploaded_reinspection_images)
+                posted_reinspection_done = request.POST.get("reinspection_done") == "1"
+                posted_reinspection_date = parse_date(
+                    request.POST.get("reinspection_date") or ""
+                )
+                posted_reinspection_done_by = request.POST.get(
+                    "reinspection_done_by",
+                    ""
+                ).strip()
+                current_claim_stage = int((claim.claim_stage if claim else obj.claim_stage) or 0)
+                should_update_reinspection_fields = (
+                    current_claim_stage <= ClaimStageCode.RE_INSPECTION
+                    or posted_reinspection_done
+                    or bool(posted_reinspection_date)
+                    or bool(posted_reinspection_done_by)
                 )
 
                 if uploaded_reinspection_images:
@@ -1485,15 +1995,10 @@ def claim_edit(request, pk=None):
                         )
                         return redirect("claim_edit", pk=obj.id)
 
-                if has_reinspection_post:
-                    jobcard.reinspection_done = request.POST.get("reinspection_done") == "1"
-                    jobcard.reinspection_date = parse_date(
-                        request.POST.get("reinspection_date") or ""
-                    )
-                    jobcard.reinspection_done_by = request.POST.get(
-                        "reinspection_done_by",
-                        ""
-                    ).strip()
+                if should_update_reinspection_fields:
+                    jobcard.reinspection_done = posted_reinspection_done
+                    jobcard.reinspection_date = posted_reinspection_date
+                    jobcard.reinspection_done_by = posted_reinspection_done_by
                     jobcard.save(update_fields=[
                         "reinspection_done",
                         "reinspection_date",
@@ -1506,7 +2011,7 @@ def claim_edit(request, pk=None):
                         image=image
                     )
 
-                if has_reinspection_post and jobcard.reinspection_done:
+                if should_update_reinspection_fields and jobcard.reinspection_done:
                     obj.claim_stage = ClaimStageCode.LIABILITY
                     obj.save(update_fields=["claim_stage"])
 
@@ -1627,13 +2132,32 @@ def claim_edit(request, pk=None):
             current += 1
 
         elif move_stage == "back":
+            if (
+                current >= ClaimStageCode.REPAIR_IN_PROGRESS
+                and claim_has_repair_progress_data(claim)
+            ):
+                messages.error(
+                    request,
+                    "Cannot move to previous stage because repair progress entries exist. "
+                    "First clear the started/finished progress rows and uploaded progress photos from Work Allocation."
+                )
+                return redirect(
+                    "claim_edit",
+                    pk=claim.id
+                )
 
             current -= 1
 
         current = max(1, min(current, ClaimStageCode.CLOSED))
 
         claim.claim_stage = current
-        claim.save()
+
+        if current == ClaimStageCode.CLOSED:
+            claim.status = "Closed"
+            claim.save(update_fields=["claim_stage", "status"])
+        else:
+            claim.save(update_fields=["claim_stage"])
+
         jobcard = JobCard.objects.filter(claim=claim).first()
 
         if jobcard:
@@ -1648,18 +2172,13 @@ def claim_edit(request, pk=None):
             "claim_edit",
             pk=claim.id
         )
-    logged_emp = Employee.objects.filter(
-        user=request.user
-    ).first()
-
-    role = (
-        logged_emp.employee_type.upper()
-        if logged_emp else ""
-    )
-
     can_change_advisor = role != "ADVISOR"
 
     form = ClaimForm(instance=claim)
+    if is_claim_locked:
+        for field in form.fields.values():
+            field.disabled = True
+
     jobcard = JobCard.objects.filter(claim=claim).first() if claim else None
     existing_reinspection_photo_count = (
         jobcard.reinspection_photos.count()
@@ -1687,6 +2206,21 @@ def claim_edit(request, pk=None):
     is_jobcard_closed = bool(
         jobcard
         and sync_jobcard_main_status(jobcard) == "Closed"
+    )
+    is_reinspection_done = bool(
+        jobcard
+        and (
+            jobcard.reinspection_done
+            or current_stage >= ClaimStageCode.LIABILITY
+        )
+    )
+    has_repair_progress_data = claim_has_repair_progress_data(claim)
+    has_repair_progress_started = bool(
+        jobcard
+        and WorkProgress.objects.filter(
+            allocation__job=jobcard,
+            start_time__isnull=False,
+        ).exists()
     )
     next_stage_label = (
         ClaimStageCode(current_stage + 1).label
@@ -1719,6 +2253,12 @@ def claim_edit(request, pk=None):
             "is_manager": is_manager,
             "jobcard": jobcard,
             "is_jobcard_closed": is_jobcard_closed,
+            "is_reinspection_done": is_reinspection_done,
+            "has_repair_progress_data": has_repair_progress_data,
+            "has_repair_progress_started": has_repair_progress_started,
+            "is_claim_locked": is_claim_locked,
+            "can_reopen_claim": can_reopen_claim,
+            "vehicle_photo_slots": get_vehicle_condition_photo_slots(jobcard),
             "existing_reinspection_photo_count": existing_reinspection_photo_count,
             "existing_reinspection_photo_size_mb": round(
                 existing_reinspection_photo_size / (1024 * 1024),
@@ -1727,6 +2267,7 @@ def claim_edit(request, pk=None):
             "reinspection_max_photos": REINSPECTION_MAX_PHOTOS_PER_JOBCARD,
             "reinspection_max_image_size_mb": REINSPECTION_MAX_IMAGE_SIZE_MB,
             "reinspection_max_total_size_mb": REINSPECTION_MAX_TOTAL_SIZE_MB,
+            "claim_document_slots": get_claim_document_slots(claim),
             "stage_steps": [
                 (ClaimStageCode.CLAIM_CREATED, "Claim Created"),
                 (ClaimStageCode.ADVISOR_ASSIGNED, "Advisor Assigned"),
@@ -1766,6 +2307,7 @@ def claim_edit(request, pk=None):
     )
 
 
+@login_required
 def claimdashboard(request):
     logged_emp = Employee.objects.filter(
         user=request.user
@@ -2039,7 +2581,7 @@ def jobcard_create(request, claim_id=None):
 
     if request.method == "POST":
 
-        form = JobCardForm(request.POST)
+        form = JobCardForm(request.POST, request.FILES)
 
         if form.is_valid():
 
@@ -2123,6 +2665,10 @@ def jobcard_create(request, claim_id=None):
             obj.net_total = net_total
 
             obj.save()
+            save_vehicle_condition_photos(request, obj)
+            save_jobcard_signatures(request, obj)
+            if obj.claim_id:
+                save_claim_documents(request, obj.claim)
             if job_created_date:
                 JobCard.objects.filter(pk=obj.pk).update(
                     job_date=job_created_date
@@ -2160,6 +2706,8 @@ def jobcard_create(request, claim_id=None):
         "can_edit_jobcard_entries": can_edit_jobcard_entries,
         "is_cng_vehicle": is_cng_vehicle,
         "logged_emp": logged_emp,
+        "vehicle_photo_slots": get_vehicle_condition_photo_slots(None),
+        "claim_document_slots": get_claim_document_slots(claim),
         "fuel_percent": JobCardInventory.fuel_percent if JobCardInventory else 0,
         "cng_percent": JobCardInventory.cng_percent if JobCardInventory else 0,
         # ✅ BREADCRUMB
@@ -2235,8 +2783,15 @@ def jobcard_edit(request, pk):
             )
             return redirect("jobcard_edit", pk=job.id)
 
+        old_repair_status = job.repair_status
+        old_grand_total = job.grand_total
+        old_parts_total = job.parts_total
+        old_labour_total = job.labour_total
+        old_expected_delivery = job.expected_delivery_datetime
+
         form = JobCardForm(
             request.POST,
+            request.FILES,
             instance=job
         )
 
@@ -2432,6 +2987,8 @@ def jobcard_edit(request, pk):
                 print("LABOUR CODES:", request.POST.getlist("job_code[]"))
                 print("POST KEYS:", request.POST.keys())
                 obj.save()
+                save_vehicle_condition_photos(request, obj)
+                save_jobcard_signatures(request, obj)
                 if job_created_date:
                     JobCard.objects.filter(pk=obj.pk).update(
                         job_date=job_created_date
@@ -2458,10 +3015,39 @@ def jobcard_edit(request, pk):
 
                     claim.policy_no = policy_no
                     claim.save()
+                    save_claim_documents(request, claim)
                 #claim.claim_stage = ClaimStageCode.ESTIMATE_CREATED
                 #claim.save()
                 if request.POST.get("send_whatsapp") == "on":
                     send_jobcard_whatsapp(obj)
+
+                if (
+                    is_admin_or_manager_user(request.user, logged_emp)
+                    and obj.advisor
+                    and obj.advisor.user
+                    and obj.advisor.user != request.user
+                ):
+                    changed_items = []
+
+                    if old_repair_status != obj.repair_status:
+                        changed_items.append(f"status {old_repair_status} to {obj.repair_status}")
+
+                    if old_grand_total != obj.grand_total:
+                        changed_items.append(f"estimate amount {obj.grand_total}")
+
+                    if old_parts_total != obj.parts_total or old_labour_total != obj.labour_total:
+                        changed_items.append("part/labour estimate")
+
+                    if old_expected_delivery != obj.expected_delivery_datetime:
+                        changed_items.append("expected delivery")
+
+                    detail = ", ".join(changed_items) if changed_items else "details"
+                    notify_jobcard_advisor(
+                        obj,
+                        "Jobcard Updated",
+                        f"Jobcard {obj.job_no} updated by {logged_emp.name if logged_emp else request.user.username}: {detail}",
+                    )
+
                 messages.success(
                     request,
                     f"Job Card {obj.job_no} updated successfully"
@@ -2542,6 +3128,8 @@ def jobcard_edit(request, pk):
         "job_progress_rows": job_progress_rows,
         "can_close_jobcard": can_close_current_jobcard,
         "close_ready_status": close_ready_status,
+        "vehicle_photo_slots": get_vehicle_condition_photo_slots(job),
+        "claim_document_slots": get_claim_document_slots(claim),
         "PDF_SECRET_TOKEN": settings.PDF_SECRET_TOKEN,
         **get_inventory_context(job),
 
@@ -2628,6 +3216,7 @@ from .models import CompanySetup
 from .forms import CompanySetupForm
 
 
+@login_required
 def company_setup(request):
     company = CompanySetup.objects.first()
 
@@ -2657,6 +3246,7 @@ from openpyxl import load_workbook
 from .forms import ItemExcelUploadForm
 
 
+@login_required
 def upload_itemdata_excel(request):
     if request.method == "POST":
         form = ItemExcelUploadForm(request.POST, request.FILES)
@@ -2714,6 +3304,7 @@ def upload_itemdata_excel(request):
     })
 
 
+@login_required
 def itemdata_list(request):
     items = ItemData.objects.all().order_by("item_name")
 
@@ -3422,7 +4013,9 @@ def jobcard_assessment_api(request, job_id):
 
     return JsonResponse({
         "parts": parts,
-        "labours": labours
+        "labours": labours,
+        "job_no": job.job_no,
+        "requires_dms_job_no": job.job_no.startswith("JOB-"),
     })
 
 
@@ -3436,8 +4029,32 @@ def save_jobcard_assessment(request, job_id):
 
     parts = data.get("parts", [])
     labours = data.get("labours", [])
+    dms_job_no = str(data.get("job_no") or "").strip()
+
+    if not parts and not labours:
+        return JsonResponse({
+            "status": "error",
+            "message": "Add at least one Part or Labour line before saving assessment."
+        })
+
+    if job.job_no.startswith("JOB-"):
+        if not dms_job_no:
+            return JsonResponse({
+                "status": "error",
+                "message": "DMS Jobcard No required before saving assessment."
+            })
+
+        duplicate = JobCard.objects.filter(job_no__iexact=dms_job_no).exclude(id=job.id).exists()
+        if duplicate:
+            return JsonResponse({
+                "status": "error",
+                "message": "DMS Jobcard No already exists."
+            })
 
     with transaction.atomic():
+        if job.job_no.startswith("JOB-") and dms_job_no:
+            job.job_no = dms_job_no
+            job.save(update_fields=["job_no"])
 
         for p in parts:
             if p.get("is_new"):
@@ -4003,6 +4620,7 @@ def get_next_jobcard_pdf_filename(job):
     return f"jobcard_{job_no}_v{version}.pdf"
 
 
+@login_required
 def vehicle_detail_api(request, pk):
     vehicle = get_object_or_404(Vehicle, pk=pk)
 
@@ -4023,10 +4641,12 @@ def vehicle_detail_api(request, pk):
 
 @login_required
 def unread_notifications(request):
-    notifications = UserNotification.objects.filter(
+    queryset = UserNotification.objects.filter(
         user=request.user,
         is_read=False
-    ).order_by("-created_at")[:5]
+    ).order_by("-created_at")
+
+    notifications = queryset[:10]
 
     data = [
         {
@@ -4038,7 +4658,10 @@ def unread_notifications(request):
         for n in notifications
     ]
 
-    return JsonResponse(data, safe=False)
+    return JsonResponse({
+        "count": queryset.count(),
+        "notifications": data,
+    })
 
 
 @login_required
@@ -4114,6 +4737,57 @@ def validate_claim_stage_before_next(claim):
 
         if not claim.assessment_file:
             missing.append("Assessment File")
+
+        if missing:
+            return False, missing
+
+    if claim.claim_stage == ClaimStageCode.WORK_ALLOCATION:
+        has_progress_started = WorkProgress.objects.filter(
+            allocation__job__claim=claim,
+            start_time__isnull=False,
+        ).exists()
+
+        if not has_progress_started:
+            return False, [
+                "Start at least one progress stage from Work Allocation"
+            ]
+
+    if claim.claim_stage == ClaimStageCode.REPAIR_IN_PROGRESS:
+        return False, [
+            "Work Completed must be marked from Work Allocation"
+        ]
+
+    if claim.claim_stage == ClaimStageCode.INVOICED:
+
+        missing = []
+
+        if not claim.invoice_datetime:
+            missing.append("Invoice Date & Time")
+
+        if not claim.invoice_amount or claim.invoice_amount <= 0:
+            missing.append("Invoice Amount")
+
+        if not claim.payment_mode:
+            missing.append("Payment Mode")
+
+        if missing:
+            return False, missing
+
+    if claim.claim_stage == ClaimStageCode.DELIVERY:
+
+        missing = []
+
+        if not claim.delivery_datetime:
+            missing.append("Delivery Date & Time")
+
+        if not claim.delivered_by:
+            missing.append("Delivered By")
+
+        if not claim.delivered_to:
+            missing.append("Delivered To")
+
+        if claim.delivered_to == "Drop By Driver" and not claim.delivery_driver_name:
+            missing.append("Driver Name")
 
         if missing:
             return False, missing
@@ -4272,6 +4946,30 @@ def get_parts_not_available_status(allocation):
     return "No PNA"
 
 
+def progress_row_has_data(progress):
+    return bool(
+        progress
+        and (
+            progress.start_time
+            or progress.finish_time
+            or progress.employee_id
+            or (progress.remarks or "").strip()
+            or progress.photos.exists()
+        )
+    )
+
+
+def claim_has_repair_progress_data(claim):
+    if not claim:
+        return False
+
+    progress_qs = WorkProgress.objects.filter(
+        allocation__job__claim=claim
+    ).prefetch_related("photos")
+
+    return any(progress_row_has_data(progress) for progress in progress_qs)
+
+
 @never_cache
 @login_required
 def work_allocation_list(request):
@@ -4392,6 +5090,15 @@ def work_allocation_entry(request, job_id):
     existing_reinspection_photo_size = get_reinspection_photo_storage_size(job)
 
     if request.method == "POST":
+        old_progress_state = {
+            stage: {
+                "start_time": progress.start_time,
+                "finish_time": progress.finish_time,
+                "employee_id": progress.employee_id,
+                "has_data": progress_row_has_data(progress),
+            }
+            for stage, progress in progress_map.items()
+        }
         uploaded_reinspection_images = request.FILES.getlist("reinspection_images")
 
         if uploaded_reinspection_images:
@@ -4432,6 +5139,32 @@ def work_allocation_entry(request, job_id):
                 )
                 return redirect("work_allocation_entry", job_id=job.id)
 
+        posted_work_completed = request.POST.get("mark_work_completed") == "1"
+        posted_qc_done = request.POST.get("mark_qc_done") == "1"
+        posted_reinspection_done = request.POST.get("reinspection_done") == "1"
+        posted_part_entry_complete = request.POST.get("part_entry_complete") == "1"
+        posted_reinspection_date = parse_date(
+            request.POST.get("reinspection_date") or ""
+        )
+        posted_reinspection_done_by = request.POST.get(
+            "reinspection_done_by",
+            ""
+        ).strip()
+
+        if not posted_work_completed and (
+            posted_qc_done
+            or posted_reinspection_done
+            or posted_part_entry_complete
+            or posted_reinspection_date
+            or posted_reinspection_done_by
+            or uploaded_reinspection_images
+        ):
+            messages.error(
+                request,
+                "Tick Work Completed before saving QC Done, Re-Inspection, Part Entry, or RI images."
+            )
+            return redirect("work_allocation_entry", job_id=job.id)
+
         allocation.allotment_date = (
             parse_date(request.POST.get("allotment_date") or "")
             or allocation.allotment_date
@@ -4447,7 +5180,7 @@ def work_allocation_entry(request, job_id):
             "remarks",
             ""
         ).strip()
-        allocation.part_entry_complete = request.POST.get("part_entry_complete") == "1"
+        allocation.part_entry_complete = posted_part_entry_complete
         allocation.save()
 
         stages = request.POST.getlist("stage[]")
@@ -4455,6 +5188,9 @@ def work_allocation_entry(request, job_id):
         finish_times = request.POST.getlist("finish_time[]")
         employee_ids = request.POST.getlist("employee[]")
         progress_remarks = request.POST.getlist("progress_remarks[]")
+        clear_progress_photo_stages = set(
+            request.POST.getlist("clear_progress_photo_stage[]")
+        )
 
         for index, start_time in enumerate(start_times):
             employee_id = (
@@ -4476,6 +5212,65 @@ def work_allocation_entry(request, job_id):
                 messages.error(
                     request,
                     f"Select employee for {stage_label} before saving."
+                )
+                return redirect("work_allocation_entry", job_id=job.id)
+
+        if posted_work_completed:
+            unfinished_stages = []
+            for index, start_time in enumerate(start_times):
+                finish_time = (
+                    finish_times[index]
+                    if index < len(finish_times)
+                    else ""
+                )
+                if start_time and not finish_time:
+                    stage_key = (
+                        stages[index]
+                        if index < len(stages)
+                        else ""
+                    )
+                    unfinished_stages.append(
+                        dict(WorkProgress.STAGES).get(
+                            stage_key,
+                            stage_key or "progress row"
+                        )
+                    )
+
+            if unfinished_stages:
+                messages.error(
+                    request,
+                    "Finish started progress before Work Completed: "
+                    + ", ".join(unfinished_stages)
+                )
+                return redirect("work_allocation_entry", job_id=job.id)
+
+            posted_allocation_labour_ids = request.POST.getlist("allocation_labour_id[]")
+            posted_labour_employee_ids = request.POST.getlist("labour_employee[]")
+            missing_labour_employee_labels = []
+
+            for index, labour_id in enumerate(posted_allocation_labour_ids):
+                employee_id = (
+                    posted_labour_employee_ids[index]
+                    if index < len(posted_labour_employee_ids)
+                    else ""
+                )
+
+                if employee_id:
+                    continue
+
+                labour = JobCardLabour.objects.filter(
+                    id=labour_id,
+                    job=job,
+                ).first()
+                missing_labour_employee_labels.append(
+                    labour.job_code if labour else f"line {index + 1}"
+                )
+
+            if missing_labour_employee_labels:
+                messages.error(
+                    request,
+                    "Select employee for labour line before Work Completed: "
+                    + ", ".join(missing_labour_employee_labels)
                 )
                 return redirect("work_allocation_entry", job_id=job.id)
 
@@ -4507,12 +5302,61 @@ def work_allocation_entry(request, job_id):
             )
             progress.save()
 
+            if stage in clear_progress_photo_stages:
+                for photo in progress.photos.all():
+                    if photo.image:
+                        photo.image.delete(save=False)
+                    photo.delete()
+
+            for image in request.FILES.getlist(progress_photo_input_name(stage)):
+                WorkProgressPhoto.objects.create(
+                    progress=progress,
+                    image=image
+                )
+
+            old_state = old_progress_state.get(stage, {})
+            if old_state.get("has_data") and not progress_row_has_data(progress):
+                notify_work_progress_change(progress, "cleared")
+            elif not old_state.get("start_time") and progress.start_time:
+                notify_work_progress_change(progress, "started")
+            elif not old_state.get("finish_time") and progress.finish_time:
+                notify_work_progress_change(progress, "finished")
+            elif old_state.get("employee_id") != progress.employee_id and progress.employee_id:
+                notify_work_progress_change(progress, "assigned")
+
         sync_jobcard_main_status(job)
 
         has_progress_started = WorkProgress.objects.filter(
             allocation=allocation,
             start_time__isnull=False,
         ).exists()
+        has_any_progress_data = any(
+            progress_row_has_data(row)
+            for row in allocation.progress.all()
+        )
+
+        if not has_any_progress_data and job.claim:
+            if int(job.claim.claim_stage or 0) in [
+                ClaimStageCode.REPAIR_IN_PROGRESS,
+                ClaimStageCode.WORK_COMPLETED,
+                ClaimStageCode.RE_INSPECTION,
+            ]:
+                job.claim.claim_stage = ClaimStageCode.WORK_ALLOCATION
+                job.claim.save(update_fields=["claim_stage"])
+
+            job.qc_done = False
+            job.reinspection_done = False
+            job.reinspection_date = None
+            job.reinspection_done_by = ""
+            job.save(update_fields=[
+                "qc_done",
+                "reinspection_done",
+                "reinspection_date",
+                "reinspection_done_by",
+            ])
+
+            allocation.part_entry_complete = False
+            allocation.save(update_fields=["part_entry_complete"])
 
         if (
             has_progress_started
@@ -4629,13 +5473,19 @@ def work_allocation_entry(request, job_id):
             )
             allocation_labour.save()
 
-        if request.POST.get("mark_work_completed") == "1":
+        if posted_work_completed:
             job.repair_status = "Completed"
             job.save(update_fields=["repair_status"])
 
             if job.claim:
                 job.claim.claim_stage = ClaimStageCode.WORK_COMPLETED
                 job.claim.save(update_fields=["claim_stage"])
+
+            notify_jobcard_advisor(
+                job,
+                "Jobcard Work Completed",
+                f"Jobcard {job.job_no} repair work completed",
+            )
         elif (
             job.claim
             and int(job.claim.claim_stage or 0) == ClaimStageCode.WORK_COMPLETED
@@ -4648,18 +5498,12 @@ def work_allocation_entry(request, job_id):
             job.claim.save(update_fields=["claim_stage"])
             sync_jobcard_main_status(job)
 
-        if request.POST.get("mark_qc_done") == "1":
-            job.qc_done = True
-            job.save(update_fields=["qc_done"])
+        job.qc_done = posted_qc_done
+        job.save(update_fields=["qc_done"])
 
-        job.reinspection_done = request.POST.get("reinspection_done") == "1"
-        job.reinspection_date = parse_date(
-            request.POST.get("reinspection_date") or ""
-        )
-        job.reinspection_done_by = request.POST.get(
-            "reinspection_done_by",
-            ""
-        ).strip()
+        job.reinspection_done = posted_reinspection_done
+        job.reinspection_date = posted_reinspection_date
+        job.reinspection_done_by = posted_reinspection_done_by
         job.save(update_fields=[
             "reinspection_done",
             "reinspection_date",
@@ -4676,6 +5520,12 @@ def work_allocation_entry(request, job_id):
             job.claim.claim_stage = ClaimStageCode.LIABILITY
             job.claim.save(update_fields=["claim_stage"])
 
+            notify_jobcard_advisor(
+                job,
+                "Jobcard Re-Inspection Done",
+                f"Jobcard {job.job_no} re-inspection completed",
+            )
+
         messages.success(request, "Work allocation saved successfully")
         return redirect("work_allocation_entry", job_id=job.id)
 
@@ -4691,6 +5541,9 @@ def work_allocation_entry(request, job_id):
             "finish_time": p.finish_time if p else None,
             "employee_id": p.employee_id if p else None,
             "remarks": p.remarks if p else "",
+            "progress_id": p.id if p else "",
+            "photo_count": p.photos.count() if p else 0,
+            "photo_input_name": progress_photo_input_name(stage_key),
         })
     assessed_parts = list(JobCardAssessmentPart.objects.filter(
         job=job,
@@ -5009,6 +5862,214 @@ def delete_reinspection_photo(request, job_id, photo_id):
     messages.success(request, "Re-inspection image deleted successfully.")
 
     return redirect("reinspection_photo_view", job_id=job.id)
+
+
+@never_cache
+@login_required
+def work_progress_photo_view(request, progress_id):
+    progress = get_object_or_404(
+        WorkProgress.objects.select_related(
+            "allocation",
+            "allocation__job",
+            "allocation__job__claim",
+            "allocation__job__claim__vehicle",
+        ),
+        id=progress_id
+    )
+    job = progress.allocation.job
+
+    if request.method == "POST":
+        photo_ids = request.POST.getlist("photo_ids")
+        photos_to_delete = progress.photos.filter(id__in=photo_ids)
+
+        if not photos_to_delete.exists():
+            messages.error(request, "Select at least one image to delete.")
+            return redirect("work_progress_photo_view", progress_id=progress.id)
+
+        deleted_count = 0
+        for photo in photos_to_delete:
+            if photo.image:
+                photo.image.delete(save=False)
+            photo.delete()
+            deleted_count += 1
+
+        messages.success(request, f"{deleted_count} progress image(s) deleted successfully.")
+        return redirect("work_progress_photo_view", progress_id=progress.id)
+
+    return render(request, "floor/workProgressPhotos.html", {
+        "job": job,
+        "progress": progress,
+        "photos": progress.photos.order_by("uploaded_at"),
+    })
+
+
+@never_cache
+@login_required
+def my_work_list(request):
+    logged_emp = Employee.objects.filter(user=request.user).first()
+
+    if not is_repair_resource(logged_emp):
+        messages.error(request, "Only Technician, Denter or Painter can access My Work.")
+        return redirect("dashboard")
+
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+    from_date = parse_date(request.GET.get("from_date") or "") or month_start
+    to_date = parse_date(request.GET.get("to_date") or "") or today
+    status_filter = request.GET.get("status") or "new"
+
+    base_progress = my_work_base_queryset(logged_emp, from_date, to_date)
+    rows = [
+        my_work_row_payload(progress)
+        for progress in apply_my_work_status_filter(base_progress, status_filter).order_by(
+            "start_time",
+            "allocation__job__job_no",
+            "id",
+        )
+    ]
+
+    counts = {
+        "new": base_progress.filter(start_time__isnull=True).count(),
+        "wip": base_progress.filter(start_time__isnull=False, finish_time__isnull=True).count(),
+        "completed": base_progress.filter(finish_time__isnull=False).count(),
+    }
+
+    return render(request, "floor/myWorkList.html", {
+        "logged_emp": logged_emp,
+        "rows": rows,
+        "counts": counts,
+        "status_filter": status_filter,
+        "filter_from_date": from_date.strftime("%Y-%m-%d"),
+        "filter_to_date": to_date.strftime("%Y-%m-%d"),
+        "breadcrumbs": [
+            {
+                "title": "Transaction",
+                "url": "",
+                "icon": "fa fa-list"
+            },
+            {
+                "title": "My Work",
+                "icon": "fa fa-tools"
+            }
+        ]
+    })
+
+
+@require_POST
+@never_cache
+@login_required
+def my_work_action(request, progress_id):
+    logged_emp = Employee.objects.filter(user=request.user).first()
+
+    if not is_repair_resource(logged_emp):
+        messages.error(request, "Only Technician, Denter or Painter can update My Work.")
+        return redirect("dashboard")
+
+    progress = get_object_or_404(
+        WorkProgress.objects.select_related("allocation", "allocation__job"),
+        id=progress_id,
+        employee=logged_emp,
+    )
+    action = request.POST.get("action") or ""
+
+    if action == "start":
+        if start_work_progress(progress):
+            notify_work_progress_change(progress, "started")
+        messages.success(request, "Work progress started.")
+    elif action == "finish":
+        if finish_work_progress(progress):
+            notify_work_progress_change(progress, "finished")
+        messages.success(request, "Work progress finished.")
+
+    save_work_progress_uploaded_photos(request, progress)
+
+    if request.FILES.getlist("progress_photos") and action not in ["start", "finish"]:
+        messages.success(request, "Progress photo(s) uploaded.")
+
+    return redirect(request.POST.get("next") or "my_work_list")
+
+
+@never_cache
+@login_required
+def vehicle_condition_photo_view(request, job_id):
+    job = get_object_or_404(
+        JobCard.objects.select_related(
+            "claim",
+            "claim__vehicle",
+        ),
+        id=job_id
+    )
+
+    if request.method == "POST":
+        photo_ids = request.POST.getlist("photo_ids")
+        photos_to_delete = job.vehicle_condition_photos.filter(id__in=photo_ids)
+
+        if not photos_to_delete.exists():
+            messages.error(request, "Select at least one image to delete.")
+            return redirect("vehicle_condition_photo_view", job_id=job.id)
+
+        deleted_count = 0
+
+        for photo in photos_to_delete:
+            if photo.image:
+                photo.image.delete(save=False)
+
+            photo.delete()
+            deleted_count += 1
+
+        messages.success(request, f"{deleted_count} vehicle condition image(s) deleted successfully.")
+
+        return redirect("vehicle_condition_photo_view", job_id=job.id)
+
+    photos = job.vehicle_condition_photos.order_by("id")
+
+    return render(request, "jobcard/vehicleConditionPhotos.html", {
+        "job": job,
+        "photos": photos,
+    })
+
+
+@login_required
+def download_vehicle_condition_photos(request, job_id):
+    job = get_object_or_404(JobCard, id=job_id)
+    photo_ids = request.POST.getlist("photo_ids")
+    photos = job.vehicle_condition_photos.filter(id__in=photo_ids).order_by("id")
+
+    if not photos.exists():
+        messages.error(request, "Select at least one image to download.")
+        return redirect("vehicle_condition_photo_view", job_id=job.id)
+
+    buffer = BytesIO()
+
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for index, photo in enumerate(photos, start=1):
+            if not photo.image:
+                continue
+
+            filename = os.path.basename(photo.image.name)
+            _, ext = os.path.splitext(filename)
+            safe_caption = "".join(
+                char if char.isalnum() or char in ["-", "_"] else "_"
+                for char in photo.caption
+            )
+            zip_name = f"{index:02d}_{safe_caption}{ext or '.jpg'}"
+
+            photo.image.open("rb")
+            zip_file.writestr(zip_name, photo.image.read())
+            photo.image.close()
+
+    buffer.seek(0)
+    claim_no = job.claim.claim_no if job.claim else job.job_no
+    safe_claim_no = "".join(
+        char if char.isalnum() or char in ["-", "_"] else "_"
+        for char in claim_no
+    )
+    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = (
+        f'attachment; filename="vehicle_condition_{safe_claim_no}.zip"'
+    )
+
+    return response
 
 
 @login_required
