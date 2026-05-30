@@ -1289,7 +1289,7 @@ def claim_page(request):
         "breadcrumbs": [
 
             {
-                "title": "Transaction",
+                "title": "Claims",
                 "url": "",
                 "icon": "fa fa-list"
             },
@@ -1329,11 +1329,12 @@ def claimList_page(request):
 
         "breadcrumbs": [
             {
-                "title": "Transaction",
+                "title": "Claims",
                 "icon": "fa fa-list"
             },
             {
                 "title": "Claim List",
+                "url": "claimList",
                 "icon": "fa fa-file"
             }
         ]
@@ -2287,7 +2288,7 @@ def claim_edit(request, pk=None):
             "breadcrumbs": [
 
                 {
-                    "title": "Transaction",
+                    "title": "Claim",
                     "url": "",
                     "icon": "fa fa-list"
                 },
@@ -2714,7 +2715,7 @@ def jobcard_create(request, claim_id=None):
         "breadcrumbs": [
 
             {
-                "title": "Transaction",
+                "title": "Jobcards",
                 "url": "",
                 "icon": "fa fa-list"
             },
@@ -3137,7 +3138,7 @@ def jobcard_edit(request, pk):
         "breadcrumbs": [
 
             {
-                "title": "Transaction",
+                "title": "Jobcards",
                 "url": "",
                 "icon": "fa fa-list"
             },
@@ -5046,7 +5047,7 @@ def work_allocation_list(request):
         "completed_count": completed_count,
         "breadcrumbs": [
             {
-                "title": "Transaction",
+                "title": "WorkShop/Floor",
                 "url": "",
                 "icon": "fa fa-list"
             },
@@ -5943,7 +5944,7 @@ def my_work_list(request):
         "filter_to_date": to_date.strftime("%Y-%m-%d"),
         "breadcrumbs": [
             {
-                "title": "Transaction",
+                "title": "WorkShop / Floor",
                 "url": "",
                 "icon": "fa fa-list"
             },

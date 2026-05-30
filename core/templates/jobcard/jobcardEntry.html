@@ -567,7 +567,7 @@ Job Card Creation
                         </a>
                         {% else %}
                         <a class="btn btn-outline-secondary btn-sm"
-                           href="{% url 'claim_edit' claim.id %}">
+                           href="{% if claim and claim.id %}{% url 'claim_edit' claim.id %}{% endif %}">
                             View Claim
                         </a>
                         {% endif %}
@@ -1383,8 +1383,9 @@ Job Card Creation
                     <table class="table table-bordered table-sm compact-table mb-0">
                         <thead>
                         <tr>
-                            <th>Pos</th>
+                            <th>Position</th>
                             <th>Make</th>
+                             <th>Size</th>
                             <th>Depth</th>
                             <th>Cap</th>
                         </tr>
@@ -1405,8 +1406,9 @@ Job Card Creation
                                        name="tyre_make[]"
                                        type="text"
                                        value="{{ tyre.make }}">
-                                <input name="tyre_size[]"
-                                       type="hidden"
+                                </td><td>
+                                <input name="tyre_size[]" class="form-control"
+                                       type="text"
                                        value="{{ tyre.size }}">
                             </td>
 
@@ -1418,7 +1420,7 @@ Job Card Creation
                                        value="{{ tyre.depth }}">
                             </td>
 
-                            <td>
+                            <td style="width: 100px;">
                                 <select class="form-select"
                                         name="tyre_wheel_cap[]">
                                     <option value="Y"

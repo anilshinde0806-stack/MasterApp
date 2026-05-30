@@ -1,7 +1,7 @@
 .app {
     display: flex;
     min-height: 100vh;
-     min-width: 100vh;
+    min-width: 100vw;
 }
 .main {
     width: 100%;
@@ -13,17 +13,20 @@
     z-index: 1050;
     background: #fff;
     border-bottom: 1px solid #e5e7eb;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 8px rgb(232 40 40 / 0.05);
 }
-.erp-menu {
-   background: linear-gradient(
+.erp-menu{
+    background: linear-gradient(
         90deg,
+        #0f172a,
         #1e293b,
-        #1e293b
+        #334155
     );
-    position: sticky;
-    top: 0;
-    z-index: 1050;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+     min-height:55px;
+    display:flex;
+    align-items:center;
+
 }
 
 .erp-menu-list {
@@ -37,19 +40,27 @@
     position: relative;
 }
 
-.erp-menu-link {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #fff;
-    padding: 14px 18px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: .2s;
+.erp-menu-link{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#fff;
+    padding:14px 22px;
+    font-weight:500;
+    cursor:pointer;
+    transition:all .25s ease;
+    border-bottom:3px solid transparent;
 }
 
-.erp-menu-link:hover {
-   background: #1e293b;
+.erp-menu-link:hover{
+    background:rgba(255,255,255,.08);
+    border-bottom:3px solid #38bdf8;
+    color:#38bdf8;
+}
+
+.erp-menu-item.active > .erp-menu-link{
+    background:rgba(255,255,255,.12);
+    border-bottom:3px solid #22c55e;
 }
 
 /* SUBMENU */
@@ -65,8 +76,9 @@
 
     min-width: 240px;
 
-    background: #fff;
-
+    background:#ffffff;
+    border:1px solid #e5e7eb;
+    backdrop-filter: blur(10px);
     border-radius: 0 0 14px 14px;
 
     box-shadow: 0 12px 30px rgba(0,0,0,.18);
@@ -153,8 +165,8 @@
     padding-left: 22px;
 }
 .erp-menu-item:hover > .erp-menu-link {
-
-    background: rgba(255,255,255,.08);
+    background: rgba(255,255,255,.10);
+    color: #38bdf8;
 }
 .erp-menu-link:hover {
     background: rgba(255,255,255,0.08);
@@ -164,4 +176,11 @@
     margin-top: 130px;
 
     max-width: 900px;
+}
+.erp-menu-item.active > .erp-menu-link {
+    background: #2563eb;
+    color: #fff;
+}
+.erp-menu-item:not(:last-child){
+    border-right:1px solid rgba(255,255,255,.08);
 }
