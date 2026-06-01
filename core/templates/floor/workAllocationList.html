@@ -19,6 +19,12 @@ Work Allocation
         </div>
 
         <div class="d-flex gap-2 flex-wrap justify-content-end">
+            <a href="{% url 'bodyshop_control_menu' %}" class="btn btn-outline-dark btn-sm">
+                Control Board
+            </a>
+            <a href="{% url 'workshop_resource' %}" class="btn btn-outline-primary btn-sm">
+                Workshop Resource
+            </a>
             <span class="badge bg-info text-dark px-3 py-2">
                 Work Progress: {{ work_progress_count }}
             </span>

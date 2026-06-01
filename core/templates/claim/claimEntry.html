@@ -93,7 +93,7 @@
                             <div class="col-md-3">
                                 <label class="form-label">Claim Created Date</label>
                                 <input class="form-control"
-                                       type="date"
+                                       type="datetime-local"
                                        name="claim_created_date"
                                        value="{{ claim_created_date_value }}">
                             </div>
@@ -181,11 +181,11 @@
                                 {% else %}
                                 <input class="form-control"
                                        readonly
-                                       value="{{ claim.intimation_date|date:'Y-m-d' }}">
+                                       value="{{ claim.intimation_date|date:'Y-m-d H:i' }}">
 
                                 <input name="intimation_date"
                                        type="hidden"
-                                       value="{{ claim.intimation_date|date:'Y-m-d' }}">
+                                       value="{{ claim.intimation_date|date:'Y-m-d\TH:i' }}">
                                 {% endif %}
                             </div>
 
@@ -293,11 +293,11 @@
                                 {% else %}
                                 <input class="form-control"
                                        readonly
-                                       value="{{ claim.survey_date|date:'Y-m-d' }}">
+                                       value="{{ claim.survey_date|date:'Y-m-d H:i' }}">
 
                                 <input name="survey_date"
                                        type="hidden"
-                                       value="{{ claim.survey_date|date:'Y-m-d' }}">
+                                       value="{{ claim.survey_date|date:'Y-m-d\TH:i' }}">
                                 {% endif %}
                             </div>
 
@@ -443,11 +443,11 @@
 
                                 <input class="form-control"
                                        readonly
-                                       value="{{ claim.insurance_approval_date|date:'Y-m-d' }}">
+                                       value="{{ claim.insurance_approval_date|date:'Y-m-d H:i' }}">
 
                                 <input name="insurance_approval_date"
                                        type="hidden"
-                                       value="{{ claim.insurance_approval_date|date:'Y-m-d' }}">
+                                       value="{{ claim.insurance_approval_date|date:'Y-m-d\TH:i' }}">
 
                                 {% endif %}
 
@@ -557,9 +557,9 @@
                             <div class="col-md-3">
                                 <label class="form-label">RI Date</label>
                                 <input class="form-control"
-                                       type="date"
+                                       type="datetime-local"
                                        name="reinspection_date"
-                                       value="{{ jobcard.reinspection_date|date:'Y-m-d' }}">
+                                       value="{{ jobcard.reinspection_date|date:'Y-m-d\TH:i' }}">
                             </div>
 
                             <div class="col-md-3">
@@ -841,6 +841,9 @@
                                     <span class="stage-badge stage-{{ claim.claim_stage }}">
 
                                                                         {{ claim.get_claim_stage_display }}
+                                                                        {% if second_approval_pending %}
+                                                                        / 2nd Approval Pending
+                                                                        {% endif %}
 
                                                                     </span>
 
@@ -2831,9 +2834,6 @@ function printAssessmentReport(targetWindow) {
                     const vehicle =
                         document.getElementById("id_vehicle");
 
-                    const advisor =
-                        document.getElementById("id_employee");
-
                     if (vehicle && !vehicle.value) {
 
                         e.preventDefault();
@@ -2846,31 +2846,6 @@ function printAssessmentReport(targetWindow) {
                         vehicle.focus();
                         return;
                     }
-
-                                            const currentStage =
-                            Number(
-                                "{{ current_stage|default:1 }}"
-                            );
-
-                        if (
-
-                             advisor
-
-                            && !advisor.value
-
-                        ){
-
-                            e.preventDefault();
-
-                            showToast(
-                                "Please select Advisor",
-                                "danger"
-                            );
-
-                            advisor.focus();
-
-                            return;
-                        }
                  }
 
 

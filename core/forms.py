@@ -192,8 +192,8 @@ class ClaimForm(forms.ModelForm):
             'ic_claim_no': forms.TextInput(attrs={'class': 'form-control'}),
             'claim_type': forms.Select(attrs={'class': 'form-select'}),
             'accident_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'intimation_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'survey_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'intimation_date': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format="%Y-%m-%dT%H:%M"),
+            'survey_date': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format="%Y-%m-%dT%H:%M"),
             'surveyor': forms.Select(attrs={'class': 'form-select'}),
             'survey_status': forms.Select(attrs={'class': 'form-select'}),
             'self_survey': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -277,10 +277,10 @@ class ClaimForm(forms.ModelForm):
             }),
             'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
 
-            "insurance_approval_date": forms.DateInput(attrs={
+            "insurance_approval_date": forms.DateTimeInput(attrs={
                 "class": "form-control",
-                "type": "date"
-            }),
+                "type": "datetime-local"
+            }, format="%Y-%m-%dT%H:%M"),
 
             "insurance_note": forms.Textarea(attrs={
                 "class": "form-control",
@@ -303,6 +303,9 @@ class ClaimForm(forms.ModelForm):
         self.fields["liability_received_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["invoice_datetime"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["delivery_datetime"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["intimation_date"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["survey_date"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["insurance_approval_date"].input_formats = ["%Y-%m-%dT%H:%M"]
 
         # =====================================
         # ONLY ADVISORS

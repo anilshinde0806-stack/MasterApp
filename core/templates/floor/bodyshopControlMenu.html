@@ -1,0 +1,213 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}
+Control Board
+{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-3 control-menu">
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h4 class="mb-0">Body Shop Control Board</h4>
+            <small class="text-muted">Main screen for body shop managers and workshop controllers</small>
+        </div>
+        <a class="btn btn-primary btn-sm" href="{% url 'bodyshop_control_board' %}">
+            Open Vehicle Board
+        </a>
+    </div>
+
+    <div class="control-grid mb-3">
+        {% for card in module_cards %}
+        <a class="control-module {{ card.class }}" href="{{ card.url }}">
+            <div>
+                <div class="module-title">{{ card.title }}</div>
+                <div class="module-subtitle">{{ card.subtitle }}</div>
+            </div>
+            <div class="module-count">{{ card.count }}</div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-4 col-lg-6">
+            <div class="board-panel">
+                <div class="panel-title">Live Vehicle Count by Status</div>
+                <div class="status-list">
+                    {% for row in status_rows %}
+                    <div class="status-row {{ row.class }}">
+                        <span>{{ row.label }}</span>
+                        <b>{{ row.count }}</b>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-lg-6">
+            <div class="board-panel">
+                <div class="panel-title">TAT Graph</div>
+                <div class="tat-graph">
+                    {% for row in tat_rows %}
+                    <div class="tat-row">
+                        <span>{{ row.label }}</span>
+                        <div class="tat-bar-track">
+                            <div class="tat-bar" style="width: {{ row.width }}%;"></div>
+                        </div>
+                        <b>{{ row.count }}</b>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-lg-12">
+            <div class="board-panel">
+                <div class="panel-title">Technician Workload</div>
+                <div class="workload-list">
+                    {% for row in workload_rows %}
+                    <div class="workload-row">
+                        <span>{{ row.name }}</span>
+                        <b>{{ row.count }}</b>
+                    </div>
+                    {% empty %}
+                    <div class="text-muted py-3">No running technician workload</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .control-menu {
+        color: #1f2937;
+    }
+    .control-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .control-module {
+        min-height: 112px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 6px;
+        border: 1px solid #d9e2ec;
+        color: #172033;
+        text-decoration: none;
+        background: #fff;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+    }
+    .control-module:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 22px rgba(15, 23, 42, .1);
+    }
+    .module-title {
+        font-weight: 800;
+        font-size: 15px;
+        line-height: 1.2;
+    }
+    .module-subtitle {
+        margin-top: 5px;
+        color: #5f6f86;
+        font-size: 12px;
+    }
+    .module-count {
+        min-width: 42px;
+        text-align: right;
+        font-size: 28px;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .module-primary { border-left: 5px solid #0d6efd; }
+    .module-danger { border-left: 5px solid #dc3545; background: #fff7f7; }
+    .module-success { border-left: 5px solid #198754; background: #f5fff9; }
+    .module-warning { border-left: 5px solid #ffc107; background: #fffaf0; }
+    .module-orange { border-left: 5px solid #fd7e14; background: #fff8f1; }
+    .module-info { border-left: 5px solid #0dcaf0; background: #f4fdff; }
+    .module-purple { border-left: 5px solid #6f42c1; background: #f8f4ff; }
+    .module-dark { border-left: 5px solid #212529; background: #f8f9fa; }
+
+    .board-panel {
+        height: 100%;
+        border: 1px solid #d9e2ec;
+        border-radius: 6px;
+        background: #fff;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+        padding: 12px;
+    }
+    .panel-title {
+        margin-bottom: 10px;
+        font-size: 14px;
+        font-weight: 900;
+    }
+    .status-list,
+    .workload-list,
+    .tat-graph {
+        display: grid;
+        gap: 7px;
+    }
+    .status-row,
+    .workload-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 34px;
+        padding: 6px 9px;
+        border-radius: 5px;
+        font-weight: 700;
+    }
+    .status-pending { background: #fff8db; color: #7a5a00; }
+    .status-waiting { background: #fff0df; color: #8a4200; }
+    .status-process { background: #e6f0ff; color: #084298; }
+    .status-completed { background: #e7f6ec; color: #146c43; }
+    .status-ready { background: #dff7ec; color: #0f5132; }
+    .status-delivered { background: #eef2f7; color: #263238; }
+    .workload-row {
+        background: #f7faff;
+        color: #1f2937;
+    }
+    .tat-row {
+        display: grid;
+        grid-template-columns: 74px 1fr 34px;
+        gap: 8px;
+        align-items: center;
+        min-height: 34px;
+    }
+    .tat-row span {
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .tat-bar-track {
+        height: 12px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #edf2f7;
+    }
+    .tat-bar {
+        height: 100%;
+        border-radius: 999px;
+        background: #0d6efd;
+    }
+    .tat-row b {
+        text-align: right;
+    }
+    @media (max-width: 1200px) {
+        .control-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 576px) {
+        .control-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+{% endblock %}

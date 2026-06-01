@@ -61,8 +61,23 @@
                     <tr>
                         <td>
                             <b>{{ row.job.job_no|default:"-" }}</b>
+                            {% if row.additional_approval_required %}
+                            <div class="mt-1">
+                                <span class="badge bg-warning text-dark">
+                                    Surveyor / Additional Approval Required
+                                </span>
+                                <span class="badge bg-danger">
+                                    2nd Approval {{ row.second_approval_status|default:"Pending" }}
+                                </span>
+                            </div>
+                            {% if row.additional_approval_reason %}
+                            <div class="small text-danger mt-1">
+                                {{ row.additional_approval_reason|linebreaksbr }}
+                            </div>
+                            {% endif %}
+                            {% endif %}
                             {% if row.job %}
-                            <br><a class="small" href="{% url 'jobcard_edit' row.job.id %}" target="_blank">Open Jobcard</a>
+                            <!--<br><a class="small" href="{% url 'jobcard_edit' row.job.id %}" target="_blank">Open Jobcard</a>-->
                             {% endif %}
                         </td>
                         <td>{{ row.claim.claim_no|default:"-" }}</td>

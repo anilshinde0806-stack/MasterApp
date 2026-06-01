@@ -449,6 +449,74 @@ Job Card Creation
         min-height: 34px;
     }
 
+    .estimate-builder-shell {
+        display: grid;
+        grid-template-columns: minmax(320px, 1.15fr) minmax(260px, .85fr);
+        gap: 14px;
+    }
+
+    .estimate-car-map {
+        position: relative;
+        min-height: 560px;
+        border: 1px solid #d9e0e7;
+        border-radius: 10px;
+        background: #f8fafc;
+        overflow: hidden;
+    }
+
+    .estimate-car-map img {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(620px, 118%);
+        height: auto;
+        max-width: none;
+        min-height: 0;
+        object-fit: initial;
+        display: block;
+        padding: 0;
+        transform: translate(-50%, -50%) rotate(90deg);
+        transform-origin: center center;
+        pointer-events: none;
+    }
+
+    .estimate-marker {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border: 3px solid #dc3545;
+        border-radius: 50%;
+        background: rgba(220, 53, 69, .18);
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 0 3px rgba(255,255,255,.9);
+        display: none;
+        pointer-events: none;
+    }
+
+    .estimate-car-map {
+        cursor: crosshair;
+    }
+
+    .estimate-action-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .estimate-builder-summary {
+        border: 1px solid #d9e0e7;
+        border-radius: 10px;
+        padding: 10px;
+        background: #fff;
+        min-height: 120px;
+    }
+
+    @media (max-width: 992px) {
+        .estimate-builder-shell {
+            grid-template-columns: 1fr;
+        }
+    }
+
     .vehicle-photo-list {
         max-height: 390px;
         overflow-y: auto;
@@ -511,6 +579,123 @@ Job Card Creation
         touch-action: none;
     }
 
+    .approval-panel {
+        border: 1px solid #d7eadf;
+        border-left: 4px solid #198754;
+        border-radius: 10px;
+        background: #f7fbf8;
+        box-shadow: 0 6px 18px rgba(25, 135, 84, .08);
+    }
+
+    .approval-panel.pending {
+        border-color: #ffe0a6;
+        border-left-color: #fd7e14;
+        background: #fffaf0;
+    }
+
+    .approval-summary {
+        display: grid;
+        grid-template-columns: minmax(180px, 1.2fr) auto auto auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+    }
+
+    .approval-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.25;
+    }
+
+    .approval-subtitle {
+        font-size: 11px;
+        color: #667085;
+        line-height: 1.3;
+    }
+
+    .approval-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: 11px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .approval-chip.success {
+        color: #146c43;
+        background: #e8f6ee;
+        border: 1px solid #badbcc;
+    }
+
+    .approval-chip.warning {
+        color: #8a5700;
+        background: #fff3cd;
+        border: 1px solid #ffda6a;
+    }
+
+    .approval-chip.danger {
+        color: #842029;
+        background: #f8d7da;
+        border: 1px solid #f1aeb5;
+    }
+
+    .approval-meta {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .approval-meta span {
+        border: 1px solid #dde5ed;
+        border-radius: 999px;
+        background: #fff;
+        color: #475467;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 8px;
+        white-space: nowrap;
+    }
+
+    .approval-body {
+        border-top: 1px solid rgba(0,0,0,.06);
+        padding: 10px 12px 12px;
+    }
+
+    .approval-table {
+        font-size: 12px;
+    }
+
+    .approval-table th,
+    .approval-table td {
+        padding: 5px 7px !important;
+        vertical-align: middle;
+    }
+
+    .approval-reason {
+        color: #495057;
+        font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+        .approval-summary {
+            grid-template-columns: 1fr;
+            align-items: stretch;
+        }
+
+        .approval-meta {
+            justify-content: flex-start;
+        }
+
+        .approval-summary .btn {
+            width: 100%;
+        }
+    }
+
 </style>
 <form action="{% if job %}{% url 'jobcard_edit' job.id %}{% elif claim %}{% url 'jobcard_create_with_claim' claim.id %}{% else %}{% url 'jobCreate' %}{% endif %}"
       id="jobCardForm"
@@ -521,6 +706,187 @@ Job Card Creation
     {% if is_jobcard_locked %}
     <div class="alert alert-warning py-2">
         This jobcard is closed. Normal users can view it only; only Admin or Manager can re-open it.
+    </div>
+    {% endif %}
+
+    {% if job.additional_approval_required %}
+    <div class="approval-panel {% if job.second_approval_status == 'Pending' %}pending{% endif %} mb-3">
+        <div class="approval-summary">
+            <div>
+                <div class="approval-title">Surveyor / Additional Approval</div>
+                <div class="approval-subtitle">
+                    {% if job.second_approval_status == "Approved" %}
+                    All approval lines are completed.
+                    {% elif job.second_approval_status == "Rejected" %}
+                    Review the rejected approval lines before closing work.
+                    {% else %}
+                    Advisor decision is required for additional work.
+                    {% endif %}
+                </div>
+            </div>
+
+            <span class="approval-chip {% if job.second_approval_status == 'Approved' %}success{% elif job.second_approval_status == 'Rejected' %}danger{% else %}warning{% endif %}">
+                2nd Approval {{ job.second_approval_status|default:"Pending" }}
+            </span>
+
+            <div class="approval-meta">
+                <span>{{ additional_approval_parts|length }} Parts</span>
+                <span>{{ additional_approval_labours|length }} Labour</span>
+                <span class="text-success">{{ additional_approval_approved_count }} Approved</span>
+                <span class="text-danger">{{ additional_approval_rejected_count }} Rejected</span>
+                <span class="text-warning">{{ additional_approval_pending_count }} Pending</span>
+            </div>
+
+            <button type="button"
+                    class="btn btn-sm {% if job.second_approval_status == 'Approved' %}btn-outline-success{% elif job.second_approval_status == 'Rejected' %}btn-outline-danger{% else %}btn-outline-secondary{% endif %}"
+                    data-bs-toggle="modal"
+                    data-bs-target="#approvalDetailsModal">
+                Show Details
+            </button>
+        </div>
+    </div>
+
+    <div class="modal fade"
+         id="approvalDetailsModal"
+         tabindex="-1"
+         aria-labelledby="approvalDetailsModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"
+                        id="approvalDetailsModalLabel">
+                        Additional Approval Details
+                    </h5>
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            data-bs-dismiss="modal"
+                            aria-label="Close">
+                    </button>
+                </div>
+                <div class="modal-body">
+                    {% if job.additional_approval_reason %}
+                    <div class="approval-reason mb-3">
+                        {{ job.additional_approval_reason|linebreaksbr }}
+                    </div>
+                    {% endif %}
+
+                    {% if additional_approval_parts or additional_approval_labours %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered approval-table mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Type</th>
+                                <th>Line</th>
+                                <th>Decision</th>
+                                <th>Photo</th>
+                                <th>Approval Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for part in additional_approval_parts %}
+                            <tr>
+                                <td>Part</td>
+                                <td>{{ part.job_part.part_no }} - {{ part.job_part.description }}</td>
+                                <td>{{ part.decision }}</td>
+                                <td>
+                                    {% if part.additional_approval_photos.exists %}
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        {% for photo in part.additional_approval_photos.all %}
+                                        <a href="{{ photo.image.url }}"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-primary">
+                                            Photo {{ forloop.counter }}
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if can_approve_second_approval %}
+                                    <input type="hidden"
+                                           name="approval_part_id[]"
+                                           value="{{ part.id }}">
+                                    <select name="approval_part_status_{{ part.id }}"
+                                            class="form-select form-select-sm">
+                                        <option value="Pending" {% if part.advisor_approval_status != "Approved" and part.advisor_approval_status != "Rejected" %}selected{% endif %}>Pending</option>
+                                        <option value="Approved" {% if part.advisor_approval_status == "Approved" %}selected{% endif %}>Approved</option>
+                                        <option value="Rejected" {% if part.advisor_approval_status == "Rejected" %}selected{% endif %}>Rejected</option>
+                                    </select>
+                                    {% else %}
+                                    <span class="badge {% if part.advisor_approval_status == 'Approved' %}bg-success{% elif part.advisor_approval_status == 'Rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                        {{ part.advisor_approval_status|default:"Pending" }}
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% for labour in additional_approval_labours %}
+                            <tr>
+                                <td>Labour</td>
+                                <td>{{ labour.job_labour.job_code }} - {{ labour.job_labour.description }}</td>
+                                <td>{{ labour.decision }}</td>
+                                <td>
+                                    {% if labour.additional_approval_photos.exists %}
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        {% for photo in labour.additional_approval_photos.all %}
+                                        <a href="{{ photo.image.url }}"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-primary">
+                                            Photo {{ forloop.counter }}
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if can_approve_second_approval %}
+                                    <input type="hidden"
+                                           name="approval_labour_id[]"
+                                           value="{{ labour.id }}">
+                                    <select name="approval_labour_status_{{ labour.id }}"
+                                            class="form-select form-select-sm">
+                                        <option value="Pending" {% if labour.advisor_approval_status != "Approved" and labour.advisor_approval_status != "Rejected" %}selected{% endif %}>Pending</option>
+                                        <option value="Approved" {% if labour.advisor_approval_status == "Approved" %}selected{% endif %}>Approved</option>
+                                        <option value="Rejected" {% if labour.advisor_approval_status == "Rejected" %}selected{% endif %}>Rejected</option>
+                                    </select>
+                                    {% else %}
+                                    <span class="badge {% if labour.advisor_approval_status == 'Approved' %}bg-success{% elif labour.advisor_approval_status == 'Rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                        {{ labour.advisor_approval_status|default:"Pending" }}
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                </div>
+                <div class="modal-footer">
+                    {% if can_approve_second_approval and additional_approval_total_count %}
+                    <button type="submit"
+                            class="btn btn-sm btn-primary"
+                            formaction="{% url 'jobcard_second_approval_action' job.id %}"
+                            formmethod="post"
+                            name="second_approval_action"
+                            value="line_decision">
+                        Save Approval Status
+                    </button>
+                    {% endif %}
+                    <button type="button"
+                            class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
     {% endif %}
 
@@ -557,6 +923,9 @@ Job Card Creation
                         <!-- CURRENT STAGE -->
                         <span class="stage-badge stage-{{ claim.claim_stage }}">
         {{ claim.get_claim_stage_display }}
+        {% if second_approval_pending %}
+        / 2nd Approval Pending
+        {% endif %}
     </span>
 
                         <!-- NEXT ACTION -->
@@ -605,7 +974,7 @@ Job Card Creation
                         <div class="col-md-3">
                             <label>Job Created Date</label>
                             <input class="form-control"
-                                   type="date"
+                                   type="datetime-local"
                                    name="job_created_date"
                                    value="{{ job_created_date_value }}"
                                    {% if is_jobcard_locked or job.repair_status == "Closed" and not can_reopen_jobcard %}disabled readonly{% endif %}>
@@ -763,7 +1132,14 @@ Job Card Creation
                 <!-- PARTS -->
                 <div class="tab-pane fade show active" id="parts">
 
-                    <div class="text-end mb-2">
+                    <div class="text-end mb-2 d-flex gap-2 justify-content-end">
+                        <button class="btn btn-success btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#estimateBuilderModal"
+                                {% if is_jobcard_locked %}disabled{% endif %}
+                                type="button">
+                            Estimate Builder
+                        </button>
                         <button class="btn btn-primary btn-sm"
                                 onclick="addPartRow()"
                                 {% if is_jobcard_locked %}disabled{% endif %}
@@ -812,7 +1188,14 @@ Job Card Creation
                 <!-- LABOUR -->
                 <div class="tab-pane fade" id="labour">
 
-                    <div class="text-end mb-2">
+                    <div class="text-end mb-2 d-flex gap-2 justify-content-end">
+                        <button class="btn btn-success btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#estimateBuilderModal"
+                                {% if is_jobcard_locked %}disabled{% endif %}
+                                type="button">
+                            Estimate Builder
+                        </button>
                         <button class="btn btn-primary btn-sm"
                                     onclick="addLabourRow()"
                                 {% if is_jobcard_locked %}disabled{% endif %}
@@ -859,6 +1242,101 @@ Job Card Creation
                     </table>
                 </div>
 
+            </div>
+
+            <div class="modal fade" id="estimateBuilderModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title">Estimate Builder</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="estimate-builder-shell">
+                                <div>
+                                    <div class="estimate-car-map" id="estimateCarMap">
+                                        <img src="{% static 'images/car-top-view.png' %}" alt="Vehicle panel map">
+                                        <span id="estimateImageMarker" class="estimate-marker"></span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="estimate-builder-summary mb-3">
+                                        <label class="small text-muted fw-bold">Selected Panel</label>
+                                        <select id="estimatePanelSelect" class="form-select form-select-sm mb-2">
+                                            <option value="">Select panel</option>
+                                        </select>
+                                        <div class="small text-muted mb-2">
+                                            Click on the vehicle image to mark the selected panel point.
+                                        </div>
+
+                                        <label class="small text-muted fw-bold">Action</label>
+                                        <div class="estimate-action-grid mt-1">
+                                            <button type="button" class="btn btn-outline-primary btn-sm estimate-action" data-action="replace">Replace / New</button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm estimate-action" data-action="repair">Repair</button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm estimate-action" data-action="paint">Paint</button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm estimate-action" data-action="rr">Remove & Refit</button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm estimate-action" data-action="dent">Dent</button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm estimate-action" data-action="align">Alignment/Fitting</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <label>Part No</label>
+                                            <input id="builderPartNo" class="form-control form-control-sm" placeholder="Optional">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Qty</label>
+                                            <input id="builderPartQty" type="number" class="form-control form-control-sm" value="1" step="0.01">
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label>Part Description</label>
+                                            <input id="builderPartDesc" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Part Rate</label>
+                                            <input id="builderPartRate" type="number" class="form-control form-control-sm" value="0" step="0.01">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Labour Code</label>
+                                            <input id="builderLabourCode" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label>Labour Description</label>
+                                            <input id="builderLabourDesc" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Labour Hours</label>
+                                            <input id="builderLabourHrs" type="number" class="form-control form-control-sm" value="1" step="0.01">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Labour Rate</label>
+                                            <input id="builderLabourRate" type="number" class="form-control form-control-sm" value="0" step="0.01">
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button type="button" class="btn btn-primary btn-sm flex-fill" onclick="addBuilderEstimate('both')">
+                                            Add Part + Labour
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm flex-fill" onclick="addBuilderEstimate('part')">
+                                            Add Part Only
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm flex-fill" onclick="addBuilderEstimate('labour')">
+                                            Add Labour Only
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- TOTAL -->
@@ -1993,7 +2471,7 @@ Job Card Creation
         });
     });
 
-    function createPartOrder(jobId) {
+function createPartOrder(jobId) {
     if (isJobcardLocked) {
         showToast("Closed jobcard is view only", "warning");
         return;
@@ -2020,6 +2498,200 @@ Job Card Creation
         });
 }
 
+const estimateBuilderPanels = [
+    { key: "front_bumper", label: "Front Bumper", x: 41, y: 5, w: 18, h: 8 },
+    { key: "bonnet", label: "Bonnet", x: 38, y: 16, w: 24, h: 13 },
+    { key: "windshield", label: "Windshield", x: 39, y: 31, w: 22, h: 8 },
+    { key: "roof", label: "Roof", x: 38, y: 42, w: 24, h: 18 },
+    { key: "dicky", label: "Dicky", x: 39, y: 70, w: 22, h: 10 },
+    { key: "rear_bumper", label: "Rear Bumper", x: 41, y: 84, w: 18, h: 8 },
+    { key: "front_right_fender", label: "Fender RH", x: 63, y: 18, w: 12, h: 11 },
+    { key: "front_left_fender", label: "Fender LH", x: 25, y: 18, w: 12, h: 11 },
+    { key: "right_front_door", label: "Door RH F", x: 63, y: 35, w: 13, h: 14 },
+    { key: "left_front_door", label: "Door LH F", x: 24, y: 35, w: 13, h: 14 },
+    { key: "right_rear_door", label: "Door RH R", x: 63, y: 52, w: 13, h: 14 },
+    { key: "left_rear_door", label: "Door LH R", x: 24, y: 52, w: 13, h: 14 },
+    { key: "right_quarter", label: "Quarter RH", x: 63, y: 68, w: 13, h: 12 },
+    { key: "left_quarter", label: "Quarter LH", x: 24, y: 68, w: 13, h: 12 },
+    { key: "headlamp_right", label: "Headlamp RH", x: 58, y: 8, w: 11, h: 6 },
+    { key: "headlamp_left", label: "Headlamp LH", x: 31, y: 8, w: 11, h: 6 },
+    { key: "tail_lamp_right", label: "Tail Lamp RH", x: 58, y: 80, w: 11, h: 6 },
+    { key: "tail_lamp_left", label: "Tail Lamp LH", x: 31, y: 80, w: 11, h: 6 }
+];
+
+const estimateActionTemplates = {
+    replace: { partPrefix: "", labourCode: "REPL", labourText: "Replace", hrs: 1 },
+    repair: { partPrefix: "", labourCode: "REP", labourText: "Repair", hrs: 2 },
+    paint: { partPrefix: "", labourCode: "PNT", labourText: "Paint", hrs: 2 },
+    rr: { partPrefix: "", labourCode: "RR", labourText: "Remove & Refit", hrs: 1 },
+    dent: { partPrefix: "", labourCode: "DENT", labourText: "Dent Repair", hrs: 1.5 },
+    align: { partPrefix: "", labourCode: "FIT", labourText: "Alignment / Fitting", hrs: 1 }
+};
+
+let selectedEstimatePanel = null;
+let selectedEstimateAction = "replace";
+
+function escapeHtmlValue(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+}
+
+function initEstimateBuilder() {
+    const map = document.getElementById("estimateCarMap");
+    const panelSelect = document.getElementById("estimatePanelSelect");
+    const marker = document.getElementById("estimateImageMarker");
+
+    if (!map || map.dataset.ready === "1") {
+        return;
+    }
+
+    map.dataset.ready = "1";
+
+    estimateBuilderPanels.forEach(panel => {
+        if (panelSelect) {
+            const option = document.createElement("option");
+            option.value = panel.key;
+            option.textContent = panel.label;
+            panelSelect.appendChild(option);
+        }
+    });
+
+    if (panelSelect) {
+        panelSelect.addEventListener("change", function () {
+            const panel = estimateBuilderPanels.find(item => item.key === panelSelect.value);
+            selectEstimatePanel(panel || null);
+        });
+    }
+
+    map.addEventListener("click", function (event) {
+        const rect = map.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+
+        if (marker) {
+            marker.style.left = x + "%";
+            marker.style.top = y + "%";
+            marker.style.display = "block";
+        }
+
+        if (!selectedEstimatePanel) {
+            const panel = nearestEstimatePanel(x, y);
+            selectEstimatePanel(panel);
+            if (panelSelect && panel) {
+                panelSelect.value = panel.key;
+            }
+        }
+    });
+
+    document.querySelectorAll(".estimate-action").forEach(button => {
+        button.addEventListener("click", function () {
+            selectedEstimateAction = button.dataset.action || "replace";
+            document.querySelectorAll(".estimate-action").forEach(el => el.classList.remove("active"));
+            button.classList.add("active");
+            updateBuilderFields();
+        });
+    });
+
+    const firstAction = document.querySelector('.estimate-action[data-action="replace"]');
+    if (firstAction) {
+        firstAction.classList.add("active");
+    }
+}
+
+function selectEstimatePanel(panel) {
+    if (!panel) {
+        selectedEstimatePanel = null;
+        return;
+    }
+
+    selectedEstimatePanel = panel;
+
+    const panelSelect = document.getElementById("estimatePanelSelect");
+    if (panelSelect && panelSelect.value !== panel.key) {
+        panelSelect.value = panel.key;
+    }
+
+    updateBuilderFields();
+}
+
+function nearestEstimatePanel(x, y) {
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    estimateBuilderPanels.forEach(panel => {
+        const centerX = panel.x + (panel.w / 2);
+        const centerY = panel.y + (panel.h / 2);
+        const distance = Math.hypot(centerX - x, centerY - y);
+
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = panel;
+        }
+    });
+
+    return nearest;
+}
+
+function updateBuilderFields() {
+    if (!selectedEstimatePanel) {
+        return;
+    }
+
+    const action = estimateActionTemplates[selectedEstimateAction] || estimateActionTemplates.replace;
+    const panelName = selectedEstimatePanel.label;
+
+    document.getElementById("builderPartDesc").value = panelName;
+    document.getElementById("builderLabourCode").value = action.labourCode;
+    document.getElementById("builderLabourDesc").value = action.labourText + " - " + panelName;
+    document.getElementById("builderLabourHrs").value = action.hrs;
+}
+
+function addBuilderEstimate(type) {
+    if (!canEditJobcardEntries || isJobcardLocked) {
+        showToast("Closed jobcard is view only", "warning");
+        return;
+    }
+
+    if (!selectedEstimatePanel) {
+        showToast("Select vehicle panel first", "warning");
+        return;
+    }
+
+    const part = {
+        part_no: document.getElementById("builderPartNo").value.trim(),
+        description: document.getElementById("builderPartDesc").value.trim() || selectedEstimatePanel.label,
+        qty: document.getElementById("builderPartQty").value || 1,
+        rate: document.getElementById("builderPartRate").value || 0
+    };
+
+    part.amount = (parseFloat(part.qty || 0) * parseFloat(part.rate || 0)).toFixed(2);
+
+    const labour = {
+        job_code: document.getElementById("builderLabourCode").value.trim(),
+        description: document.getElementById("builderLabourDesc").value.trim(),
+        hrs: document.getElementById("builderLabourHrs").value || 1,
+        rate: document.getElementById("builderLabourRate").value || 0
+    };
+
+    labour.amount = (parseFloat(labour.hrs || 0) * parseFloat(labour.rate || 0)).toFixed(2);
+
+    if (type === "part" || type === "both") {
+        addPartRow(part);
+    }
+
+    if (type === "labour" || type === "both") {
+        addLabourRow(labour);
+    }
+
+    updateGrandTotal();
+    showToast("Estimate line added");
+}
+
+document.addEventListener("DOMContentLoaded", initEstimateBuilder);
+
     function addPartRow(part = {}) {
     if (!canEditJobcardEntries || isJobcardLocked) {
         showToast("Closed jobcard is view only", "warning");
@@ -2034,13 +2706,13 @@ Job Card Creation
                 <input type="hidden" name="part_id[]" form="jobCardForm" value="${part.id || ""}">
                 <input type="text" class="form-control"
                        name="part_no[]" form="jobCardForm"
-                       value="${part.part_no || ""}">
+                       value="${escapeHtmlValue(part.part_no || "")}">
             </td>
 
             <td>
                 <input type="text" class="form-control"
                        name="part_desc[]" form="jobCardForm"
-                       value="${part.description || ""}">
+                       value="${escapeHtmlValue(part.description || "")}">
             </td>
 
             <td>
@@ -2070,10 +2742,14 @@ Job Card Creation
             </td>
         </tr>
     `);
+
+    const row = tbody.lastElementChild;
+    calculateJobcardRowAmount(row);
+    updateGrandTotal();
 }
 
 
-    function addLabourRow() {
+    function addLabourRow(labour = {}) {
     if (!canEditJobcardEntries || isJobcardLocked) {
         showToast("Closed jobcard is view only", "warning");
         return;
@@ -2085,12 +2761,12 @@ Job Card Creation
         <tr>
             <td>
                 <input type="hidden" name="labour_id[]" form="jobCardForm" value="">
-                <input name="job_code[]" form="jobCardForm" class="form-control">
+                <input name="job_code[]" form="jobCardForm" class="form-control" value="${escapeHtmlValue(labour.job_code || "")}">
             </td>
-            <td><input name="lab_desc[]" form="jobCardForm" class="form-control"></td>
-            <td><input name="hrs[]" form="jobCardForm" class="form-control hrs"></td>
-            <td><input name="lab_rate[]" form="jobCardForm" class="form-control rate"></td>
-            <td><input name="lab_amount[]" form="jobCardForm" class="form-control amount" readonly></td>
+            <td><input name="lab_desc[]" form="jobCardForm" class="form-control" value="${escapeHtmlValue(labour.description || "")}"></td>
+            <td><input name="hrs[]" form="jobCardForm" class="form-control hrs" value="${escapeHtmlValue(labour.hrs || "")}"></td>
+            <td><input name="lab_rate[]" form="jobCardForm" class="form-control rate" value="${escapeHtmlValue(labour.rate || "")}"></td>
+            <td><input name="lab_amount[]" form="jobCardForm" class="form-control amount" value="${escapeHtmlValue(labour.amount || 0)}" readonly></td>
             <td>
                 <button type="button"
                         class="btn btn-sm btn-outline-danger"
@@ -2100,6 +2776,10 @@ Job Card Creation
             </td>
         </tr>
     `);
+
+    const row = tbody.lastElementChild;
+    calculateJobcardRowAmount(row);
+    updateGrandTotal();
 }
 
     function removeEstimationRow(button) {

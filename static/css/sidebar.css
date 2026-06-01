@@ -184,3 +184,130 @@
 .erp-menu-item:not(:last-child){
     border-right:1px solid rgba(255,255,255,.08);
 }
+.erp-layout{
+    display:flex;
+    min-height:100vh;
+    background:#f4f6f9;
+}
+
+.erp-sidebar{
+    width:270px;
+    background:linear-gradient(180deg,#0f172a,#1e293b);
+    color:#fff;
+    position:sticky;
+    top:0;
+    height:100vh;
+    overflow-y:auto;
+    box-shadow:4px 0 18px rgba(0,0,0,.18);
+}
+
+.erp-brand{
+    height:68px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:0 22px;
+    font-size:20px;
+    font-weight:800;
+    border-bottom:1px solid rgba(255,255,255,.08);
+}
+
+.erp-brand i{
+    color:#38bdf8;
+}
+
+.erp-sidebar-menu,
+.erp-side-submenu{
+    list-style:none;
+    padding:0;
+    margin:0;
+}
+
+.erp-sidebar-menu{
+    padding:12px;
+}
+
+.erp-side-item{
+    position:relative;
+    margin-bottom:5px;
+}
+
+.erp-side-link{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    color:#cbd5e1;
+    border-radius:12px;
+    cursor:pointer;
+    font-size:14px;
+    font-weight:600;
+    transition:.25s;
+}
+
+.erp-side-link i:first-child{
+    width:22px;
+    text-align:center;
+    font-size:16px;
+}
+
+.erp-side-link span{
+    flex:1;
+}
+
+.erp-side-link:hover{
+    background:rgba(255,255,255,.10);
+    color:#fff;
+    transform:translateX(4px);
+}
+
+.erp-side-item.active > .erp-side-link{
+    background:linear-gradient(90deg,#2563eb,#38bdf8);
+    color:#fff;
+    box-shadow:0 8px 20px rgba(37,99,235,.35);
+}
+
+.erp-arrow{
+    font-size:12px;
+    transition:.25s;
+}
+
+.erp-side-item.open > .erp-side-link .erp-arrow{
+    transform:rotate(90deg);
+}
+
+.erp-side-submenu{
+    display:none;
+    margin-left:18px;
+    padding-left:10px;
+    border-left:1px dashed rgba(255,255,255,.18);
+}
+
+.erp-side-item.open > .erp-side-submenu{
+    display:block;
+}
+
+.erp-side-submenu .erp-side-link{
+    font-size:13px;
+    padding:10px 12px;
+    color:#dbeafe;
+}
+
+.erp-main{
+    flex:1;
+    min-width:0;
+}
+
+.erp-topbar{
+    height:64px;
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 22px;
+    border-bottom:1px solid #e5e7eb;
+    box-shadow:0 2px 8px rgba(0,0,0,.04);
+    position:sticky;
+    top:0;
+    z-index:1000;
+}

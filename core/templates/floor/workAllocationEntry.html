@@ -41,10 +41,10 @@
 
             <div class="col-md-2"><label>Allotment Date</label></div>
             <div class="col-md-2">
-                <input type="date"
+                <input type="datetime-local"
                        name="allotment_date"
                        class="form-control"
-                       value="{{ allocation.allotment_date|date:'Y-m-d' }}">
+                       value="{{ allocation.allotment_date|date:'Y-m-d\TH:i' }}">
             </div>
 
             <div class="col-md-2"><label>Delivery Date</label></div>
@@ -70,8 +70,14 @@
 
 <!-- JOB PROGRESS -->
 <div class="card border-0 shadow-sm mb-2">
-    <div class="card-header py-1 fw-bold text-center">
-        Job Progress
+    <div class="card-header py-1 fw-bold d-flex justify-content-between align-items-center">
+        <span></span>
+        <span>Job Progress</span>
+        <button type="button"
+                class="btn btn-sm btn-outline-primary"
+                onclick="openWorkshopResource(this)">
+            Workshop Resource
+        </button>
     </div>
 
     <div class="card-body p-2">
@@ -79,7 +85,7 @@
         <table class="table table-bordered table-sm compact-table mb-0">
             <thead>
                 <tr>
-                    <th style="width:32%">Job Progress Name</th>
+                    <th style="width:32%">Progress Type</th>
                     <th>Start Date & Time</th>
                     <th>Finish Date & Time</th>
                     <th>Click Start/Finish</th>
@@ -90,14 +96,26 @@
                 </tr>
             </thead>
 
-            <tbody>
+            <tbody id="progressRows">
                 {% for row in progress_rows %}
                 <tr>
                     <td>
-                        <b>{{ row.label }}</b>
                         <input type="hidden"
-                               name="stage[]"
-                               value="{{ row.stage }}">
+                               name="progress_id[]"
+                               value="{{ row.id }}">
+                        <input type="hidden"
+                               name="progress_photo_key[]"
+                               value="{{ row.id }}">
+                        <select name="stage[]"
+                                class="form-select progress-stage">
+                            <option value="">Select Progress Type</option>
+                            {% for stage_key, stage_label in stages %}
+                            <option value="{{ stage_key }}"
+                                {% if row.stage == stage_key %}selected{% endif %}>
+                                {{ stage_label }}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </td>
 
                     <td>
@@ -168,6 +186,7 @@
                         <button type="button"
                                 class="btn btn-sm btn-outline-danger clear-progress-btn"
                                 data-stage="{{ row.stage }}"
+                                data-progress-id="{{ row.id }}"
                                 data-stage-label="{{ row.label }}"
                                 data-photo-count="{{ row.photo_count|default:0 }}"
                                 formnovalidate>
@@ -178,6 +197,11 @@
                 {% endfor %}
             </tbody>
         </table>
+        <button type="button"
+                class="btn btn-sm btn-outline-primary mt-2"
+                id="addProgressRowBtn">
+            Add Progress
+        </button>
 
     </div>
 </div>
@@ -211,10 +235,11 @@
                         <th>KO Order No</th>
                         <th>ETA</th>
                         <th>Remarks</th>
+                        <th>Photo</th>
                     </tr>
                 </thead>
 
-                <tbody>
+                <tbody id="partRows">
                     {% for p in allocation_parts %}
                     <tr>
                         <td>{{ forloop.counter }}</td>
@@ -224,6 +249,13 @@
                                 {{ p.part.part_no }}
                             {% else %}
                                 {{ p.part_no }}
+                            {% endif %}
+                            {% if p.is_additional %}
+                            <div>
+                                <span class="badge {% if p.advisor_approval_status == 'Approved' %}bg-success{% elif p.advisor_approval_status == 'Rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                    Additional {{ p.advisor_approval_status|default:"Pending" }}
+                                </span>
+                            </div>
                             {% endif %}
                             <input type="hidden"
                                    name="allocation_part_id[]"
@@ -309,10 +341,27 @@
                                    class="form-control"
                                    value="{{ p.remarks|default:'' }}">
                         </td>
+                        <td class="line-photo-cell">
+                            {% if p.is_additional and p.additional_approval_photos %}
+                            <div class="d-flex gap-1 flex-wrap">
+                                {% for photo in p.additional_approval_photos %}
+                                <a href="{{ photo.image.url }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-primary">
+                                    Photo {{ forloop.counter }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% elif p.is_additional %}
+                            <span class="text-danger small">No photo</span>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="17"
+                        <td colspan="14"
                             class="text-center text-muted">
                             No assessed parts found
                         </td>
@@ -321,6 +370,11 @@
                 </tbody>
 
             </table>
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary mt-2"
+                    id="addPartLineBtn">
+                Add Part Line
+            </button>
 
         </div>
 
@@ -349,16 +403,24 @@
                     <th>Revised Amount</th>
                     <th>Technician</th>
                     <th>Remarks</th>
+                    <th>Photo</th>
                 </tr>
             </thead>
 
-            <tbody>
+            <tbody id="labourRows">
                 {% for l in allocation_labours %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
 
                     <td>
                         {{ l.job_code }}
+                        {% if l.is_additional %}
+                        <div>
+                            <span class="badge {% if l.advisor_approval_status == 'Approved' %}bg-success{% elif l.advisor_approval_status == 'Rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                Additional {{ l.advisor_approval_status|default:"Pending" }}
+                            </span>
+                        </div>
+                        {% endif %}
                         <input type="hidden"
                                name="allocation_labour_id[]"
                                value="{{ l.id }}">
@@ -403,11 +465,28 @@
                                class="form-control"
                                value="{{ l.remarks|default:'' }}">
                     </td>
+                    <td class="line-photo-cell">
+                        {% if l.is_additional and l.additional_approval_photos %}
+                        <div class="d-flex gap-1 flex-wrap">
+                            {% for photo in l.additional_approval_photos %}
+                            <a href="{{ photo.image.url }}"
+                               target="_blank"
+                               class="btn btn-sm btn-outline-primary">
+                                Photo {{ forloop.counter }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% elif l.is_additional %}
+                        <span class="text-danger small">No photo</span>
+                        {% else %}
+                        <span class="text-muted small">-</span>
+                        {% endif %}
+                    </td>
 
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8"
+                    <td colspan="9"
                         class="text-center text-muted">
                         No assessed labour found
                     </td>
@@ -416,6 +495,11 @@
             </tbody>
 
         </table>
+        <button type="button"
+                class="btn btn-sm btn-outline-primary mt-2"
+                id="addLabourLineBtn">
+            Add Labour Line
+        </button>
 
     </div>
 </div>
@@ -441,10 +525,8 @@
                        type="checkbox"
                        id="markQcDone"
                        name="mark_qc_done"
-                       data-work-complete-dependent
                        value="1"
-                       {% if job.qc_done %}checked{% endif %}
-                       {% if not is_work_completed %}disabled{% endif %}>
+                       {% if job.qc_done %}checked{% endif %}>
                 <label class="form-check-label fw-bold" for="markQcDone">
                     QC Done
                 </label>
@@ -455,10 +537,8 @@
                        type="checkbox"
                        id="markReinspectionDone"
                        name="reinspection_done"
-                       data-work-complete-dependent
                        value="1"
-                       {% if job.reinspection_done %}checked{% endif %}
-                       {% if not is_work_completed %}disabled{% endif %}>
+                       {% if job.reinspection_done %}checked{% endif %}>
                 <label class="form-check-label fw-bold" for="markReinspectionDone">
                     Re-Inspection
                 </label>
@@ -469,10 +549,8 @@
                        type="checkbox"
                        id="partEntryComplete"
                        name="part_entry_complete"
-                       data-work-complete-dependent
                        value="1"
-                       {% if allocation.part_entry_complete %}checked{% endif %}
-                       {% if not is_work_completed %}disabled{% endif %}>
+                       {% if allocation.part_entry_complete %}checked{% endif %}>
                 <label class="form-check-label fw-bold" for="partEntryComplete">
                     Part Entry
                 </label>
@@ -481,11 +559,9 @@
             <div class="action-field">
                 <label>Re-Inspection Date</label>
                 <input class="form-control"
-                       type="date"
+                       type="datetime-local"
                        name="reinspection_date"
-                       data-work-complete-dependent
-                       value="{{ job.reinspection_date|date:'Y-m-d' }}"
-                       {% if not is_work_completed %}disabled{% endif %}>
+                       value="{{ job.reinspection_date|date:'Y-m-d\TH:i' }}">
             </div>
 
             <div class="action-field action-by">
@@ -493,9 +569,7 @@
                 <input class="form-control"
                        type="text"
                        name="reinspection_done_by"
-                       data-work-complete-dependent
-                       value="{{ job.reinspection_done_by|default:'' }}"
-                       {% if not is_work_completed %}disabled{% endif %}>
+                       value="{{ job.reinspection_done_by|default:'' }}">
             </div>
 
             <div class="action-file">
@@ -505,8 +579,6 @@
                        id="reinspectionImages"
                        name="reinspection_images"
                        accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                       data-work-complete-dependent
-                       {% if not is_work_completed %}disabled{% endif %}
                        multiple>
             </div>
 
@@ -515,7 +587,7 @@
                 {{ reinspection_max_total_size_mb }}MB total<br>
                 Existing {{ existing_reinspection_photo_count }} / {{ existing_reinspection_photo_size_mb }}MB
                 <span class="d-block text-danger" id="workCompleteGateHelp" {% if is_work_completed %}style="display:none !important;"{% endif %}>
-                    Tick Work Completed to enable QC, RI and Part Entry.
+                    Tick QC Done, Re-Inspection and Part Entry before Work Completed.
                 </span>
             </div>
 
@@ -554,6 +626,30 @@
 
 </div>
 
+<div class="modal fade" id="workshopResourceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title">Workshop Resource Availability</h5>
+                <button type="button"
+                        class="btn btn-sm btn-danger"
+                        data-bs-dismiss="modal"
+                        data-dismiss="modal"
+                        onclick="closeWorkshopResourceModal()">
+                    Close
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="workshopResourceContent" class="workshop-resource-content">
+                    <div class="text-center text-muted py-5">
+                        Loading resource availability...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .compact-form label {
     font-size: 11px;
@@ -588,6 +684,22 @@
     padding: 2px 5px;
     font-size: 12px;
     border-radius: 4px;
+}
+
+.compact-table input[type="file"].line-photo-input {
+    width: 180px;
+    height: 30px;
+    min-height: 30px;
+    font-size: 11px;
+}
+
+.line-photo-cell {
+    min-width: 190px;
+}
+
+.line-photo-cell .btn {
+    padding: 2px 7px;
+    font-size: 11px;
 }
 
 .card {
@@ -634,6 +746,13 @@
     max-width: 185px;
 }
 
+.workshop-resource-content {
+    width: 100%;
+    height: calc(100vh - 58px);
+    overflow: auto;
+    background: #f8fafc;
+}
+
 @media (max-width: 768px) {
     .action-field,
     .action-by,
@@ -650,6 +769,137 @@
 
 <script>
 const currentAllocationId = "{{ allocation.id }}";
+const workshopResourceUrl = "{% url 'workshop_resource' %}";
+
+function loadWorkshopResource(url) {
+    const content = document.getElementById("workshopResourceContent");
+
+    if (!content) {
+        return;
+    }
+
+    content.innerHTML = `
+        <div class="text-center text-muted py-5">
+            Loading resource availability...
+        </div>
+    `;
+
+    fetch(url, {
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        credentials: "same-origin"
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Unable to load Workshop Resource.");
+            }
+            return response.text();
+        })
+        .then(html => {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const styles = Array.from(doc.querySelectorAll("style"))
+                .map(style => style.outerHTML)
+                .join("");
+            const resourceBody = doc.querySelector(".container-fluid.py-3");
+
+            content.innerHTML = styles + (
+                resourceBody
+                    ? resourceBody.outerHTML
+                    : '<div class="alert alert-warning m-3">Workshop Resource view not found.</div>'
+            );
+
+            const form = content.querySelector("form.resource-toolbar");
+            if (form) {
+                form.addEventListener("submit", function(event) {
+                    event.preventDefault();
+                    const formData = new FormData(form);
+                    formData.set("modal", "1");
+                    loadWorkshopResource(`${workshopResourceUrl}?${new URLSearchParams(formData).toString()}`);
+                });
+            }
+
+            content.querySelectorAll(".resource-nav-link").forEach(link => {
+                link.addEventListener("click", function(event) {
+                    event.preventDefault();
+                    loadWorkshopResource(link.href);
+                });
+            });
+
+            content.querySelectorAll(".work-chip").forEach(link => {
+                link.setAttribute("target", "_blank");
+            });
+        })
+        .catch(error => {
+            content.innerHTML = `
+                <div class="alert alert-danger m-3">
+                    ${error.message}
+                    <div class="mt-2">
+                        <a href="${url}" target="_blank" class="btn btn-sm btn-outline-danger">
+                            Open Resource Page
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+}
+
+function closeWorkshopResourceModal() {
+    const modalEl = document.getElementById("workshopResourceModal");
+    const content = document.getElementById("workshopResourceContent");
+
+    if (content) {
+        content.innerHTML = `
+            <div class="text-center text-muted py-5">
+                Loading resource availability...
+            </div>
+        `;
+    }
+
+    if (window.bootstrap && modalEl) {
+        const instance = bootstrap.Modal.getInstance(modalEl);
+        if (instance) {
+            instance.hide();
+        }
+    } else if (window.jQuery && modalEl) {
+        window.jQuery(modalEl).modal("hide");
+    }
+
+    document.body.classList.remove("modal-open");
+    document.querySelectorAll(".modal-backdrop").forEach(backdrop => backdrop.remove());
+}
+
+function openWorkshopResource(button) {
+    const row = button ? button.closest("tr") : null;
+    const employeeSelect = row ? row.querySelector(".progress-employee") : null;
+    const startInput = row ? row.querySelector(".start-time") : null;
+    const selectedDate = (
+        startInput && startInput.value
+            ? startInput.value.slice(0, 10)
+            : getCurrentDateTimeLocal().slice(0, 10)
+    );
+    const params = new URLSearchParams({
+        from_date: selectedDate,
+        to_date: selectedDate,
+        start_hour: "9",
+        end_hour: "19",
+        modal: "1"
+    });
+
+    if (employeeSelect && employeeSelect.value) {
+        params.set("employee_id", employeeSelect.value);
+    }
+
+    const modalEl = document.getElementById("workshopResourceModal");
+    const url = `${workshopResourceUrl}?${params.toString()}`;
+
+    if (window.bootstrap && modalEl) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        loadWorkshopResource(url);
+    } else {
+        window.open(url, "_blank");
+    }
+}
 
 function getCurrentDateTimeLocal() {
 
@@ -686,8 +936,11 @@ function finishStage(btn) {
 
 function getProgressStageName(select) {
     const row = select.closest("tr");
-    const label = row ? row.querySelector("td b") : null;
-    return label ? label.innerText.trim() : "another progress row";
+    const stageSelect = row ? row.querySelector(".progress-stage") : null;
+    if (stageSelect && stageSelect.value) {
+        return stageSelect.options[stageSelect.selectedIndex].text.trim();
+    }
+    return "another progress row";
 }
 
 function findEmployeeDuplicate(select) {
@@ -702,8 +955,12 @@ function findEmployeeDuplicate(select) {
     });
 }
 
-function initEmployeeAssignmentChecks() {
-    document.querySelectorAll(".progress-employee").forEach(select => {
+function bindEmployeeAssignmentCheck(select) {
+    if (!select || select.dataset.assignmentCheckBound === "1") {
+        return;
+    }
+
+    select.dataset.assignmentCheckBound = "1";
         select.dataset.previousValue = select.value || "";
 
         select.addEventListener("mousedown", function () {
@@ -756,13 +1013,21 @@ function initEmployeeAssignmentChecks() {
 
             this.dataset.previousValue = this.value || "";
         });
-    });
+}
+
+function initEmployeeAssignmentChecks() {
+    document.querySelectorAll(".progress-employee").forEach(bindEmployeeAssignmentCheck);
 
     const form = document.getElementById("workAllocationForm");
 
     if (form) {
+        if (form.dataset.progressEmployeeValidationBound === "1") {
+            return;
+        }
+
+        form.dataset.progressEmployeeValidationBound = "1";
         form.addEventListener("submit", function (event) {
-            const invalidRow = Array.from(document.querySelectorAll("#workAllocationForm tbody tr")).find(row => {
+            const invalidRow = Array.from(document.querySelectorAll("#progressRows tr")).find(row => {
                 const startInput = row.querySelector(".start-time");
                 const employeeSelect = row.querySelector(".progress-employee");
                 return startInput && startInput.value && employeeSelect && !employeeSelect.value;
@@ -774,10 +1039,9 @@ function initEmployeeAssignmentChecks() {
 
             event.preventDefault();
 
-            const stageLabel = invalidRow.querySelector("td b");
             const employeeSelect = invalidRow.querySelector(".progress-employee");
 
-            alert("Select employee for " + (stageLabel ? stageLabel.innerText.trim() : "this progress row") + " before saving.");
+            alert("Select employee for " + getProgressStageName(employeeSelect) + " before saving.");
 
             if (employeeSelect) {
                 employeeSelect.focus();
@@ -825,50 +1089,50 @@ function initReinspectionImageLimits() {
 
 function initWorkCompletionGate() {
     const workCompleted = document.getElementById("markWorkCompleted");
-    const dependentFields = Array.from(document.querySelectorAll("[data-work-complete-dependent]"));
+    const qcDone = document.getElementById("markQcDone");
+    const reinspectionDone = document.getElementById("markReinspectionDone");
+    const partEntryComplete = document.getElementById("partEntryComplete");
     const help = document.getElementById("workCompleteGateHelp");
 
-    if (!workCompleted || dependentFields.length === 0) {
+    if (!workCompleted || !qcDone || !reinspectionDone || !partEntryComplete) {
         return;
     }
 
     function applyGate() {
-        const enabled = workCompleted.checked;
+        const completedGateReady = qcDone.checked && reinspectionDone.checked && partEntryComplete.checked;
 
-        dependentFields.forEach(field => {
-            field.disabled = !enabled;
+        workCompleted.disabled = !completedGateReady && !workCompleted.checked;
 
-            if (!enabled) {
-                if (field.type === "checkbox") {
-                    field.checked = false;
-                } else if (field.type === "file") {
-                    field.value = "";
-                } else {
-                    field.value = "";
-                }
-            }
-        });
+        if (!completedGateReady && workCompleted.checked) {
+            workCompleted.checked = false;
+        }
 
         if (help) {
-            help.style.setProperty("display", enabled ? "none" : "block", "important");
+            help.style.setProperty(
+                "display",
+                completedGateReady ? "none" : "block",
+                "important"
+            );
         }
     }
 
-    workCompleted.addEventListener("change", applyGate);
+    [qcDone, reinspectionDone, partEntryComplete, workCompleted].forEach(field => {
+        field.addEventListener("change", applyGate);
+    });
     applyGate();
 }
 
 function findWorkCompletionBlocker() {
-    const unfinishedProgressRow = Array.from(document.querySelectorAll("#workAllocationForm tbody tr")).find(row => {
+    const unfinishedProgressRow = Array.from(document.querySelectorAll("#progressRows tr")).find(row => {
         const startInput = row.querySelector(".start-time");
         const finishInput = row.querySelector(".finish-time");
         return startInput && finishInput && startInput.value && !finishInput.value;
     });
 
     if (unfinishedProgressRow) {
-        const stageLabel = unfinishedProgressRow.querySelector("td b");
+        const stageSelect = unfinishedProgressRow.querySelector(".progress-stage");
         return {
-            message: "Finish " + (stageLabel ? stageLabel.innerText.trim() : "started progress row") + " before marking Work Completed.",
+            message: "Finish " + (stageSelect && stageSelect.value ? stageSelect.options[stageSelect.selectedIndex].text.trim() : "started progress row") + " before marking Work Completed.",
             focus: unfinishedProgressRow.querySelector(".finish-time")
         };
     }
@@ -935,53 +1199,338 @@ function initProgressClearConfirmation() {
     const hiddenContainer = document.getElementById("clearProgressPhotoFields");
 
     document.querySelectorAll(".clear-progress-btn").forEach(button => {
-        button.addEventListener("click", function(event) {
-            const label = button.dataset.stageLabel || "this progress row";
-            const stage = button.dataset.stage || "";
-            const photoCount = Number(button.dataset.photoCount || "0");
-            const photoText = photoCount > 0
-                ? " Uploaded progress photo(s) will be deleted after Save Allocation."
-                : "";
+        if (button.dataset.clearBound === "1") {
+            return;
+        }
 
-            if (!confirm("Clear " + label + " on screen? Start time, finish time, employee, remarks will be blank." + photoText + " Click Save Allocation to commit.")) {
+        button.dataset.clearBound = "1";
+        button.addEventListener("click", function(event) {
+            const row = button.closest("tr");
+            const progressId = button.dataset.progressId || "";
+            const stageSelect = row ? row.querySelector(".progress-stage") : null;
+            const label = (
+                stageSelect && stageSelect.value
+                    ? stageSelect.options[stageSelect.selectedIndex].text.trim()
+                    : button.dataset.stageLabel || "this progress row"
+            );
+
+            if (!confirm("Remove " + label + " row? Click Save Allocation to commit.")) {
                 event.preventDefault();
                 return;
             }
 
-            const row = button.closest("tr");
-
-            if (row) {
-                const startInput = row.querySelector(".start-time");
-                const finishInput = row.querySelector(".finish-time");
-                const employeeSelect = row.querySelector(".progress-employee");
-                const remarksInput = row.querySelector('input[name="progress_remarks[]"]');
-                const fileInput = row.querySelector('input[type="file"]');
-
-                if (startInput) startInput.value = "";
-                if (finishInput) finishInput.value = "";
-                if (employeeSelect) {
-                    employeeSelect.value = "";
-                    employeeSelect.dataset.previousValue = "";
-                }
-                if (remarksInput) remarksInput.value = "";
-                if (fileInput) fileInput.value = "";
-            }
-
-            if (stage && hiddenContainer) {
-                const existing = hiddenContainer.querySelector(
-                    'input[value="' + stage.replace(/"/g, '\\"') + '"]'
-                );
+            if (progressId && hiddenContainer) {
+                const existing = Array.from(hiddenContainer.querySelectorAll('input[name="delete_progress_id[]"]')).find(input => {
+                    return input.value === progressId;
+                });
 
                 if (!existing) {
                     const input = document.createElement("input");
                     input.type = "hidden";
-                    input.name = "clear_progress_photo_stage[]";
-                    input.value = stage;
+                    input.name = "delete_progress_id[]";
+                    input.value = progressId;
                     hiddenContainer.appendChild(input);
                 }
             }
+
+            if (row) {
+                row.remove();
+            }
         });
     });
+}
+
+let newProgressRowCount = 0;
+
+function getProgressStageOptions() {
+    return `
+        <option value="">Select Progress Type</option>
+        {% for stage_key, stage_label in stages %}
+        <option value="{{ stage_key }}">{{ stage_label }}</option>
+        {% endfor %}
+    `;
+}
+
+function addProgressRow() {
+    const tbody = document.getElementById("progressRows");
+
+    if (!tbody) {
+        return;
+    }
+
+    const rowKey = "new_" + newProgressRowCount++;
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+        <td>
+            <input type="hidden"
+                   name="progress_id[]"
+                   value="">
+            <input type="hidden"
+                   name="progress_photo_key[]"
+                   value="${rowKey}">
+            <select name="stage[]"
+                    class="form-select progress-stage">
+                ${getProgressStageOptions()}
+            </select>
+        </td>
+        <td>
+            <input type="datetime-local"
+                   name="start_time[]"
+                   class="form-control start-time">
+        </td>
+        <td>
+            <input type="datetime-local"
+                   name="finish_time[]"
+                   class="form-control finish-time">
+        </td>
+        <td>
+            <button type="button"
+                    class="btn btn-success btn-sm"
+                    onclick="startStage(this)">
+                Start
+            </button>
+            <button type="button"
+                    class="btn btn-danger btn-sm"
+                    onclick="finishStage(this)">
+                Finish
+            </button>
+        </td>
+        <td>
+            <select name="employee[]"
+                    class="form-select progress-employee">
+                <option value="">Select</option>
+                {% for emp in technicians %}
+                <option value="{{ emp.id }}">{{ emp.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <input type="text"
+                   name="progress_remarks[]"
+                   class="form-control">
+        </td>
+        <td style="min-width:190px;">
+            <input type="file"
+                   name="progress_photo_${rowKey}"
+                   class="form-control form-control-sm"
+                   accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                   capture="environment"
+                   multiple>
+        </td>
+        <td class="text-center">
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger clear-progress-btn"
+                    data-stage=""
+                    data-progress-id=""
+                    data-stage-label=""
+                    data-photo-count="0"
+                    formnovalidate>
+                Clear
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+    bindEmployeeAssignmentCheck(row.querySelector(".progress-employee"));
+    initProgressClearConfirmation();
+    row.querySelector(".progress-stage").focus();
+}
+
+function initProgressRows() {
+    const addButton = document.getElementById("addProgressRowBtn");
+
+    if (!addButton || addButton.dataset.addProgressBound === "1") {
+        return;
+    }
+
+    addButton.dataset.addProgressBound = "1";
+    addButton.addEventListener("click", addProgressRow);
+}
+
+function addPartLine() {
+    const tbody = document.getElementById("partRows");
+
+    if (!tbody) {
+        return;
+    }
+
+    const row = document.createElement("tr");
+    const photoKey = `part_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    row.innerHTML = `
+        <td>New</td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_part_no[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_part_description[]">
+        </td>
+        <td>
+            <input class="form-control text-end"
+                   type="number"
+                   min="1"
+                   step="1"
+                   name="new_part_qty[]"
+                   value="1">
+        </td>
+        <td>
+            <input class="form-control text-end"
+                   type="number"
+                   min="0"
+                   step="0.01"
+                   name="new_part_rate[]"
+                   value="0">
+        </td>
+        <td>
+            <select name="new_part_decision[]"
+                    class="form-select">
+                <option value="New">New</option>
+                <option value="Repair">Repair</option>
+                <option value="KO">KO</option>
+                <option value="Reject">Reject</option>
+            </select>
+        </td>
+        <td>
+            <select name="new_part_pick_from_store[]"
+                    class="form-select">
+                <option value="No">No</option>
+                <option value="Yes">Yes</option>
+            </select>
+        </td>
+        <td>
+            <input class="form-control"
+                   type="date"
+                   name="new_part_pick_date[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_part_picker_name[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="date"
+                   name="new_part_ko_order_date[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_part_ko_order_no[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="date"
+                   name="new_part_eta[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_part_remarks[]">
+        </td>
+        <td class="line-photo-cell">
+            <input type="hidden"
+                   name="new_part_photo_key[]"
+                   value="${photoKey}">
+            <input class="form-control form-control-sm line-photo-input"
+                   type="file"
+                   name="new_part_photo_${photoKey}"
+                   accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                   capture="environment"
+                   multiple>
+            <div class="small text-danger">Required for this line</div>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+    row.querySelector('input[name="new_part_no[]"]').focus();
+}
+
+function addLabourLine() {
+    const tbody = document.getElementById("labourRows");
+
+    if (!tbody) {
+        return;
+    }
+
+    const row = document.createElement("tr");
+    const photoKey = `labour_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    row.innerHTML = `
+        <td>New</td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_labour_code[]">
+        </td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_labour_description[]">
+        </td>
+        <td>
+            <input class="form-control text-end"
+                   type="number"
+                   min="0"
+                   step="0.01"
+                   name="new_labour_amount[]"
+                   value="0">
+        </td>
+        <td>
+            <select name="new_labour_decision[]"
+                    class="form-select">
+                <option value="Approved">Approved</option>
+                <option value="Reject">Reject</option>
+            </select>
+        </td>
+        <td class="text-muted">Auto</td>
+        <td>
+            <select name="new_labour_employee[]"
+                    class="form-select labour-employee">
+                <option value="">Select</option>
+                {% for emp in technicians %}
+                <option value="{{ emp.id }}">{{ emp.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <input class="form-control"
+                   type="text"
+                   name="new_labour_remarks[]">
+        </td>
+        <td class="line-photo-cell">
+            <input type="hidden"
+                   name="new_labour_photo_key[]"
+                   value="${photoKey}">
+            <input class="form-control form-control-sm line-photo-input"
+                   type="file"
+                   name="new_labour_photo_${photoKey}"
+                   accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                   capture="environment"
+                   multiple>
+            <div class="small text-danger">Required for this line</div>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+    row.querySelector('input[name="new_labour_code[]"]').focus();
+}
+
+function initAdditionalLines() {
+    const addPartLineBtn = document.getElementById("addPartLineBtn");
+    const addLabourLineBtn = document.getElementById("addLabourLineBtn");
+
+    if (addPartLineBtn && addPartLineBtn.dataset.bound !== "1") {
+        addPartLineBtn.dataset.bound = "1";
+        addPartLineBtn.addEventListener("click", addPartLine);
+    }
+
+    if (addLabourLineBtn && addLabourLineBtn.dataset.bound !== "1") {
+        addLabourLineBtn.dataset.bound = "1";
+        addLabourLineBtn.addEventListener("click", addLabourLine);
+    }
 }
 
 if (document.readyState === "loading") {
@@ -991,6 +1540,8 @@ if (document.readyState === "loading") {
         initWorkCompletionGate();
         initWorkCompletedValidation();
         initProgressClearConfirmation();
+        initProgressRows();
+        initAdditionalLines();
     });
 } else {
     initEmployeeAssignmentChecks();
@@ -998,6 +1549,8 @@ if (document.readyState === "loading") {
     initWorkCompletionGate();
     initWorkCompletedValidation();
     initProgressClearConfirmation();
+    initProgressRows();
+    initAdditionalLines();
 }
 
 </script>

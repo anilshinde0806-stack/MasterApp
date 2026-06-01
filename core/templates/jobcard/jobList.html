@@ -26,13 +26,15 @@
             </div>
 
             <div class="col-md-3">
-                <label>Repair Status</label>
-                <select id="statusFilter" class="form-control">
+                <label>Work Progress</label>
+                <select id="workProgressFilter" class="form-control">
                     <option value="">All</option>
-                    <option selected>Open</option>
-                    <option>Completed</option>
-                    <option>Closed</option>
-                    <option>Cancellation</option>
+                    <option selected>Work Not Started</option>
+                    <option>Started</option>
+                    <option>Work Completed</option>
+                    <option>2nd Approval Pending</option>
+                    <option>2nd Approval Approved</option>
+                    <option>2nd Approval Rejected</option>
                 </select>
             </div>
 
@@ -128,11 +130,15 @@ const columnDefs = [
         filter: true,
         cellRenderer: params => {
             const value = params.value || "Work Not Started";
-            const cls = value === "Work Completed"
-                ? "bg-success"
-                : value === "Work Not Started"
-                    ? "bg-secondary"
-                    : "bg-info text-dark";
+            const cls = value.includes("2nd Approval Pending") || value.includes("2nd Approval Rejected")
+                ? "bg-danger"
+                : value.includes("2nd Approval Approved")
+                    ? "bg-warning text-dark"
+                    : value === "Work Completed"
+                        ? "bg-success"
+                        : value === "Work Not Started"
+                            ? "bg-secondary"
+                            : "bg-info text-dark";
 
             return `<span class="badge ${cls}">${value}</span>`;
         }
@@ -196,13 +202,13 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function loadData() {
-    const status = document.getElementById("statusFilter").value;
+    const workProgress = document.getElementById("workProgressFilter").value;
     const fromDate = document.getElementById("fromDate").value;
     const toDate = document.getElementById("toDate").value;
     const params = new URLSearchParams();
 
-    if (status) {
-        params.set("repair_status", status);
+    if (workProgress) {
+        params.set("work_progress", workProgress);
     }
 
     if (fromDate) {
@@ -221,7 +227,7 @@ function loadData() {
         });
 }
 
-document.getElementById("statusFilter").addEventListener("change", loadData);
+document.getElementById("workProgressFilter").addEventListener("change", loadData);
 document.getElementById("fromDate").addEventListener("change", loadData);
 document.getElementById("toDate").addEventListener("change", loadData);
 

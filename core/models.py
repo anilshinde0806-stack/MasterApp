@@ -242,7 +242,7 @@ class ClaimStageCode(models.IntegerChoices):
     SURVEY = 5, "Survey Done"
     INSURANCE_APPROVAL = 6, "Insurance Approval"
 
-    WORK_ALLOCATION = 7, "Work Allocation"
+    WORK_ALLOCATION = 7, "Work Allocation Pending"
     REPAIR_IN_PROGRESS = 8, "Repair Work In Progress"
     WORK_COMPLETED = 9, "Work Completed"
     RE_INSPECTION = 10, "Re Inspection"
@@ -281,7 +281,7 @@ class Claim(models.Model):
         (4, "Claim Intimation"),
         (5, "Survey Done"),
         (6, "Insurance Approval"),
-        (7, "Work Allocation"),
+        (7, "Work Allocation Pending"),
         (8, "Repair Work In Progress"),
         (9, "Work Completed"),
         (10, "Re Inspection"),
@@ -359,7 +359,7 @@ class Claim(models.Model):
         blank=True
     )
 
-    intimation_date = models.DateField(
+    intimation_date = models.DateTimeField(
         null=True,
         blank=True
     )
@@ -368,7 +368,7 @@ class Claim(models.Model):
     # SURVEY
     # =========================
 
-    survey_date = models.DateField(null=True, blank=True)
+    survey_date = models.DateTimeField(null=True, blank=True)
 
     surveyor = models.ForeignKey(
         Surveyor,
@@ -387,7 +387,7 @@ class Claim(models.Model):
 
     self_survey = models.BooleanField(default=False)
 
-    insurance_approval_date = models.DateField(null=True, blank=True)
+    insurance_approval_date = models.DateTimeField(null=True, blank=True)
 
     insurance_note = models.TextField(blank=True)
 
@@ -640,7 +640,7 @@ class JobCard(models.Model):
             unique=True
         )
 
-    job_date = models.DateField(auto_now_add=True)
+    job_date = models.DateTimeField(auto_now_add=True)
 
 
     advisor = models.ForeignKey(
@@ -731,7 +731,7 @@ class JobCard(models.Model):
 
     reinspection_done = models.BooleanField(default=False)
 
-    reinspection_date = models.DateField(
+    reinspection_date = models.DateTimeField(
             null=True,
             blank=True
         )
@@ -746,6 +746,22 @@ class JobCard(models.Model):
     washing_done = models.BooleanField(default=False)
 
     ready_for_delivery = models.BooleanField(default=False)
+
+    additional_approval_required = models.BooleanField(default=False)
+
+    second_approval_status = models.CharField(
+            max_length=20,
+            choices=[
+                ("", "Not Required"),
+                ("Pending", "Pending"),
+                ("Approved", "Approved"),
+                ("Rejected", "Rejected"),
+            ],
+            blank=True,
+            default=""
+        )
+
+    additional_approval_reason = models.TextField(blank=True)
 
     advisor_signature = models.ImageField(
             upload_to="jobcard_signatures/",
@@ -796,6 +812,57 @@ class JobCardReInspectionPhoto(models.Model):
 
         image = models.ImageField(
             upload_to=reinspection_photo_upload_path
+        )
+
+        uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
+def additional_approval_photo_upload_path(instance, filename):
+        claim_no = "unknown_claim"
+        job_no = "unknown_job"
+
+        if instance.job:
+            job_no = instance.job.job_no or job_no
+            if instance.job.claim and instance.job.claim.claim_no:
+                claim_no = instance.job.claim.claim_no
+
+        safe_claim_no = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in claim_no
+        )
+        safe_job_no = "".join(
+            char if char.isalnum() or char in ["-", "_"] else "_"
+            for char in job_no
+        )
+
+        return f"additional_approval_photos/{safe_claim_no}/{safe_job_no}/{filename}"
+
+
+class JobCardAdditionalApprovalPhoto(models.Model):
+        job = models.ForeignKey(
+            JobCard,
+            on_delete=models.CASCADE,
+            related_name="additional_approval_photos"
+        )
+
+        work_allocation_part = models.ForeignKey(
+            "WorkAllocationPart",
+            on_delete=models.CASCADE,
+            related_name="additional_approval_photos",
+            blank=True,
+            null=True
+        )
+
+        work_allocation_labour = models.ForeignKey(
+            "WorkAllocationLabour",
+            on_delete=models.CASCADE,
+            related_name="additional_approval_photos",
+            blank=True,
+            null=True
+        )
+
+        image = models.ImageField(
+            upload_to=additional_approval_photo_upload_path
         )
 
         uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -1273,7 +1340,7 @@ class WorkAllocation(models.Model):
             related_name="allocation"
         )
 
-        allotment_date = models.DateField(
+        allotment_date = models.DateTimeField(
             auto_now_add=True
         )
 
@@ -1407,6 +1474,20 @@ class WorkAllocationPart(models.Model):
             max_length=20
         )
 
+        is_additional = models.BooleanField(default=False)
+
+        advisor_approval_status = models.CharField(
+            max_length=20,
+            choices=[
+                ("", "Not Required"),
+                ("Pending", "Pending"),
+                ("Approved", "Approved"),
+                ("Rejected", "Rejected"),
+            ],
+            blank=True,
+            default=""
+        )
+
         picker_name = models.CharField(
             max_length=100,
             blank=True
@@ -1456,6 +1537,20 @@ class WorkAllocationLabour(models.Model):
         decision = models.CharField(
             max_length=20,
             default="Approved"
+        )
+
+        is_additional = models.BooleanField(default=False)
+
+        advisor_approval_status = models.CharField(
+            max_length=20,
+            choices=[
+                ("", "Not Required"),
+                ("Pending", "Pending"),
+                ("Approved", "Approved"),
+                ("Rejected", "Rejected"),
+            ],
+            blank=True,
+            default=""
         )
 
         revised_amount = models.DecimalField(

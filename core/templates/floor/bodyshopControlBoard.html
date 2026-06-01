@@ -1,0 +1,448 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}
+Bodyshop Control Board
+{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h4 class="mb-0">Bodyshop Control Board</h4>
+            <small class="text-muted">Allocated vehicles with current stage, TAT and delivery status</small>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <span class="badge bg-primary px-3 py-2">Total: {{ total_count }}</span>
+            <span class="badge bg-info text-dark px-3 py-2">Running: {{ running_count }}</span>
+            <span class="badge bg-danger px-3 py-2">PNA: {{ pna_count }}</span>
+            <span class="badge bg-success px-3 py-2">Completed: {{ work_completed_count }}</span>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Search</label>
+                    <input class="form-control"
+                           name="search"
+                           value="{{ search }}"
+                           placeholder="Job no, claim no, reg no, customer, model">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="open" {% if status_filter == "open" %}selected{% endif %}>Open</option>
+                        <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
+                        <option value="completed" {% if status_filter == "completed" %}selected{% endif %}>Completed</option>
+                        <option value="closed" {% if status_filter == "closed" %}selected{% endif %}>Closed</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Insurance</label>
+                    <select class="form-select" name="insurance">
+                        <option value="">All</option>
+                        {% for insurance in insurance_options %}
+                        <option value="{{ insurance.id }}"
+                                {% if insurance_filter == insurance.id|stringformat:"s" %}selected{% endif %}>
+                            {{ insurance.ins_co_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Advisor</label>
+                    <select class="form-select" name="advisor">
+                        <option value="">All</option>
+                        {% for advisor in advisor_options %}
+                        <option value="{{ advisor.id }}"
+                                {% if advisor_filter == advisor.id|stringformat:"s" %}selected{% endif %}>
+                            {{ advisor.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Surveyor</label>
+                    <select class="form-select" name="surveyor">
+                        <option value="">All</option>
+                        {% for surveyor in surveyor_options %}
+                        <option value="{{ surveyor.id }}"
+                                {% if surveyor_filter == surveyor.id|stringformat:"s" %}selected{% endif %}>
+                            {{ surveyor.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button class="btn btn-primary w-100" type="submit">Apply</button>
+                </div>
+                <div class="col-md-1">
+                    <a class="btn btn-outline-secondary w-100" href="{% url 'bodyshop_control_board' %}">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-2">
+            <div class="table-responsive control-board-table-wrap">
+                <table class="table table-sm table-bordered align-middle mb-0 control-board-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:115px;">Job No</th>
+                            <th style="width:120px;">Vehicle No</th>
+                            <th>Customer</th>
+                            <th>Insurance</th>
+                            <th style="width:130px;">IC Claim No</th>
+                            <th>Advisor</th>
+                            <th>Surveyor</th>
+                            <th style="width:170px;">Claim Stage</th>
+                            <th style="width:190px;">Progress Stage</th>
+                            <th style="width:92px;">In Date</th>
+                            <th style="width:112px;">Promise Date</th>
+                            <th style="width:80px;">TAT Days</th>
+                            <th style="width:145px;">Status</th>
+                            <th style="width:92px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td><b>{{ row.job.job_no }}</b></td>
+                            <td><b>{{ row.job.claim.vehicle.registration_no }}</b></td>
+                            <td>{{ row.job.claim.vehicle.customer.name }}</td>
+                            <td>
+                                {% if row.job.claim.insurance_company %}
+                                    {{ row.job.claim.insurance_company.ins_co_name }}
+                                {% else %}
+                                    Self Pay
+                                {% endif %}
+                            </td>
+                            <td>{{ row.job.claim.ic_claim_no|default:"-" }}</td>
+                            <td>
+                                {{ row.job.advisor.name|default:"-" }}
+                            </td>
+                            <td>{{ row.job.claim.surveyor.name|default:"-" }}</td>
+                            <td>
+                                <span class="stage-pill claim-stage-pill">{{ row.claim_stage }}</span>
+                            </td>
+                            <td>
+                                <span class="stage-pill progress-stage-pill">{{ row.progress_status }}</span>
+                            </td>
+                            <td>{% if row.in_date %}{{ row.in_date|date:"d-M" }}{% else %}-{% endif %}</td>
+                            <td class="promise-cell {{ row.promise_class }}">
+                                {% if row.promise_date %}{{ row.promise_date|date:"d-M" }}{% else %}-{% endif %}
+                            </td>
+                            <td class="text-center tat-cell">
+                                <b>{{ row.tat_days }}</b>
+                                <div class="tat-hover-source">
+                                    {% for item in row.tat_timeline %}
+                                    <div class="tat-line">
+                                        <div class="tat-title">{{ forloop.counter }}. {{ item.label }}</div>
+                                        <div class="tat-dates">
+                                            {% if item.start_at %}{{ item.start_at|date:"d-M H:i" }}{% else %}Not recorded{% endif %}
+                                            →
+                                            {% if item.end_at %}{{ item.end_at|date:"d-M H:i" }}{% else %}Not recorded{% endif %}
+                                        </div>
+                                        <div class="tat-duration">{{ item.duration }}</div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td class="status-cell {% if row.pna_parts %}has-pna-hover{% endif %}">
+                                <span class="board-status {{ row.board_status_class }}">
+                                    {{ row.board_status }}
+                                </span>
+                                {% if row.pna_parts %}
+                                    <div class="pna-hover-source">
+                                        {% for pna in row.pna_parts %}
+                                            <div>
+                                                <b>{{ pna.job_part.part_no }}</b>
+                                                {{ pna.job_part.description }}
+                                                <span class="text-muted">
+                                                    Qty {{ pna.job_part.qty }}{% if pna.eta %}, ETA {{ pna.eta|date:"d-M" }}{% endif %}
+                                                </span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="13" class="text-center text-muted py-4">
+                                No allocated vehicle found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div id="pnaHoverModal" class="pna-hover-modal"></div>
+<div id="tatHoverModal" class="tat-hover-modal"></div>
+
+<style>
+    .control-board-table-wrap {
+        max-height: calc(100vh - 250px);
+        overflow: auto;
+    }
+    .control-board-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        white-space: nowrap;
+    }
+    .control-board-table td {
+        vertical-align: middle;
+    }
+    .stage-pill {
+        display: block;
+        border-left: 3px solid #0d6efd;
+        background: #f7faff;
+        border-radius: 4px;
+        padding: 5px 7px;
+        font-weight: 700;
+        line-height: 1.25;
+    }
+    .progress-stage-pill {
+        border-left-color: #6610f2;
+        background: #f6f1ff;
+    }
+    .pna-mini {
+        border-left: 3px solid #dc3545;
+        background: #fff5f5;
+        border-radius: 4px;
+        padding: 3px 6px;
+    }
+    .stage-label {
+        display: inline-block;
+        min-width: 78px;
+        color: #6c757d;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .pna-mini {
+        border-left-color: #dc3545;
+        background: #fff5f5;
+        font-size: 12px;
+    }
+    .status-cell {
+        position: relative;
+    }
+    .has-pna-hover .board-status {
+        cursor: help;
+    }
+    .pna-hover-source {
+        display: none;
+    }
+    .pna-hover-modal {
+        position: fixed;
+        display: none;
+        z-index: 5000;
+        max-width: 430px;
+        min-width: 280px;
+        border: 1px solid #f1aeb5;
+        border-left: 5px solid #dc3545;
+        background: #fff;
+        color: #212529;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+        border-radius: 6px;
+        padding: 9px 11px;
+        font-size: 12px;
+        pointer-events: none;
+    }
+    .pna-hover-modal::before {
+        content: "PNA Details";
+        display: block;
+        margin-bottom: 6px;
+        color: #842029;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .02em;
+    }
+    .pna-hover-modal > div {
+        padding: 5px 0;
+        border-top: 1px solid #f8d7da;
+    }
+    .pna-hover-modal > div:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+    }
+    .board-status {
+        display: inline-flex;
+        width: 100%;
+        min-height: 28px;
+        align-items: center;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .promise-cell {
+        background: #fff;
+        font-weight: 700;
+        text-align: center;
+    }
+    .promise-overdue {
+        background: #f8d7da !important;
+        color: #842029;
+    }
+    .promise-warning {
+        background: #fff3cd !important;
+        color: #664d03;
+    }
+    .tat-cell {
+        cursor: help;
+    }
+    .tat-hover-source {
+        display: none;
+    }
+    .tat-hover-modal {
+        position: fixed;
+        display: none;
+        z-index: 5000;
+        width: min(560px, calc(100vw - 28px));
+        max-height: min(620px, calc(100vh - 28px));
+        overflow: auto;
+        border: 1px solid #b6d4fe;
+        border-left: 5px solid #0d6efd;
+        background: #fff;
+        color: #212529;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 12px;
+        pointer-events: none;
+        text-align: left;
+    }
+    .tat-hover-modal::before {
+        content: "Claim Timeline";
+        display: block;
+        margin-bottom: 7px;
+        color: #084298;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .02em;
+    }
+    .tat-line {
+        display: grid;
+        grid-template-columns: minmax(165px, 1.1fr) minmax(170px, 1fr) 82px;
+        gap: 8px;
+        align-items: center;
+        padding: 5px 0;
+        border-top: 1px solid #e7f1ff;
+    }
+    .tat-line:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+    }
+    .tat-title {
+        font-weight: 700;
+    }
+    .tat-dates {
+        color: #6c757d;
+    }
+    .tat-duration {
+        color: #084298;
+        font-weight: 800;
+        text-align: right;
+    }
+    .status-pending {
+        background: #fff8db;
+        color: #7a5a00;
+    }
+    .status-waiting {
+        background: #fff0df;
+        color: #8a4200;
+    }
+    .status-process {
+        background: #e6f0ff;
+        color: #084298;
+    }
+    .status-ready {
+        background: #e7f6ec;
+        color: #146c43;
+    }
+    .status-badge {
+        white-space: normal;
+        text-align: left;
+        line-height: 1.25;
+    }
+    .pna-list {
+        display: grid;
+        gap: 4px;
+    }
+    .pna-item {
+        border-left: 3px solid #dc3545;
+        background: #fff5f5;
+        padding: 4px 6px;
+        border-radius: 4px;
+    }
+    .pna-item span {
+        margin-left: 4px;
+    }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const modal = document.getElementById("pnaHoverModal");
+
+    function moveFloatingModal(floatingModal, event) {
+        const margin = 14;
+        const width = floatingModal.offsetWidth || 320;
+        const height = floatingModal.offsetHeight || 120;
+        let left = event.clientX + margin;
+        let top = event.clientY + margin;
+
+        if (left + width > window.innerWidth - margin) {
+            left = event.clientX - width - margin;
+        }
+        if (top + height > window.innerHeight - margin) {
+            top = event.clientY - height - margin;
+        }
+
+        floatingModal.style.left = Math.max(margin, left) + "px";
+        floatingModal.style.top = Math.max(margin, top) + "px";
+    }
+
+    function bindHoverModal(selector, sourceSelector, modalElement) {
+        if (!modalElement) return;
+
+        document.querySelectorAll(selector).forEach(function (cell) {
+            const source = cell.querySelector(sourceSelector);
+            if (!source) return;
+
+            cell.addEventListener("mouseenter", function (event) {
+                modalElement.innerHTML = source.innerHTML;
+                modalElement.style.display = "block";
+                moveFloatingModal(modalElement, event);
+            });
+
+            cell.addEventListener("mousemove", function (event) {
+                moveFloatingModal(modalElement, event);
+            });
+
+            cell.addEventListener("mouseleave", function () {
+                modalElement.style.display = "none";
+                modalElement.innerHTML = "";
+            });
+        });
+    }
+
+    bindHoverModal(".has-pna-hover", ".pna-hover-source", modal);
+    bindHoverModal(".tat-cell", ".tat-hover-source", document.getElementById("tatHoverModal"));
+});
+</script>
+
+{% endblock %}

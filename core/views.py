@@ -2,6 +2,7 @@ import math
 import os
 import zipfile
 import base64
+from datetime import datetime, time as datetime_time
 from io import BytesIO
 
 from django.contrib.auth import logout
@@ -13,8 +14,9 @@ from django.db import IntegrityError
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.template.loader import get_template
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.cache import never_cache
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from psycopg import rows
 from xhtml2pdf import pisa
 
@@ -24,7 +26,7 @@ from .models import InsuranceCompany, VehicleModel, Customer, ColumnPreference, 
     JobCardLabour, JobCardAssessmentPart, JobCardAssessmentLabour, JobCardTyreInventory, \
     CommunicationLog, UserNotification, ClaimStageCode, WorkProgress, WorkAllocation, AnnouncementRead, Announcement, \
     PartOrder, PartOrderHeader, WorkAllocationPart, WorkAllocationLabour, JobCardReInspectionPhoto, \
-    JobCardVehicleConditionPhoto, ClaimDocument, WorkProgressPhoto
+    JobCardVehicleConditionPhoto, ClaimDocument, WorkProgressPhoto, JobCardAdditionalApprovalPhoto
 
 
 REINSPECTION_MAX_PHOTOS_PER_JOBCARD = getattr(settings, "REINSPECTION_MAX_PHOTOS_PER_JOBCARD", 25)
@@ -244,6 +246,147 @@ def is_repair_resource(employee):
     )
 
 
+def is_floor_supervisor(employee):
+    if not employee:
+        return False
+
+    role_text = f"{employee.employee_type or ''} {employee.designation or ''}".upper()
+    return any(
+        keyword in role_text
+        for keyword in ["FLOOR SUPERVISOR", "FLOOR INCHARGE", "FLOOR IN-CHARGE"]
+    )
+
+
+def workflow_date_value(value):
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            return timezone.localtime(value)
+        return timezone.make_aware(value)
+
+    if hasattr(value, "date"):
+        return timezone.make_aware(datetime.combine(value, datetime_time.min))
+
+    return timezone.make_aware(datetime.combine(value, datetime_time.min))
+
+
+def parse_workflow_datetime(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+
+    parsed = parse_datetime(value)
+    if parsed:
+        return parsed if timezone.is_aware(parsed) else timezone.make_aware(parsed)
+
+    parsed_date = parse_date(value)
+    if parsed_date:
+        return timezone.make_aware(datetime.combine(parsed_date, datetime_time.min))
+
+    return None
+
+
+def datetime_local_value(value):
+    if not value:
+        return ""
+
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            value = timezone.localtime(value)
+        return value.strftime("%Y-%m-%dT%H:%M")
+
+    return datetime.combine(value, datetime_time.min).strftime("%Y-%m-%dT%H:%M")
+
+
+def validate_no_future_workflow_dates(points):
+    now = timezone.now()
+
+    for label, value in points:
+        current_value = control_board_datetime_value(value)
+        if current_value and current_value > now:
+            return f"{label} cannot be future date/time."
+
+    return ""
+
+
+def validate_workflow_dates(points, validate_labels=None):
+    validate_all = validate_labels is None
+    validate_labels = set(validate_labels or [])
+    previous_label = None
+    previous_date = None
+
+    for label, value in points:
+        current_date = workflow_date_value(value)
+        if not current_date:
+            continue
+
+        should_validate = validate_all or label in validate_labels
+
+        if should_validate and previous_date and current_date < previous_date:
+            return (
+                f"{label} cannot be before {previous_label}. "
+                f"{previous_label}: {previous_date.strftime('%d-%m-%Y %H:%M')}, "
+                f"{label}: {current_date.strftime('%d-%m-%Y %H:%M')}"
+            )
+
+        previous_label = label
+        previous_date = current_date
+
+    return ""
+
+
+def workflow_date_changed(old_value, new_value):
+    old_date = workflow_date_value(old_value)
+    new_date = workflow_date_value(new_value)
+    return bool(new_date and old_date != new_date)
+
+
+def validate_claim_job_workflow_dates(
+        claim,
+        job=None,
+        allocation=None,
+        claim_created_date=None,
+        job_created_date=None,
+        validate_labels=None
+):
+    claim_created_value = claim_created_date or (claim.created_at if claim else None)
+    job_created_value = job_created_date or (job.job_date if job else None) or (job.created_at if job else None)
+    first_progress = None
+    work_completed = None
+
+    if allocation:
+        first_progress = (
+            allocation.progress
+            .filter(start_time__isnull=False)
+            .order_by("start_time")
+            .first()
+        )
+        work_completed = (
+            allocation.progress
+            .filter(finish_time__isnull=False)
+            .order_by("-finish_time")
+            .first()
+        )
+
+    return validate_workflow_dates([
+        ("Gate In Date", job.gate_in_datetime if job else None),
+        ("Claim Created Date", claim_created_value),
+        ("Jobcard Created Date", job_created_value),
+        ("Claim Intimation Date", claim.intimation_date if claim else None),
+        ("Survey Date", claim.survey_date if claim else None),
+        ("Insurance Approval Date", claim.insurance_approval_date if claim else None),
+        ("Work Allocation Date", allocation.allotment_date if allocation else None),
+        ("Repair Start Date", first_progress.start_time if first_progress else None),
+        ("Work Completed Date", work_completed.finish_time if work_completed else None),
+        ("Re-Inspection Date", job.reinspection_date if job else None),
+        ("Liability Received Date", claim.liability_received_at if claim else None),
+        ("Invoice Date", claim.invoice_datetime if claim else None),
+        ("Delivery Date", claim.delivery_datetime if claim else None),
+    ], validate_labels=validate_labels)
+
+
 def my_work_base_queryset(employee, from_date=None, to_date=None):
     progress = (
         WorkProgress.objects
@@ -295,6 +438,19 @@ def my_work_row_payload(progress):
         "job": job,
         "claim": claim,
         "vehicle": vehicle,
+        "additional_approval_required": bool(
+            job and job.additional_approval_required
+        ),
+        "second_approval_status": (
+            job.second_approval_status
+            if job
+            else ""
+        ),
+        "additional_approval_reason": (
+            job.additional_approval_reason
+            if job
+            else ""
+        ),
     }
 
 
@@ -369,6 +525,134 @@ def notify_jobcard_advisor(job, title, message):
     )
 
 
+def floor_incharge_users():
+    employees = Employee.objects.filter(
+        is_active=True,
+        user__isnull=False,
+    )
+    users = []
+    seen_user_ids = set()
+
+    for employee in employees:
+        role_text = f"{employee.employee_type or ''} {employee.designation or ''}".upper()
+
+        if not any(
+            keyword in role_text
+            for keyword in ["FLOOR INCHARGE", "FLOOR IN-CHARGE", "FLOOR SUPERVISOR"]
+        ):
+            continue
+
+        if employee.user_id in seen_user_ids:
+            continue
+
+        users.append(employee.user)
+        seen_user_ids.add(employee.user_id)
+
+    return users
+
+
+def notify_floor_incharge_work_allocated(job):
+    if not job:
+        return
+
+    claim = job.claim if job.claim_id else None
+    vehicle = claim.vehicle if claim and claim.vehicle_id else None
+    registration_no = vehicle.registration_no if vehicle else "-"
+    model_name = vehicle.model.name if vehicle and vehicle.model_id else "-"
+    message = (
+        f"Work allocated for Jobcard {job.job_no} "
+        f"({registration_no} - {model_name})"
+    )
+
+    for user in floor_incharge_users():
+        create_user_notification(
+            user,
+            "Work Allocated",
+            message,
+            f"/work-allocation/{job.id}/",
+        )
+
+
+def notify_floor_incharge_work_allocation_pending(claim):
+    if not claim:
+        return
+
+    job = JobCard.objects.filter(claim=claim).select_related(
+        "claim",
+        "claim__vehicle",
+        "claim__vehicle__model",
+    ).first()
+    vehicle = claim.vehicle if claim.vehicle_id else None
+    registration_no = vehicle.registration_no if vehicle else "-"
+    model_name = vehicle.model.name if vehicle and vehicle.model_id else "-"
+    job_no = job.job_no if job else "-"
+    url = f"/work-allocation/{job.id}/" if job else f"/claim/{claim.id}/edit/"
+    message = (
+        f"Claim {claim.claim_no} moved to Work Allocation. "
+        f"Jobcard {job_no} ({registration_no} - {model_name})"
+    )
+
+    for user in floor_incharge_users():
+        create_user_notification(
+            user,
+            "Work Allocation Pending",
+            message,
+            url,
+        )
+
+
+def notify_progress_employee_assigned(progress):
+    if not progress or not progress.employee_id or not progress.employee.user_id:
+        return
+
+    if not is_repair_resource(progress.employee):
+        return
+
+    job = progress.allocation.job if progress.allocation_id else None
+    if not job:
+        return
+
+    claim = job.claim if job.claim_id else None
+    vehicle = claim.vehicle if claim and claim.vehicle_id else None
+    registration_no = vehicle.registration_no if vehicle else "-"
+    model_name = vehicle.model.name if vehicle and vehicle.model_id else "-"
+    message = (
+        f"{progress.get_stage_display()} assigned for "
+        f"Jobcard {job.job_no} ({registration_no} - {model_name})"
+    )
+
+    create_user_notification(
+        progress.employee.user,
+        "New Work Assigned",
+        message,
+        "/my-work/",
+    )
+
+
+def notify_floor_incharge_work_progress(progress, action_label):
+    job = progress.allocation.job if progress and progress.allocation_id else None
+    if not job:
+        return
+
+    claim = job.claim if job.claim_id else None
+    vehicle = claim.vehicle if claim and claim.vehicle_id else None
+    registration_no = vehicle.registration_no if vehicle else "-"
+    employee_name = progress.employee.name if progress.employee_id else "-"
+    message = (
+        f"{employee_name} {action_label} "
+        f"{progress.get_stage_display()} for Jobcard {job.job_no} "
+        f"({registration_no})"
+    )
+
+    for user in floor_incharge_users():
+        create_user_notification(
+            user,
+            "Work Progress Updated",
+            message,
+            f"/work-allocation/{job.id}/",
+        )
+
+
 def notify_work_progress_change(progress, action_label):
     job = progress.allocation.job if progress and progress.allocation_id else None
     if not job:
@@ -386,6 +670,26 @@ def notify_work_progress_change(progress, action_label):
         message,
     )
 
+    if action_label in ["started", "finished"]:
+        notify_floor_incharge_work_progress(progress, action_label)
+
+
+def can_update_second_approval(user, employee, job):
+    if is_admin_or_manager_user(user, employee):
+        return True
+
+    if not employee or not job:
+        return False
+
+    return (
+        (job.advisor_id and job.advisor_id == employee.id)
+        or (
+            job.claim_id
+            and job.claim
+            and job.claim.employee_id == employee.id
+        )
+    )
+
 
 # Create your views here.
 @login_required
@@ -400,6 +704,9 @@ def dashboard(request):
 
     if is_repair_resource(logged_emp):
         return redirect("my_work_list")
+
+    if is_floor_supervisor(logged_emp):
+        return redirect("work_allocation_list")
 
     claims = Claim.objects.none()
     jobcards = JobCard.objects.none()
@@ -1806,7 +2113,61 @@ def claim_edit(request, pk=None):
         if form.is_valid():
 
             obj = form.save(commit=False)
-            jobcard = JobCard.objects.filter(claim=obj).first()
+            jobcard = JobCard.objects.filter(claim=obj).first() if obj.pk else None
+            claim_created_date = parse_workflow_datetime(
+                request.POST.get("claim_created_date") or ""
+            )
+            validate_labels = set()
+            if not claim:
+                validate_labels = {
+                    "Claim Created Date",
+                    "Claim Intimation Date",
+                    "Survey Date",
+                    "Insurance Approval Date",
+                    "Liability Received Date",
+                    "Invoice Date",
+                    "Delivery Date",
+                }
+            else:
+                if workflow_date_changed(claim.created_at, claim_created_date):
+                    validate_labels.add("Claim Created Date")
+                if workflow_date_changed(claim.intimation_date, obj.intimation_date):
+                    validate_labels.add("Claim Intimation Date")
+                if workflow_date_changed(claim.survey_date, obj.survey_date):
+                    validate_labels.add("Survey Date")
+                if workflow_date_changed(claim.insurance_approval_date, obj.insurance_approval_date):
+                    validate_labels.add("Insurance Approval Date")
+                if workflow_date_changed(claim.liability_received_at, obj.liability_received_at):
+                    validate_labels.add("Liability Received Date")
+                if workflow_date_changed(claim.invoice_datetime, obj.invoice_datetime):
+                    validate_labels.add("Invoice Date")
+                if workflow_date_changed(claim.delivery_datetime, obj.delivery_datetime):
+                    validate_labels.add("Delivery Date")
+
+            date_error = validate_claim_job_workflow_dates(
+                obj,
+                job=jobcard,
+                allocation=getattr(jobcard, "allocation", None) if jobcard else None,
+                claim_created_date=claim_created_date,
+                validate_labels=validate_labels,
+            )
+            if date_error:
+                messages.error(request, date_error)
+                return redirect("claim_edit", pk=obj.id if obj.id else pk)
+
+            future_error = validate_no_future_workflow_dates([
+                ("Claim Created Date", claim_created_date),
+                ("Claim Intimation Date", obj.intimation_date),
+                ("Survey Date", obj.survey_date),
+                ("Insurance Approval Date", obj.insurance_approval_date),
+                ("Liability Received Date", obj.liability_received_at),
+                ("Invoice Date", obj.invoice_datetime),
+                ("Delivery Date", obj.delivery_datetime),
+            ])
+            if future_error:
+                messages.error(request, future_error)
+                return redirect("claim_edit", pk=obj.id if obj.id else pk)
+
 
             has_invoice_data = any([
                 obj.invoice_datetime,
@@ -1917,17 +2278,12 @@ def claim_edit(request, pk=None):
             is_new = obj.pk is None
 
             obj.save()
+            jobcard = JobCard.objects.filter(claim=obj).first()
             save_claim_documents(request, obj)
             if jobcard and obj.self_survey:
                 save_vehicle_condition_photos(request, jobcard)
-            claim_created_date = parse_date(
-                request.POST.get("claim_created_date") or ""
-            )
             if claim_created_date:
-                obj.created_at = timezone.make_aware(
-                    datetime.combine(claim_created_date, time.min),
-                    timezone.get_current_timezone()
-                )
+                obj.created_at = claim_created_date
                 obj.save(update_fields=["created_at"])
 
             if claim and claim.employee:
@@ -1942,7 +2298,7 @@ def claim_edit(request, pk=None):
             if jobcard:
                 uploaded_reinspection_images = request.FILES.getlist("reinspection_images")
                 posted_reinspection_done = request.POST.get("reinspection_done") == "1"
-                posted_reinspection_date = parse_date(
+                posted_reinspection_date = parse_workflow_datetime(
                     request.POST.get("reinspection_date") or ""
                 )
                 posted_reinspection_done_by = request.POST.get(
@@ -1956,6 +2312,13 @@ def claim_edit(request, pk=None):
                     or bool(posted_reinspection_date)
                     or bool(posted_reinspection_done_by)
                 )
+                if should_update_reinspection_fields:
+                    future_error = validate_no_future_workflow_dates([
+                        ("Re-Inspection Date", posted_reinspection_date),
+                    ])
+                    if future_error:
+                        messages.error(request, future_error)
+                        return redirect("claim_edit", pk=obj.id)
 
                 if uploaded_reinspection_images:
                     existing_reinspection_photo_count = jobcard.reinspection_photos.count()
@@ -2101,6 +2464,7 @@ def claim_edit(request, pk=None):
             claim.claim_stage or
             ClaimStageCode.CLAIM_CREATED
         )
+        old_stage_before_move = current
 
         if move_stage == "next":
 
@@ -2164,6 +2528,12 @@ def claim_edit(request, pk=None):
         if jobcard:
             sync_jobcard_main_status(jobcard)
 
+        if (
+            old_stage_before_move != current
+            and current == ClaimStageCode.WORK_ALLOCATION
+        ):
+            notify_floor_incharge_work_allocation_pending(claim)
+
         messages.success(
             request,
             f"Stage changed to {claim.get_claim_stage_display()}"
@@ -2200,9 +2570,9 @@ def claim_edit(request, pk=None):
     )
     current_stage = int(claim.claim_stage or ClaimStageCode.CLAIM_CREATED)
     claim_created_date_value = (
-        timezone.localdate(claim.created_at).strftime("%Y-%m-%d")
+        datetime_local_value(claim.created_at)
         if claim and claim.created_at
-        else timezone.localdate().strftime("%Y-%m-%d")
+        else timezone.localtime().strftime("%Y-%m-%dT%H:%M")
     )
     is_jobcard_closed = bool(
         jobcard
@@ -2222,6 +2592,11 @@ def claim_edit(request, pk=None):
             allocation__job=jobcard,
             start_time__isnull=False,
         ).exists()
+    )
+    second_approval_pending = bool(
+        jobcard
+        and jobcard.additional_approval_required
+        and jobcard.second_approval_status == "Pending"
     )
     next_stage_label = (
         ClaimStageCode(current_stage + 1).label
@@ -2257,6 +2632,7 @@ def claim_edit(request, pk=None):
             "is_reinspection_done": is_reinspection_done,
             "has_repair_progress_data": has_repair_progress_data,
             "has_repair_progress_started": has_repair_progress_started,
+            "second_approval_pending": second_approval_pending,
             "is_claim_locked": is_claim_locked,
             "can_reopen_claim": can_reopen_claim,
             "vehicle_photo_slots": get_vehicle_condition_photo_slots(jobcard),
@@ -2276,7 +2652,7 @@ def claim_edit(request, pk=None):
                 (ClaimStageCode.INTIMATION, "Claim Intimation"),
                 (ClaimStageCode.SURVEY, "Survey"),
                 (ClaimStageCode.INSURANCE_APPROVAL, "Approval"),
-                (ClaimStageCode.WORK_ALLOCATION, "Work Allocation"),
+                (ClaimStageCode.WORK_ALLOCATION, "Pending Work Allocation"),
                 (ClaimStageCode.REPAIR_IN_PROGRESS, "Repair Work"),
                 (ClaimStageCode.WORK_COMPLETED, "Work Completed"),
                 (ClaimStageCode.RE_INSPECTION, "Re Inspection"),
@@ -2595,10 +2971,38 @@ def jobcard_create(request, claim_id=None):
             if not obj.job_no:
                 obj.job_no = generate_job_no()
 
-            obj.save()
-            job_created_date = parse_date(
+            job_created_date = parse_workflow_datetime(
                 request.POST.get("job_created_date") or ""
             )
+            validate_labels = set()
+            if workflow_date_changed(None, job_created_date):
+                validate_labels.add("Jobcard Created Date")
+            if workflow_date_changed(None, obj.gate_in_datetime):
+                validate_labels.add("Gate In Date")
+
+            date_error = validate_claim_job_workflow_dates(
+                obj.claim,
+                job=obj,
+                job_created_date=job_created_date,
+                validate_labels=validate_labels,
+            )
+            if date_error:
+                messages.error(request, date_error)
+                if claim_id:
+                    return redirect("jobcard_create_with_claim", claim_id=claim_id)
+                return redirect("jobCreate")
+
+            future_error = validate_no_future_workflow_dates([
+                ("Gate In Date", obj.gate_in_datetime),
+                ("Jobcard Created Date", job_created_date),
+            ])
+            if future_error:
+                messages.error(request, future_error)
+                if claim_id:
+                    return redirect("jobcard_create_with_claim", claim_id=claim_id)
+                return redirect("jobCreate")
+
+            obj.save()
 
             save_job_inventory(
                 request,
@@ -2701,7 +3105,7 @@ def jobcard_create(request, claim_id=None):
         "form": form,
         "claim": claim,
         "job": None,
-        "job_created_date_value": timezone.localdate().strftime("%Y-%m-%d"),
+        "job_created_date_value": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
         **get_inventory_context(None),
         "can_change_advisor": can_change_advisor,
         "can_edit_jobcard_entries": can_edit_jobcard_entries,
@@ -2773,6 +3177,50 @@ def jobcard_edit(request, pk):
         or role == "MANAGER"
         or request.user.groups.filter(name__iexact="Manager").exists()
     )
+    can_approve_second_approval = can_update_second_approval(
+        request.user,
+        logged_emp,
+        job,
+    )
+    second_approval_pending = bool(
+        job.additional_approval_required
+        and job.second_approval_status == "Pending"
+    )
+    allocation = getattr(job, "allocation", None)
+    additional_approval_parts = (
+        list(allocation.parts.filter(is_additional=True)
+        .select_related("job_part")
+        .prefetch_related("additional_approval_photos"))
+        if allocation
+        else []
+    )
+    additional_approval_labours = (
+        list(allocation.labours.filter(is_additional=True)
+        .select_related("job_labour")
+        .prefetch_related("additional_approval_photos"))
+        if allocation
+        else []
+    )
+    additional_approval_lines = [
+        *additional_approval_parts,
+        *additional_approval_labours,
+    ]
+    additional_approval_total_count = len(additional_approval_lines)
+    additional_approval_approved_count = sum(
+        1
+        for line in additional_approval_lines
+        if line.advisor_approval_status == "Approved"
+    )
+    additional_approval_rejected_count = sum(
+        1
+        for line in additional_approval_lines
+        if line.advisor_approval_status == "Rejected"
+    )
+    additional_approval_pending_count = (
+        additional_approval_total_count
+        - additional_approval_approved_count
+        - additional_approval_rejected_count
+    )
     is_jobcard_locked = job.repair_status == "Closed" and not can_reopen_jobcard
     can_edit_jobcard_entries = can_edit_jobcard_entries and not is_jobcard_locked
 
@@ -2789,6 +3237,8 @@ def jobcard_edit(request, pk):
         old_parts_total = job.parts_total
         old_labour_total = job.labour_total
         old_expected_delivery = job.expected_delivery_datetime
+        old_gate_in_datetime = job.gate_in_datetime
+        old_job_date = job.job_date
 
         form = JobCardForm(
             request.POST,
@@ -2861,9 +3311,33 @@ def jobcard_edit(request, pk):
                     obj.employee = logged_emp
                 is_new = obj.pk is None
 
-                job_created_date = parse_date(
+                job_created_date = parse_workflow_datetime(
                     request.POST.get("job_created_date") or ""
                 )
+                validate_labels = set()
+                if workflow_date_changed(old_gate_in_datetime, obj.gate_in_datetime):
+                    validate_labels.add("Gate In Date")
+                if workflow_date_changed(old_job_date, job_created_date):
+                    validate_labels.add("Jobcard Created Date")
+
+                date_error = validate_claim_job_workflow_dates(
+                    obj.claim,
+                    job=obj,
+                    allocation=getattr(obj, "allocation", None),
+                    job_created_date=job_created_date,
+                    validate_labels=validate_labels,
+                )
+                if date_error:
+                    messages.error(request, date_error)
+                    return redirect("jobcard_edit", pk=job.id)
+
+                future_error = validate_no_future_workflow_dates([
+                    ("Gate In Date", obj.gate_in_datetime),
+                    ("Jobcard Created Date", job_created_date),
+                ])
+                if future_error:
+                    messages.error(request, future_error)
+                    return redirect("jobcard_edit", pk=job.id)
 
                 print("FUEL:", request.POST.get("fuel_percent"))
                 print("CNG:", request.POST.get("cng_percent"))
@@ -3116,10 +3590,18 @@ def jobcard_edit(request, pk):
         "form": form,
         "claim": claim,
         "job": job,
-        "job_created_date_value": job.job_date.strftime("%Y-%m-%d") if job.job_date else "",
+        "job_created_date_value": datetime_local_value(job.job_date),
         "can_change_advisor": can_change_advisor,
         "can_edit_jobcard_entries": can_edit_jobcard_entries,
         "can_reopen_jobcard": can_reopen_jobcard,
+        "can_approve_second_approval": can_approve_second_approval,
+        "second_approval_pending": second_approval_pending,
+        "additional_approval_parts": additional_approval_parts,
+        "additional_approval_labours": additional_approval_labours,
+        "additional_approval_total_count": additional_approval_total_count,
+        "additional_approval_approved_count": additional_approval_approved_count,
+        "additional_approval_rejected_count": additional_approval_rejected_count,
+        "additional_approval_pending_count": additional_approval_pending_count,
         "is_jobcard_locked": is_jobcard_locked,
         "logged_emp": logged_emp,
         "insurance_companies": insurance_companies,
@@ -3158,9 +3640,152 @@ def jobcard_edit(request, pk):
     })
 
 
+@require_POST
+@never_cache
+@login_required
+def jobcard_second_approval_action(request, pk):
+    job = get_object_or_404(
+        JobCard.objects.select_related("claim", "advisor", "claim__employee"),
+        pk=pk,
+    )
+    logged_emp = Employee.objects.filter(user=request.user).first()
+
+    if not can_update_second_approval(request.user, logged_emp, job):
+        messages.error(request, "You are not allowed to update 2nd Approval.")
+        return redirect("jobcard_edit", pk=job.id)
+
+    action = request.POST.get("second_approval_action")
+
+    if action == "line_decision":
+        allocation = getattr(job, "allocation", None)
+        if not allocation:
+            messages.error(request, "Work allocation not found.")
+            return redirect("jobcard_edit", pk=job.id)
+
+        part_ids = {
+            value
+            for value in request.POST.getlist("approval_part_id[]")
+            if value.isdigit()
+        }
+        labour_ids = {
+            value
+            for value in request.POST.getlist("approval_labour_id[]")
+            if value.isdigit()
+        }
+        part_status_by_id = {
+            key.removeprefix("approval_part_status_"): value
+            for key, value in request.POST.items()
+            if key.startswith("approval_part_status_")
+            and key.removeprefix("approval_part_status_").isdigit()
+            and value in ["Approved", "Rejected", "Pending"]
+        }
+        labour_status_by_id = {
+            key.removeprefix("approval_labour_status_"): value
+            for key, value in request.POST.items()
+            if key.startswith("approval_labour_status_")
+            and key.removeprefix("approval_labour_status_").isdigit()
+            and value in ["Approved", "Rejected", "Pending"]
+        }
+        has_rejected = False
+        has_pending = False
+
+        for part in allocation.parts.filter(is_additional=True, id__in=part_ids):
+            status = part_status_by_id.get(str(part.id), "Pending")
+            if status == "Rejected":
+                has_rejected = True
+            elif status == "Pending":
+                has_pending = True
+
+            part.advisor_approval_status = status
+            update_fields = ["advisor_approval_status"]
+
+            if status in ["Approved", "Rejected"]:
+                part.decision = "New" if status == "Approved" else "Reject"
+                update_fields.append("decision")
+
+            part.save(update_fields=update_fields)
+
+            if status in ["Approved", "Rejected"]:
+                JobCardAssessmentPart.objects.filter(
+                    job=job,
+                    part=part.job_part,
+                ).update(decision=part.decision)
+
+        for labour in allocation.labours.filter(is_additional=True, id__in=labour_ids):
+            status = labour_status_by_id.get(str(labour.id), "Pending")
+            if status == "Rejected":
+                has_rejected = True
+            elif status == "Pending":
+                has_pending = True
+
+            labour.advisor_approval_status = status
+            update_fields = ["advisor_approval_status"]
+
+            if status in ["Approved", "Rejected"]:
+                labour.decision = "Approved" if status == "Approved" else "Reject"
+                update_fields.append("decision")
+
+            labour.save(update_fields=update_fields)
+
+            if status in ["Approved", "Rejected"]:
+                JobCardAssessmentLabour.objects.filter(
+                    job=job,
+                    labour=labour.job_labour,
+                ).update(decision=labour.decision)
+
+        job.additional_approval_required = True
+        if has_rejected:
+            job.second_approval_status = "Rejected"
+        elif has_pending:
+            job.second_approval_status = "Pending"
+        else:
+            job.second_approval_status = "Approved"
+        job.save(update_fields=[
+            "additional_approval_required",
+            "second_approval_status",
+        ])
+
+        messages.success(request, "Line level 2nd Approval updated.")
+        return redirect("jobcard_edit", pk=job.id)
+
+    if action == "approve":
+        job.second_approval_status = "Approved"
+        job.additional_approval_required = True
+        line_status = "Approved"
+        message = "2nd Approval marked Approved."
+    elif action == "reject":
+        job.second_approval_status = "Rejected"
+        job.additional_approval_required = True
+        line_status = "Rejected"
+        message = "2nd Approval marked Rejected."
+    else:
+        messages.error(request, "Invalid 2nd Approval action.")
+        return redirect("jobcard_edit", pk=job.id)
+
+    job.save(update_fields=[
+        "additional_approval_required",
+        "second_approval_status",
+    ])
+
+    allocation = getattr(job, "allocation", None)
+    if allocation:
+        allocation.parts.filter(
+            is_additional=True,
+            advisor_approval_status="Pending",
+        ).update(advisor_approval_status=line_status)
+        allocation.labours.filter(
+            is_additional=True,
+            advisor_approval_status="Pending",
+        ).update(advisor_approval_status=line_status)
+
+    messages.success(request, message)
+    return redirect("jobcard_edit", pk=job.id)
+
+
 @never_cache
 @login_required
 def jobcard_list_api(request):
+    logged_emp = Employee.objects.filter(user=request.user).first()
     jobs = JobCard.objects.select_related(
         "claim",
         "advisor",
@@ -3172,7 +3797,8 @@ def jobcard_list_api(request):
         "allocation__parts",
     ).all()
 
-    repair_status = request.GET.get("repair_status", "Open").strip()
+    repair_status = request.GET.get("repair_status", "").strip()
+    work_progress_filter = request.GET.get("work_progress", "").strip()
     date_from = request.GET.get("date_from", "").strip()
     date_to = request.GET.get("date_to", "").strip()
 
@@ -3184,11 +3810,31 @@ def jobcard_list_api(request):
 
     if date_to:
         jobs = jobs.filter(job_date__date__lte=date_to)
+    if request.user.is_superuser:
+        pass  # keep all jobs
 
+    elif logged_emp and logged_emp.employee_type.upper() == "ADVISOR":
+        jobs = jobs.filter(advisor=logged_emp)
+
+    else:
+        pass  # keep all jobs
     data = []
 
     for job in jobs:
         allocation = getattr(job, "allocation", None)
+        work_progress_status = get_work_progress_status(allocation)
+
+        if job.additional_approval_required and job.second_approval_status:
+            work_progress_status = (
+                f"{work_progress_status} / 2nd Approval {job.second_approval_status}"
+            )
+
+        if (
+            work_progress_filter
+            and work_progress_filter.lower() != "all"
+            and work_progress_filter not in work_progress_status
+        ):
+            continue
 
         data.append({
             "id": job.id,
@@ -3202,7 +3848,7 @@ def jobcard_list_api(request):
             "vehicle_inward_type": job.vehicle_inward_type,
             "gate_in_datetime": job.gate_in_datetime,
             "repair_status": job.repair_status,
-            "work_progress_status": get_work_progress_status(allocation),
+            "work_progress_status": work_progress_status,
             "parts_not_available_status": get_parts_not_available_status(allocation),
             "parts_total": job.parts_total,
             "labour_total": job.labour_total,
@@ -3250,6 +3896,40 @@ from .forms import ItemExcelUploadForm
 @login_required
 def upload_itemdata_excel(request):
     if request.method == "POST":
+        if request.POST.get("part_master_action") == "save":
+            item_id = request.POST.get("item_id") or ""
+            part_no = (request.POST.get("part_no") or "").strip().upper()
+            part_description = (request.POST.get("part_description") or "").strip()
+            model_name = (request.POST.get("model") or "").strip()
+
+            if not part_no or not part_description:
+                messages.error(request, "Part No and Part Description are required.")
+                return redirect("part")
+
+            duplicate_qs = ItemData.objects.filter(item_code__iexact=part_no)
+
+            if item_id:
+                duplicate_qs = duplicate_qs.exclude(id=item_id)
+
+            if duplicate_qs.exists():
+                messages.error(request, f"Part No {part_no} already exists.")
+                return redirect("part")
+
+            if item_id:
+                item = get_object_or_404(ItemData, id=item_id)
+                message = "Part updated successfully."
+            else:
+                item = ItemData()
+                message = "Part saved successfully."
+
+            item.item_code = part_no
+            item.item_name = part_description
+            item.category = model_name
+            item.status = "Active"
+            item.save()
+            messages.success(request, message)
+            return redirect("part")
+
         form = ItemExcelUploadForm(request.POST, request.FILES)
 
         if form.is_valid():
@@ -3295,13 +3975,37 @@ def upload_itemdata_excel(request):
             return redirect("partlist")
 
         messages.error(request, "Invalid form or file not selected.")
-        return redirect("upload_itemdata_excel")
+        return redirect("part")
 
     else:
         form = ItemExcelUploadForm()
 
+    search_text = (request.GET.get("q") or "").strip()
+    edit_id = request.GET.get("edit") or ""
+    items = ItemData.objects.all().order_by("item_name")
+
+    if search_text:
+        items = items.filter(
+            Q(item_code__icontains=search_text)
+            | Q(item_name__icontains=search_text)
+            | Q(category__icontains=search_text)
+        )
+
+    edit_item = ItemData.objects.filter(id=edit_id).first() if edit_id else None
+    model_options = (
+        ItemData.objects.exclude(category__isnull=True)
+        .exclude(category="")
+        .values_list("category", flat=True)
+        .distinct()
+        .order_by("category")
+    )
+
     return render(request, "master/partmaster.html", {
-        "form": form
+        "form": form,
+        "items": items[:100],
+        "edit_item": edit_item,
+        "search_text": search_text,
+        "model_options": model_options,
     })
 
 
@@ -3573,7 +4277,7 @@ def part_order_print(request, header_id):
     return render(request, "parts/partOrderPrint.html", {
         "header": header,
         "job": job,
-        "job_created_date_value": job.job_date.strftime("%Y-%m-%d") if job.job_date else "",
+        "job_created_date_value": datetime_local_value(job.job_date),
         "claim": claim,
         "vehicle": vehicle,
         "lines": lines,
@@ -4947,6 +5651,305 @@ def get_parts_not_available_status(allocation):
     return "No PNA"
 
 
+def get_control_board_allocated_at(allocation):
+    if not allocation:
+        return None
+
+    first_progress = (
+        allocation.progress
+        .filter(start_time__isnull=False)
+        .order_by("start_time")
+        .first()
+    )
+
+    if first_progress:
+        return first_progress.start_time
+
+    return allocation.allotment_date
+
+
+def get_control_board_current_status(allocation):
+    if not allocation:
+        return "Work Allocation Pending", "bg-warning text-dark"
+
+    job = allocation.job
+    if (
+        job.repair_status == "Completed"
+        or int(job.claim.claim_stage or 0) >= ClaimStageCode.WORK_COMPLETED
+    ):
+        return "Work Completed", "bg-success"
+
+    running_progress = (
+        allocation.progress
+        .filter(start_time__isnull=False, finish_time__isnull=True)
+        .order_by("-start_time", "-id")
+        .first()
+    )
+    if running_progress:
+        return f"{running_progress.get_stage_display()} Running", "bg-primary"
+
+    finished_progress = (
+        allocation.progress
+        .filter(finish_time__isnull=False)
+        .order_by("-finish_time", "-id")
+        .first()
+    )
+    if finished_progress:
+        return f"{finished_progress.get_stage_display()} Completed", "bg-info text-dark"
+
+    status = get_work_progress_status(allocation)
+    return status, "bg-warning text-dark" if status == "Work Allocation Pending" else "bg-info text-dark"
+
+
+def control_board_date_value(value):
+    if not value:
+        return None
+
+    if hasattr(value, "date"):
+        return timezone.localdate(value)
+
+    return value
+
+
+def get_control_board_in_date(job):
+    return control_board_date_value(job.gate_in_datetime) or job.job_date
+
+
+def get_control_board_promise_date(job):
+    return (
+        control_board_date_value(job.expected_delivery_datetime)
+        or control_board_date_value(job.estimated_delivery)
+    )
+
+
+def get_control_board_tat_days(job):
+    in_date = get_control_board_in_date(job)
+
+    if not in_date:
+        return ""
+
+    claim = job.claim
+    is_closed = (
+        job.repair_status == "Closed"
+        and int(claim.claim_stage or 0) == ClaimStageCode.CLOSED
+    )
+
+    end_date = timezone.localdate()
+    if is_closed:
+        end_date = (
+            control_board_date_value(claim.delivery_datetime)
+            or control_board_date_value(job.actual_delivery)
+            or end_date
+        )
+
+    return max((end_date - in_date).days, 0)
+
+
+def get_control_board_promise_class(job):
+    promise_date = get_control_board_promise_date(job)
+    if not promise_date:
+        return ""
+
+    today = timezone.localdate()
+    days_left = (promise_date - today).days
+
+    if days_left < 0:
+        return "promise-overdue"
+
+    if days_left <= 2:
+        return "promise-warning"
+
+    return ""
+
+
+def control_board_datetime_value(value):
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        return value if timezone.is_aware(value) else timezone.make_aware(value)
+
+    value = datetime.combine(value, datetime_time.min)
+    return timezone.make_aware(value)
+
+
+def control_board_timeline_created_at(claim, keywords):
+    if not claim:
+        return None
+
+    keywords = [keyword.upper() for keyword in keywords]
+    timeline_rows = list(getattr(claim, "_prefetched_objects_cache", {}).get("timeline", []))
+    if not timeline_rows:
+        timeline_rows = list(claim.timeline.all())
+
+    for row in timeline_rows:
+        text = f"{row.stage or ''} {row.remarks or ''}".upper()
+        if all(keyword in text for keyword in keywords):
+            return row.created_at
+
+    return None
+
+
+def control_board_duration_text(start_at, end_at):
+    if not start_at or not end_at:
+        return "Not recorded"
+
+    seconds = max(int((end_at - start_at).total_seconds()), 0)
+    days = seconds // 86400
+    hours = (seconds % 86400) // 3600
+    minutes = (seconds % 3600) // 60
+
+    return f"{days}d {hours}h {minutes}m"
+
+
+def get_control_board_tat_timeline(job):
+    claim = job.claim
+    allocation = getattr(job, "allocation", None)
+    first_progress = None
+    last_progress = None
+
+    if allocation:
+        first_progress = (
+            allocation.progress
+            .filter(start_time__isnull=False)
+            .order_by("start_time")
+            .first()
+        )
+        last_progress = (
+            allocation.progress
+            .filter(finish_time__isnull=False)
+            .order_by("-finish_time")
+            .first()
+        )
+
+    events = [
+        ("Gate In", control_board_datetime_value(job.gate_in_datetime)),
+        ("Claim Created", control_board_datetime_value(claim.created_at)),
+        (
+            "Advisor Assigned",
+            control_board_timeline_created_at(claim, ["ADVISOR"])
+            or control_board_timeline_created_at(claim, ["ASSIGNED"]),
+        ),
+        ("Jobcard Created", control_board_datetime_value(job.created_at)),
+        ("Claim Intimation", control_board_datetime_value(claim.intimation_date)),
+        ("Survey Done", control_board_datetime_value(claim.survey_date)),
+        ("Insurance Approval", control_board_datetime_value(claim.insurance_approval_date)),
+        ("Work Allocation", control_board_datetime_value(allocation.allotment_date) if allocation else None),
+        ("Repair Started", first_progress.start_time if first_progress else None),
+        ("Work Completed", last_progress.finish_time if last_progress else None),
+        ("Re Inspection", control_board_datetime_value(job.reinspection_date)),
+        ("Liability", control_board_datetime_value(claim.liability_received_at)),
+        ("Invoiced", control_board_datetime_value(claim.invoice_datetime)),
+        ("Delivery / Closed", control_board_datetime_value(claim.delivery_datetime)),
+    ]
+
+    rows = []
+    for index in range(1, len(events)):
+        start_label, start_at = events[index - 1]
+        end_label, end_at = events[index]
+        rows.append({
+            "label": f"{start_label} → {end_label}",
+            "start_at": start_at,
+            "end_at": end_at,
+            "duration": control_board_duration_text(start_at, end_at),
+        })
+
+    return rows
+
+
+def get_control_board_stage_and_status(allocation, pna_parts):
+    job = allocation.job
+    claim = job.claim
+
+    if (
+        job.repair_status == "Closed"
+        and int(claim.claim_stage or 0) == ClaimStageCode.CLOSED
+    ):
+        return "Delivered", "🟢 Delivered", "status-ready"
+
+    if (
+        job.repair_status == "Completed"
+        or int(claim.claim_stage or 0) >= ClaimStageCode.WORK_COMPLETED
+    ):
+        return "Work Completed", "🟢 Work Completed", "status-ready"
+
+    if pna_parts:
+        return "Parts Ordered", "🟠 Waiting Parts", "status-waiting"
+
+    if job.ready_for_delivery or int(claim.claim_stage or 0) >= ClaimStageCode.DELIVERY:
+        return "Ready For Delivery", "🟢 Ready For Delivery", "status-ready"
+
+    if job.qc_done:
+        return "QC Done", "🟢 Ready For Delivery", "status-ready"
+
+    running_progress = (
+        allocation.progress
+        .filter(start_time__isnull=False, finish_time__isnull=True)
+        .order_by("-start_time", "-id")
+        .first()
+    )
+    if running_progress:
+        return running_progress.get_stage_display(), "🔵 In Process", "status-process"
+
+    return claim.get_claim_stage_display(), "🟡 Pending", "status-pending"
+
+
+def get_control_board_progress_status(allocation):
+    job = allocation.job
+
+    if job.reinspection_done:
+        return "RI Done"
+
+    if job.qc_done:
+        return "QC Done"
+
+    if (
+        job.repair_status == "Completed"
+        or int(job.claim.claim_stage or 0) >= ClaimStageCode.WORK_COMPLETED
+    ):
+        return "Work Completed"
+
+    running_progress = (
+        allocation.progress
+        .filter(start_time__isnull=False, finish_time__isnull=True)
+        .order_by("-start_time", "-id")
+        .first()
+    )
+    if running_progress:
+        return f"{running_progress.get_stage_display()} Running"
+
+    finished_progress = (
+        allocation.progress
+        .filter(finish_time__isnull=False)
+        .order_by("-finish_time", "-id")
+        .first()
+    )
+    if finished_progress:
+        return f"{finished_progress.get_stage_display()} Completed"
+
+    allocated_progress = (
+        allocation.progress
+        .filter(employee__isnull=False)
+        .order_by("-id")
+        .first()
+    )
+    if allocated_progress:
+        return f"{allocated_progress.get_stage_display()} Allocated"
+
+    return "Progress Not Started"
+
+
+def get_control_board_pna_parts(allocation):
+    if not allocation:
+        return []
+
+    return [
+        part
+        for part in allocation.parts.all()
+        if part.decision in ["New", "KO"] and not part.pick_from_store
+    ]
+
+
 def progress_row_has_data(progress):
     return bool(
         progress
@@ -4971,6 +5974,239 @@ def claim_has_repair_progress_data(claim):
     return any(progress_row_has_data(progress) for progress in progress_qs)
 
 
+def workshop_resource_queryset():
+    return Employee.objects.filter(
+        is_active=True
+    ).filter(
+        Q(designation__icontains="Denter")
+        | Q(designation__icontains="Painter")
+        | Q(designation__icontains="Technician")
+        | Q(designation__icontains="Paint")
+        | Q(employee_type__icontains="Denter")
+        | Q(employee_type__icontains="Painter")
+        | Q(employee_type__icontains="Technician")
+    ).order_by("designation", "name")
+
+
+def clamp_hour(value, default):
+    try:
+        hour = int(value)
+    except (TypeError, ValueError):
+        return default
+
+    return max(0, min(hour, 23))
+
+
+def resource_slot_payload(progress):
+    job = progress.allocation.job
+    claim = job.claim
+    vehicle = claim.vehicle if claim else None
+
+    return {
+        "job_id": job.id,
+        "job_no": job.job_no,
+        "claim_no": claim.claim_no if claim else "",
+        "registration_no": vehicle.registration_no if vehicle else "",
+        "model": (
+            vehicle.model.name
+            if vehicle and vehicle.model
+            else ""
+        ),
+        "stage": progress.get_stage_display(),
+        "is_running": not bool(progress.finish_time),
+    }
+
+
+@never_cache
+@xframe_options_sameorigin
+@login_required
+def workshop_resource_view(request):
+    from datetime import time, timedelta
+
+    logged_emp = Employee.objects.filter(user=request.user).first()
+
+    if not (
+        request.user.is_superuser
+        or is_admin_or_manager_user(request.user, logged_emp)
+        or is_floor_supervisor(logged_emp)
+    ):
+        messages.error(request, "You are not allowed to access Workshop Resource.")
+        return redirect("dashboard")
+
+    today = timezone.localdate()
+    from_date = parse_date(request.GET.get("from_date") or "") or today
+    to_date = parse_date(request.GET.get("to_date") or "") or from_date
+
+    if to_date < from_date:
+        to_date = from_date
+
+    max_days = 7
+    if (to_date - from_date).days >= max_days:
+        to_date = from_date + timedelta(days=max_days - 1)
+        messages.info(request, "Workshop resource view is limited to 7 days at a time.")
+
+    start_hour = clamp_hour(request.GET.get("start_hour"), 9)
+    end_hour = clamp_hour(request.GET.get("end_hour"), 19)
+    selected_employee_id = request.GET.get("employee_id") or ""
+    resource_query = (request.GET.get("resource_q") or "").strip()
+    role_filter = (request.GET.get("role") or "").strip()
+
+    if end_hour <= start_hour:
+        end_hour = min(start_hour + 1, 23)
+
+    previous_from_date = from_date - timedelta(days=1)
+    previous_to_date = to_date - timedelta(days=1)
+    next_from_date = from_date + timedelta(days=1)
+    next_to_date = to_date + timedelta(days=1)
+    hours = list(range(start_hour, end_hour))
+    base_resources = list(workshop_resource_queryset())
+    resource_roles = sorted({
+        resource.designation or resource.employee_type
+        for resource in base_resources
+        if resource.designation or resource.employee_type
+    })
+    filtered_resources = base_resources
+
+    if resource_query:
+        query = resource_query.lower()
+        filtered_resources = [
+            resource
+            for resource in filtered_resources
+            if query in (resource.name or "").lower()
+            or query in (resource.employee_code or "").lower()
+            or query in (resource.designation or "").lower()
+        ]
+
+    if role_filter:
+        filtered_resources = [
+            resource
+            for resource in filtered_resources
+            if (resource.designation or resource.employee_type) == role_filter
+        ]
+
+    resources = filtered_resources
+    current_tz = timezone.get_current_timezone()
+    range_start = timezone.make_aware(
+        datetime.combine(from_date, time(start_hour, 0)),
+        current_tz,
+    )
+    range_end = timezone.make_aware(
+        datetime.combine(to_date, time(end_hour, 0)),
+        current_tz,
+    )
+
+    progress_rows = list(
+        WorkProgress.objects.select_related(
+            "employee",
+            "allocation",
+            "allocation__job",
+            "allocation__job__claim",
+            "allocation__job__claim__vehicle",
+            "allocation__job__claim__vehicle__model",
+        )
+        .filter(
+            employee__in=resources,
+            start_time__isnull=False,
+            start_time__lt=range_end,
+        )
+        .filter(
+            Q(finish_time__isnull=True)
+            | Q(finish_time__gt=range_start)
+        )
+        .order_by("start_time", "id")
+    )
+
+    progress_by_employee = {}
+    for progress in progress_rows:
+        progress_by_employee.setdefault(progress.employee_id, []).append(progress)
+
+    days = []
+    current_day = from_date
+    now = timezone.now()
+
+    while current_day <= to_date:
+        day_rows = []
+
+        for employee in resources:
+            cells = []
+            busy_hours = 0
+
+            for hour in hours:
+                slot_start = timezone.make_aware(
+                    datetime.combine(current_day, time(hour, 0)),
+                    current_tz,
+                )
+                slot_end = slot_start + timedelta(hours=1)
+                items = []
+
+                for progress in progress_by_employee.get(employee.id, []):
+                    progress_start = progress.start_time
+                    progress_end = progress.finish_time or now
+
+                    if progress_end < progress_start:
+                        progress_end = progress_start
+
+                    if progress_start < slot_end and progress_end > slot_start:
+                        items.append(resource_slot_payload(progress))
+
+                if items:
+                    busy_hours += 1
+
+                cells.append({
+                    "label": f"{hour:02d}:00",
+                    "items": items,
+                })
+
+            day_rows.append({
+                "employee": employee,
+                "role": employee.designation or employee.employee_type,
+                "busy_hours": busy_hours,
+                "available_hours": len(hours) - busy_hours,
+                "cells": cells,
+                "is_selected": str(employee.id) == selected_employee_id,
+            })
+
+        busy_resource_count = sum(1 for row in day_rows if row["busy_hours"] > 0)
+        days.append({
+            "date": current_day,
+            "rows": day_rows,
+            "busy_resource_count": busy_resource_count,
+            "free_resource_count": len(day_rows) - busy_resource_count,
+        })
+        current_day += timedelta(days=1)
+
+    return render(request, "floor/workshopResource.html", {
+        "days": days,
+        "hours": hours,
+        "filter_from_date": from_date.strftime("%Y-%m-%d"),
+        "filter_to_date": to_date.strftime("%Y-%m-%d"),
+        "start_hour": start_hour,
+        "end_hour": end_hour,
+        "previous_from_date": previous_from_date.strftime("%Y-%m-%d"),
+        "previous_to_date": previous_to_date.strftime("%Y-%m-%d"),
+        "next_from_date": next_from_date.strftime("%Y-%m-%d"),
+        "next_to_date": next_to_date.strftime("%Y-%m-%d"),
+        "resource_count": len(resources),
+        "total_resource_count": len(base_resources),
+        "resource_query": resource_query,
+        "role_filter": role_filter,
+        "resource_roles": resource_roles,
+        "selected_employee_id": selected_employee_id,
+        "modal_mode": request.GET.get("modal") == "1",
+        "breadcrumbs": [
+            {
+                "title": "WorkShop / Floor",
+                "url": "",
+                "icon": "fa fa-list",
+            },
+            {
+                "title": "Workshop Resource",
+                "icon": "fa fa-calendar",
+            },
+        ],
+    })
+
+
 @never_cache
 @login_required
 def work_allocation_list(request):
@@ -4978,7 +6214,7 @@ def work_allocation_list(request):
         user=request.user
     ).first()
 
-    if not logged_emp or logged_emp.employee_type != "Floor Supervisor":
+    if not is_floor_supervisor(logged_emp):
         messages.error(request, "You are not allowed to access Work Allocation")
         return redirect("dashboard")
 
@@ -5012,6 +6248,14 @@ def work_allocation_list(request):
         ):
             job.work_allocation_status = "Work Completed"
             job.work_allocation_status_class = "bg-success"
+        elif (
+            job.additional_approval_required
+            and (job.second_approval_status or "Pending") == "Pending"
+        ):
+            job.work_allocation_status = (
+                f"2nd Approval {job.second_approval_status or 'Pending'}"
+            )
+            job.work_allocation_status_class = "bg-danger"
         else:
             job.work_allocation_status = get_work_progress_status(allocation)
             job.work_allocation_status_class = (
@@ -5061,6 +6305,357 @@ def work_allocation_list(request):
 
 @never_cache
 @login_required
+def bodyshop_control_menu(request):
+    logged_emp = Employee.objects.filter(user=request.user).first()
+
+    if not (
+        request.user.is_superuser
+        or is_admin_or_manager_user(request.user, logged_emp)
+        or is_floor_supervisor(logged_emp)
+    ):
+        messages.error(request, "You are not allowed to access Bodyshop Control Board")
+        return redirect("dashboard")
+
+    today = timezone.localdate()
+    allocations = (
+        WorkAllocation.objects
+        .select_related(
+            "job",
+            "job__claim",
+            "job__claim__vehicle",
+            "job__claim__vehicle__customer",
+            "job__claim__vehicle__model",
+            "job__claim__insurance_company",
+            "job__claim__surveyor",
+            "job__advisor",
+        )
+        .prefetch_related("progress", "parts", "parts__job_part")
+        .filter(job__claim__claim_stage__lt=ClaimStageCode.CLOSED)
+        .exclude(job__repair_status="Closed")
+    )
+
+    status_counts = {
+        "pending": 0,
+        "waiting_parts": 0,
+        "in_process": 0,
+        "work_completed": 0,
+        "ready": 0,
+        "delivered": 0,
+    }
+    delay_count = 0
+    today_delivery_count = 0
+    parts_pending_count = 0
+    technician_workload = {}
+    tat_buckets = {
+        "0-2 Days": 0,
+        "3-5 Days": 0,
+        "6-10 Days": 0,
+        "10+ Days": 0,
+    }
+
+    for allocation in allocations:
+        job = allocation.job
+        pna_parts = get_control_board_pna_parts(allocation)
+        _, board_status, _ = get_control_board_stage_and_status(allocation, pna_parts)
+        status_key = "pending"
+
+        if "Waiting Parts" in board_status:
+            status_key = "waiting_parts"
+        elif "In Process" in board_status:
+            status_key = "in_process"
+        elif "Work Completed" in board_status:
+            status_key = "work_completed"
+        elif "Ready For Delivery" in board_status:
+            status_key = "ready"
+        elif "Delivered" in board_status:
+            status_key = "delivered"
+
+        status_counts[status_key] += 1
+
+        promise_date = get_control_board_promise_date(job)
+        if promise_date and promise_date < today:
+            delay_count += 1
+        if promise_date == today or (
+            job.claim.delivery_datetime
+            and workflow_date_value(job.claim.delivery_datetime).date() == today
+        ):
+            today_delivery_count += 1
+
+        if pna_parts:
+            parts_pending_count += 1
+
+        tat_days = get_control_board_tat_days(job)
+        if tat_days != "":
+            if tat_days <= 2:
+                tat_buckets["0-2 Days"] += 1
+            elif tat_days <= 5:
+                tat_buckets["3-5 Days"] += 1
+            elif tat_days <= 10:
+                tat_buckets["6-10 Days"] += 1
+            else:
+                tat_buckets["10+ Days"] += 1
+
+        running_rows = allocation.progress.filter(
+            start_time__isnull=False,
+            finish_time__isnull=True,
+            employee__isnull=False,
+        )
+        for progress in running_rows:
+            name = progress.employee.name if progress.employee else "Unassigned"
+            technician_workload[name] = technician_workload.get(name, 0) + 1
+
+    insurance_approval_pending = Claim.objects.filter(
+        claim_stage__gte=ClaimStageCode.SURVEY,
+        claim_stage__lt=ClaimStageCode.INSURANCE_APPROVAL,
+    ).count()
+
+    workload_rows = sorted(
+        [
+            {"name": name, "count": count}
+            for name, count in technician_workload.items()
+        ],
+        key=lambda row: row["count"],
+        reverse=True,
+    )[:8]
+
+    tat_rows = [
+        {"label": label, "count": count}
+        for label, count in tat_buckets.items()
+    ]
+    max_tat_count = max([row["count"] for row in tat_rows] + [1])
+    for row in tat_rows:
+        row["width"] = max(int((row["count"] / max_tat_count) * 100), 6) if row["count"] else 0
+
+    module_cards = [
+        {
+            "title": "Stage-wise Kanban Board",
+            "subtitle": "Live vehicle stage board",
+            "count": allocations.count(),
+            "class": "module-primary",
+            "url": reverse("bodyshop_control_board"),
+        },
+        {
+            "title": "Delay Vehicles",
+            "subtitle": "Promise date overdue",
+            "count": delay_count,
+            "class": "module-danger",
+            "url": f"{reverse('bodyshop_control_board')}?status=open",
+        },
+        {
+            "title": "Today's Delivery List",
+            "subtitle": "Due or delivered today",
+            "count": today_delivery_count,
+            "class": "module-success",
+            "url": f"{reverse('bodyshop_control_board')}?status=open",
+        },
+        {
+            "title": "Insurance Approval Pending",
+            "subtitle": "Survey done, approval pending",
+            "count": insurance_approval_pending,
+            "class": "module-warning",
+            "url": f"{reverse('bodyshop_control_board')}?status=open",
+        },
+        {
+            "title": "Parts Pending",
+            "subtitle": "PNA / waiting parts",
+            "count": parts_pending_count,
+            "class": "module-orange",
+            "url": reverse("part_order_list"),
+        },
+        {
+            "title": "Technician Workload",
+            "subtitle": "Running jobs by resource",
+            "count": sum(row["count"] for row in workload_rows),
+            "class": "module-info",
+            "url": reverse("workshop_resource"),
+        },
+        {
+            "title": "TAT Graph",
+            "subtitle": "Ageing by in-date",
+            "count": sum(row["count"] for row in tat_rows),
+            "class": "module-purple",
+            "url": reverse("bodyshop_control_board"),
+        },
+        {
+            "title": "Live Vehicle Count by Status",
+            "subtitle": "Current board summary",
+            "count": sum(status_counts.values()),
+            "class": "module-dark",
+            "url": reverse("bodyshop_control_board"),
+        },
+    ]
+
+    status_rows = [
+        {"label": "Pending", "count": status_counts["pending"], "class": "status-pending"},
+        {"label": "Waiting Parts", "count": status_counts["waiting_parts"], "class": "status-waiting"},
+        {"label": "In Process", "count": status_counts["in_process"], "class": "status-process"},
+        {"label": "Work Completed", "count": status_counts["work_completed"], "class": "status-completed"},
+        {"label": "Ready For Delivery", "count": status_counts["ready"], "class": "status-ready"},
+        {"label": "Delivered", "count": status_counts["delivered"], "class": "status-delivered"},
+    ]
+
+    return render(request, "floor/bodyshopControlMenu.html", {
+        "module_cards": module_cards,
+        "status_rows": status_rows,
+        "tat_rows": tat_rows,
+        "workload_rows": workload_rows,
+        "breadcrumbs": [
+            {
+                "title": "WorkShop/Floor",
+                "url": "",
+                "icon": "fa fa-list",
+            },
+            {
+                "title": "Control Board",
+                "icon": "fa fa-table",
+            },
+        ],
+    })
+
+
+@never_cache
+@login_required
+def bodyshop_control_board(request):
+    logged_emp = Employee.objects.filter(user=request.user).first()
+
+    if not (
+        request.user.is_superuser
+        or is_admin_or_manager_user(request.user, logged_emp)
+        or is_floor_supervisor(logged_emp)
+    ):
+        messages.error(request, "You are not allowed to access Bodyshop Control Board")
+        return redirect("dashboard")
+
+    search = (request.GET.get("search") or "").strip()
+    status_filter = request.GET.get("status") or "open"
+    insurance_filter = request.GET.get("insurance") or ""
+    advisor_filter = request.GET.get("advisor") or ""
+    surveyor_filter = request.GET.get("surveyor") or ""
+
+    allocations = (
+        WorkAllocation.objects
+        .select_related(
+            "job",
+            "job__claim",
+            "job__claim__vehicle",
+            "job__claim__vehicle__customer",
+            "job__claim__vehicle__model",
+            "job__claim__insurance_company",
+            "job__claim__surveyor",
+            "job__advisor",
+        )
+        .prefetch_related(
+            "progress",
+            "parts",
+            "parts__job_part",
+            "job__claim__timeline",
+        )
+        .order_by("-allotment_date", "-job__id")
+    )
+
+    if status_filter == "open":
+        allocations = allocations.filter(
+            job__claim__claim_stage__lt=ClaimStageCode.CLOSED
+        ).exclude(job__repair_status="Closed")
+    elif status_filter == "completed":
+        allocations = allocations.filter(job__repair_status="Completed")
+    elif status_filter == "closed":
+        allocations = allocations.filter(
+            Q(job__claim__claim_stage=ClaimStageCode.CLOSED)
+            | Q(job__repair_status="Closed")
+        )
+
+    if search:
+        allocations = allocations.filter(
+            Q(job__job_no__icontains=search)
+            | Q(job__claim__claim_no__icontains=search)
+            | Q(job__claim__vehicle__registration_no__icontains=search)
+            | Q(job__claim__vehicle__customer__name__icontains=search)
+            | Q(job__claim__vehicle__model__name__icontains=search)
+        )
+
+    if insurance_filter:
+        allocations = allocations.filter(job__claim__insurance_company_id=insurance_filter)
+
+    if advisor_filter:
+        allocations = allocations.filter(job__advisor_id=advisor_filter)
+
+    if surveyor_filter:
+        allocations = allocations.filter(job__claim__surveyor_id=surveyor_filter)
+
+    rows = []
+    pna_count = 0
+    work_completed_count = 0
+    running_count = 0
+
+    for allocation in allocations:
+        status_text, status_class = get_control_board_current_status(allocation)
+        pna_parts = get_control_board_pna_parts(allocation)
+        current_stage, board_status, board_status_class = (
+            get_control_board_stage_and_status(allocation, pna_parts)
+        )
+
+        if pna_parts:
+            pna_count += 1
+        if status_text == "Work Completed":
+            work_completed_count += 1
+        if "Running" in status_text:
+            running_count += 1
+
+        rows.append({
+            "allocation": allocation,
+            "job": allocation.job,
+            "allocated_at": get_control_board_allocated_at(allocation),
+            "in_date": get_control_board_in_date(allocation.job),
+            "promise_date": get_control_board_promise_date(allocation.job),
+            "promise_class": get_control_board_promise_class(allocation.job),
+            "tat_days": get_control_board_tat_days(allocation.job),
+            "tat_timeline": get_control_board_tat_timeline(allocation.job),
+            "current_stage": current_stage,
+            "claim_stage": allocation.job.claim.get_claim_stage_display(),
+            "progress_status": get_control_board_progress_status(allocation),
+            "board_status": board_status,
+            "board_status_class": board_status_class,
+            "status_text": status_text,
+            "status_class": status_class,
+            "pna_parts": pna_parts,
+        })
+
+    return render(request, "floor/bodyshopControlBoard.html", {
+        "rows": rows,
+        "search": search,
+        "status_filter": status_filter,
+        "insurance_filter": insurance_filter,
+        "advisor_filter": advisor_filter,
+        "surveyor_filter": surveyor_filter,
+        "insurance_options": InsuranceCompany.objects.all().order_by("ins_co_name"),
+        "advisor_options": Employee.objects.filter(
+            is_active=True
+        ).filter(
+            Q(employee_type__iexact="Advisor")
+            | Q(designation__iexact="Advisor")
+        ).order_by("name"),
+        "surveyor_options": Surveyor.objects.all().order_by("name"),
+        "total_count": len(rows),
+        "pna_count": pna_count,
+        "work_completed_count": work_completed_count,
+        "running_count": running_count,
+        "breadcrumbs": [
+            {
+                "title": "WorkShop/Floor",
+                "url": "",
+                "icon": "fa fa-list",
+            },
+            {
+                "title": "Bodyshop Control Board",
+                "icon": "fa fa-table",
+            },
+        ],
+    })
+
+
+@never_cache
+@login_required
 def work_allocation_entry(request, job_id):
     from django.utils.dateparse import parse_date, parse_datetime
 
@@ -5076,21 +6671,19 @@ def work_allocation_entry(request, job_id):
             job=job
         )
     )
-    if created:
-
-        for stage_key, stage_label in WorkProgress.STAGES:
-            WorkProgress.objects.create(
-                allocation=allocation,
-                stage=stage_key
-            )
+    progress_qs = allocation.progress.all().prefetch_related("photos")
     progress_map = {
-        p.stage: p
-        for p in allocation.progress.all()
+        p.id: p
+        for p in progress_qs
     }
     existing_reinspection_photo_count = job.reinspection_photos.count()
     existing_reinspection_photo_size = get_reinspection_photo_storage_size(job)
 
     if request.method == "POST":
+        had_allocated_progress = any(
+            progress.stage or progress.employee_id
+            for progress in progress_qs
+        )
         old_progress_state = {
             stage: {
                 "start_time": progress.start_time,
@@ -5144,32 +6737,71 @@ def work_allocation_entry(request, job_id):
         posted_qc_done = request.POST.get("mark_qc_done") == "1"
         posted_reinspection_done = request.POST.get("reinspection_done") == "1"
         posted_part_entry_complete = request.POST.get("part_entry_complete") == "1"
-        posted_reinspection_date = parse_date(
+        posted_reinspection_date = parse_workflow_datetime(
             request.POST.get("reinspection_date") or ""
         )
         posted_reinspection_done_by = request.POST.get(
             "reinspection_done_by",
             ""
         ).strip()
+        posted_allotment_date = (
+            parse_workflow_datetime(request.POST.get("allotment_date") or "")
+            or allocation.allotment_date
+        )
+        validate_labels = set()
+        if workflow_date_changed(allocation.allotment_date, posted_allotment_date):
+            validate_labels.add("Work Allocation Date")
+        if workflow_date_changed(job.reinspection_date, posted_reinspection_date):
+            validate_labels.add("Re-Inspection Date")
 
-        if not posted_work_completed and (
+        date_error = validate_workflow_dates([
+            ("Gate In Date", job.gate_in_datetime),
+            ("Claim Created Date", job.claim.created_at if job.claim else None),
+            ("Jobcard Created Date", job.job_date or job.created_at),
+            ("Claim Intimation Date", job.claim.intimation_date if job.claim else None),
+            ("Survey Date", job.claim.survey_date if job.claim else None),
+            ("Insurance Approval Date", job.claim.insurance_approval_date if job.claim else None),
+            ("Work Allocation Date", posted_allotment_date),
+            ("Re-Inspection Date", posted_reinspection_date),
+            ("Liability Received Date", job.claim.liability_received_at if job.claim else None),
+            ("Invoice Date", job.claim.invoice_datetime if job.claim else None),
+            ("Delivery Date", job.claim.delivery_datetime if job.claim else None),
+        ], validate_labels=validate_labels)
+        if date_error:
+            messages.error(request, date_error)
+            return redirect("work_allocation_entry", job_id=job.id)
+
+        future_error = validate_no_future_workflow_dates([
+            ("Work Allocation Date", posted_allotment_date),
+            ("Re-Inspection Date", posted_reinspection_date),
+        ])
+        if future_error:
+            messages.error(request, future_error)
+            return redirect("work_allocation_entry", job_id=job.id)
+
+        if posted_work_completed and not (
             posted_qc_done
-            or posted_reinspection_done
-            or posted_part_entry_complete
-            or posted_reinspection_date
-            or posted_reinspection_done_by
-            or uploaded_reinspection_images
+            and posted_reinspection_done
+            and posted_part_entry_complete
         ):
             messages.error(
                 request,
-                "Tick Work Completed before saving QC Done, Re-Inspection, Part Entry, or RI images."
+                "Tick QC Done, Re-Inspection and Part Entry before Work Completed."
             )
             return redirect("work_allocation_entry", job_id=job.id)
 
-        allocation.allotment_date = (
-            parse_date(request.POST.get("allotment_date") or "")
-            or allocation.allotment_date
-        )
+        if (
+            posted_work_completed
+            and job.additional_approval_required
+            and (job.second_approval_status or "Pending") == "Pending"
+        ):
+            messages.error(
+                request,
+                "2nd Approval is pending. Advisor approval is required before Work Completed."
+            )
+            return redirect("work_allocation_entry", job_id=job.id)
+
+        allocation.allotment_date = posted_allotment_date
         allocation.delivery_date = parse_date(
             request.POST.get("delivery_date") or ""
         )
@@ -5183,7 +6815,10 @@ def work_allocation_entry(request, job_id):
         ).strip()
         allocation.part_entry_complete = posted_part_entry_complete
         allocation.save()
+        additional_approval_reasons = []
 
+        progress_ids = request.POST.getlist("progress_id[]")
+        progress_photo_keys = request.POST.getlist("progress_photo_key[]")
         stages = request.POST.getlist("stage[]")
         start_times = request.POST.getlist("start_time[]")
         finish_times = request.POST.getlist("finish_time[]")
@@ -5192,6 +6827,25 @@ def work_allocation_entry(request, job_id):
         clear_progress_photo_stages = set(
             request.POST.getlist("clear_progress_photo_stage[]")
         )
+        clear_progress_photo_ids = set(
+            request.POST.getlist("clear_progress_photo_id[]")
+        )
+        delete_progress_ids = {
+            value
+            for value in request.POST.getlist("delete_progress_id[]")
+            if value.isdigit()
+        }
+
+        if delete_progress_ids:
+            WorkProgress.objects.filter(
+                allocation=allocation,
+                id__in=delete_progress_ids,
+            ).delete()
+            progress_map = {
+                key: value
+                for key, value in progress_map.items()
+                if str(key) not in delete_progress_ids
+            }
 
         for index, start_time in enumerate(start_times):
             employee_id = (
@@ -5201,11 +6855,7 @@ def work_allocation_entry(request, job_id):
             )
 
             if start_time and not employee_id:
-                stage_key = (
-                    stages[index]
-                    if index < len(stages)
-                    else ""
-                )
+                stage_key = stages[index] if index < len(stages) else ""
                 stage_label = dict(WorkProgress.STAGES).get(
                     stage_key,
                     stage_key or "progress row"
@@ -5276,7 +6926,64 @@ def work_allocation_entry(request, job_id):
                 return redirect("work_allocation_entry", job_id=job.id)
 
         for index, stage in enumerate(stages):
-            progress = progress_map.get(stage)
+            progress_id = (
+                progress_ids[index]
+                if index < len(progress_ids)
+                else ""
+            )
+            start_time = (
+                start_times[index]
+                if index < len(start_times)
+                else ""
+            )
+            finish_time = (
+                finish_times[index]
+                if index < len(finish_times)
+                else ""
+            )
+            employee_id = (
+                employee_ids[index]
+                if index < len(employee_ids)
+                else ""
+            )
+            remarks = (
+                progress_remarks[index].strip()
+                if index < len(progress_remarks)
+                else ""
+            )
+            has_uploaded_photos = bool(
+                request.FILES.getlist(
+                    progress_photo_input_name(
+                        progress_photo_keys[index]
+                        if index < len(progress_photo_keys)
+                        else progress_id
+                    )
+                )
+            )
+
+            if not stage and not any([
+                start_time,
+                finish_time,
+                employee_id,
+                remarks,
+                has_uploaded_photos,
+            ]):
+                continue
+
+            if not stage:
+                messages.error(
+                    request,
+                    "Select Progress Type before saving progress row."
+                )
+                return redirect("work_allocation_entry", job_id=job.id)
+
+            progress = None
+            if progress_id:
+                progress = progress_map.get(int(progress_id)) if progress_id.isdigit() else None
+
+                if progress is None:
+                    messages.error(request, "Invalid progress row.")
+                    return redirect("work_allocation_entry", job_id=job.id)
 
             if progress is None:
                 progress = WorkProgress.objects.create(
@@ -5284,38 +6991,35 @@ def work_allocation_entry(request, job_id):
                     stage=stage
                 )
 
-            progress.start_time = parse_datetime(
-                start_times[index]
-            ) if index < len(start_times) and start_times[index] else None
-            progress.finish_time = parse_datetime(
-                finish_times[index]
-            ) if index < len(finish_times) and finish_times[index] else None
-            employee_id = (
-                employee_ids[index]
-                if index < len(employee_ids)
-                else ""
-            )
+            progress.stage = stage
+            progress.start_time = parse_datetime(start_time) if start_time else None
+            progress.finish_time = parse_datetime(finish_time) if finish_time else None
             progress.employee_id = employee_id or None
-            progress.remarks = (
-                progress_remarks[index].strip()
-                if index < len(progress_remarks)
-                else ""
-            )
+            progress.remarks = remarks
             progress.save()
 
-            if stage in clear_progress_photo_stages:
+            if (
+                stage in clear_progress_photo_stages
+                or str(progress.id) in clear_progress_photo_ids
+            ):
                 for photo in progress.photos.all():
                     if photo.image:
                         photo.image.delete(save=False)
                     photo.delete()
 
-            for image in request.FILES.getlist(progress_photo_input_name(stage)):
+            for image in request.FILES.getlist(
+                progress_photo_input_name(
+                    progress_photo_keys[index]
+                    if index < len(progress_photo_keys)
+                    else progress_id
+                )
+            ):
                 WorkProgressPhoto.objects.create(
                     progress=progress,
                     image=image
                 )
 
-            old_state = old_progress_state.get(stage, {})
+            old_state = old_progress_state.get(progress.id, {})
             if old_state.get("has_data") and not progress_row_has_data(progress):
                 notify_work_progress_change(progress, "cleared")
             elif not old_state.get("start_time") and progress.start_time:
@@ -5325,7 +7029,20 @@ def work_allocation_entry(request, job_id):
             elif old_state.get("employee_id") != progress.employee_id and progress.employee_id:
                 notify_work_progress_change(progress, "assigned")
 
+            if old_state.get("employee_id") != progress.employee_id and progress.employee_id:
+                notify_progress_employee_assigned(progress)
+
         sync_jobcard_main_status(job)
+
+        has_allocated_progress = WorkProgress.objects.filter(
+            allocation=allocation,
+        ).filter(
+            Q(stage__gt="")
+            | Q(employee__isnull=False)
+        ).exists()
+
+        if not had_allocated_progress and has_allocated_progress:
+            notify_floor_incharge_work_allocated(job)
 
         has_progress_started = WorkProgress.objects.filter(
             allocation=allocation,
@@ -5386,6 +7103,32 @@ def work_allocation_entry(request, job_id):
             if not assessment:
                 continue
 
+            posted_decision = (
+                decisions[index]
+                if index < len(decisions)
+                else assessment.decision
+            )
+
+            current_allocation_part = WorkAllocationPart.objects.filter(
+                allocation=allocation,
+                job_part=assessment.part,
+            ).first()
+            current_decision = (
+                current_allocation_part.decision
+                if current_allocation_part
+                else assessment.decision
+            )
+
+            if current_decision == "KO" and posted_decision in ["New", "Repair"]:
+                part_label = (
+                    assessment.part.part_no
+                    if assessment.part
+                    else f"part line {index + 1}"
+                )
+                additional_approval_reasons.append(
+                    f"KO part changed to {posted_decision}: {part_label}"
+                )
+
             allocation_part, _ = WorkAllocationPart.objects.get_or_create(
                 allocation=allocation,
                 job_part=assessment.part,
@@ -5393,11 +7136,7 @@ def work_allocation_entry(request, job_id):
                     "decision": assessment.decision,
                 }
             )
-            allocation_part.decision = (
-                decisions[index]
-                if index < len(decisions)
-                else assessment.decision
-            )
+            allocation_part.decision = posted_decision
             allocation_part.pick_from_store = (
                 index < len(pick_from_store)
                 and pick_from_store[index] == "Yes"
@@ -5427,6 +7166,145 @@ def work_allocation_entry(request, job_id):
                 else ""
             )
             allocation_part.save()
+
+        new_part_nos = request.POST.getlist("new_part_no[]")
+        new_part_descriptions = request.POST.getlist("new_part_description[]")
+        new_part_qtys = request.POST.getlist("new_part_qty[]")
+        new_part_rates = request.POST.getlist("new_part_rate[]")
+        new_part_decisions = request.POST.getlist("new_part_decision[]")
+        new_part_pick_from_store = request.POST.getlist("new_part_pick_from_store[]")
+        new_part_pick_dates = request.POST.getlist("new_part_pick_date[]")
+        new_part_picker_names = request.POST.getlist("new_part_picker_name[]")
+        new_part_ko_order_dates = request.POST.getlist("new_part_ko_order_date[]")
+        new_part_ko_order_nos = request.POST.getlist("new_part_ko_order_no[]")
+        new_part_etas = request.POST.getlist("new_part_eta[]")
+        new_part_remarks = request.POST.getlist("new_part_remarks[]")
+        new_part_photo_keys = request.POST.getlist("new_part_photo_key[]")
+        has_new_part_lines = any(
+            (part_no or "").strip()
+            or (
+                new_part_descriptions[index].strip()
+                if index < len(new_part_descriptions)
+                else ""
+            )
+            for index, part_no in enumerate(new_part_nos)
+        )
+
+        if has_new_part_lines:
+            for index, part_no in enumerate(new_part_nos):
+                description = (
+                    new_part_descriptions[index].strip()
+                    if index < len(new_part_descriptions)
+                    else ""
+                )
+
+                if not (part_no or "").strip() and not description:
+                    continue
+
+                photo_key = (
+                    new_part_photo_keys[index]
+                    if index < len(new_part_photo_keys)
+                    else str(index)
+                )
+
+                if not request.FILES.getlist(f"new_part_photo_{photo_key}"):
+                    messages.error(
+                        request,
+                        "Upload photo(s) on each additional part line."
+                    )
+                    return redirect("work_allocation_entry", job_id=job.id)
+
+        for index, part_no in enumerate(new_part_nos):
+            part_no = part_no.strip()
+            description = (
+                new_part_descriptions[index].strip()
+                if index < len(new_part_descriptions)
+                else ""
+            )
+
+            if not part_no and not description:
+                continue
+
+            qty = int(
+                Decimal(
+                    new_part_qtys[index]
+                    if index < len(new_part_qtys) and new_part_qtys[index]
+                    else "1"
+                )
+            )
+            rate = Decimal(
+                new_part_rates[index]
+                if index < len(new_part_rates) and new_part_rates[index]
+                else "0"
+            )
+            decision = (
+                new_part_decisions[index]
+                if index < len(new_part_decisions) and new_part_decisions[index]
+                else "New"
+            )
+
+            job_part = JobCardPart.objects.create(
+                job=job,
+                part_no=part_no or "Additional",
+                description=description or part_no or "Additional part",
+                qty=qty,
+                rate=rate,
+            )
+            JobCardAssessmentPart.objects.create(
+                job=job,
+                part=job_part,
+                decision=decision,
+                revised_amount=job_part.amount,
+            )
+            allocation_part = WorkAllocationPart.objects.create(
+                allocation=allocation,
+                job_part=job_part,
+                decision=decision,
+                is_additional=True,
+                advisor_approval_status="Pending",
+                pick_from_store=(
+                    index < len(new_part_pick_from_store)
+                    and new_part_pick_from_store[index] == "Yes"
+                ),
+                pick_date=parse_date(
+                    new_part_pick_dates[index]
+                ) if index < len(new_part_pick_dates) and new_part_pick_dates[index] else None,
+                picker_name=(
+                    new_part_picker_names[index].strip()
+                    if index < len(new_part_picker_names)
+                    else ""
+                ),
+                ko_order_date=parse_date(
+                    new_part_ko_order_dates[index]
+                ) if index < len(new_part_ko_order_dates) and new_part_ko_order_dates[index] else None,
+                ko_order_no=(
+                    new_part_ko_order_nos[index].strip()
+                    if index < len(new_part_ko_order_nos)
+                    else ""
+                ),
+                eta=parse_date(
+                    new_part_etas[index]
+                ) if index < len(new_part_etas) and new_part_etas[index] else None,
+                remarks=(
+                    new_part_remarks[index].strip()
+                    if index < len(new_part_remarks)
+                    else ""
+                ),
+            )
+            photo_key = (
+                new_part_photo_keys[index]
+                if index < len(new_part_photo_keys)
+                else str(index)
+            )
+            for image in request.FILES.getlist(f"new_part_photo_{photo_key}"):
+                JobCardAdditionalApprovalPhoto.objects.create(
+                    job=job,
+                    work_allocation_part=allocation_part,
+                    image=image,
+                )
+            additional_approval_reasons.append(
+                f"Additional part added: {allocation_part.job_part.part_no}"
+            )
 
         allocation_labour_ids = request.POST.getlist("allocation_labour_id[]")
         labour_decisions = request.POST.getlist("labour_decision[]")
@@ -5473,6 +7351,168 @@ def work_allocation_entry(request, job_id):
                 else ""
             )
             allocation_labour.save()
+
+        new_labour_codes = request.POST.getlist("new_labour_code[]")
+        new_labour_descriptions = request.POST.getlist("new_labour_description[]")
+        new_labour_amounts = request.POST.getlist("new_labour_amount[]")
+        new_labour_hours = request.POST.getlist("new_labour_hrs[]")
+        new_labour_rates = request.POST.getlist("new_labour_rate[]")
+        new_labour_decisions = request.POST.getlist("new_labour_decision[]")
+        new_labour_employees = request.POST.getlist("new_labour_employee[]")
+        new_labour_remarks = request.POST.getlist("new_labour_remarks[]")
+        new_labour_photo_keys = request.POST.getlist("new_labour_photo_key[]")
+        has_new_labour_lines = any(
+            (labour_code or "").strip()
+            or (
+                new_labour_descriptions[index].strip()
+                if index < len(new_labour_descriptions)
+                else ""
+            )
+            for index, labour_code in enumerate(new_labour_codes)
+        )
+
+        if has_new_labour_lines:
+            for index, labour_code in enumerate(new_labour_codes):
+                description = (
+                    new_labour_descriptions[index].strip()
+                    if index < len(new_labour_descriptions)
+                    else ""
+                )
+
+                if not (labour_code or "").strip() and not description:
+                    continue
+
+                photo_key = (
+                    new_labour_photo_keys[index]
+                    if index < len(new_labour_photo_keys)
+                    else str(index)
+                )
+
+                if not request.FILES.getlist(f"new_labour_photo_{photo_key}"):
+                    messages.error(
+                        request,
+                        "Upload photo(s) on each additional labour line."
+                    )
+                    return redirect("work_allocation_entry", job_id=job.id)
+
+        for index, labour_code in enumerate(new_labour_codes):
+            labour_code = labour_code.strip()
+            description = (
+                new_labour_descriptions[index].strip()
+                if index < len(new_labour_descriptions)
+                else ""
+            )
+
+            if not labour_code and not description:
+                continue
+
+            if index < len(new_labour_amounts) and new_labour_amounts[index]:
+                labour_hrs = Decimal("1")
+                labour_rate = Decimal(new_labour_amounts[index])
+            else:
+                labour_hrs = Decimal(
+                    new_labour_hours[index]
+                    if index < len(new_labour_hours) and new_labour_hours[index]
+                    else "1"
+                )
+                labour_rate = Decimal(
+                    new_labour_rates[index]
+                    if index < len(new_labour_rates) and new_labour_rates[index]
+                    else "0"
+                )
+
+            if labour_hrs >= Decimal("1000"):
+                messages.error(
+                    request,
+                    "Labour hours must be less than 1000."
+                )
+                return redirect("work_allocation_entry", job_id=job.id)
+            decision = (
+                new_labour_decisions[index]
+                if index < len(new_labour_decisions) and new_labour_decisions[index]
+                else "Approved"
+            )
+            employee_id = (
+                new_labour_employees[index]
+                if index < len(new_labour_employees)
+                else ""
+            )
+
+            job_labour = JobCardLabour.objects.create(
+                job=job,
+                job_code=labour_code or "Additional",
+                description=description or labour_code or "Additional labour",
+                labour_hrs=labour_hrs,
+                rate=labour_rate,
+            )
+            JobCardAssessmentLabour.objects.create(
+                job=job,
+                labour=job_labour,
+                decision=decision,
+                revised_amount=job_labour.amount,
+            )
+            allocation_labour = WorkAllocationLabour.objects.create(
+                allocation=allocation,
+                job_labour=job_labour,
+                decision=decision,
+                is_additional=True,
+                advisor_approval_status="Pending",
+                revised_amount=job_labour.amount,
+                employee_id=employee_id or None,
+                remarks=(
+                    new_labour_remarks[index].strip()
+                    if index < len(new_labour_remarks)
+                    else ""
+                ),
+            )
+            photo_key = (
+                new_labour_photo_keys[index]
+                if index < len(new_labour_photo_keys)
+                else str(index)
+            )
+            for image in request.FILES.getlist(f"new_labour_photo_{photo_key}"):
+                JobCardAdditionalApprovalPhoto.objects.create(
+                    job=job,
+                    work_allocation_labour=allocation_labour,
+                    image=image,
+                )
+            additional_approval_reasons.append(
+                f"Additional labour added: {job_labour.job_code}"
+            )
+
+        if additional_approval_reasons:
+            existing_reason = (job.additional_approval_reason or "").strip()
+            reason_text = "\n".join(additional_approval_reasons)
+            job.additional_approval_required = True
+            job.second_approval_status = "Pending"
+            job.repair_status = "Open"
+            job.additional_approval_reason = (
+                f"{existing_reason}\n{reason_text}".strip()
+                if existing_reason
+                else reason_text
+            )
+            job.save(update_fields=[
+                "additional_approval_required",
+                "second_approval_status",
+                "repair_status",
+                "additional_approval_reason",
+            ])
+            posted_work_completed = False
+            posted_qc_done = False
+            posted_reinspection_done = False
+            posted_part_entry_complete = False
+            allocation.part_entry_complete = False
+            allocation.save(update_fields=["part_entry_complete"])
+
+            if job.claim:
+                job.claim.claim_stage = ClaimStageCode.REPAIR_IN_PROGRESS
+                job.claim.save(update_fields=["claim_stage"])
+
+            notify_jobcard_advisor(
+                job,
+                "2nd Approval Required",
+                f"Jobcard {job.job_no} needs Advisor approval for additional work.",
+            )
 
         if posted_work_completed:
             job.repair_status = "Completed"
@@ -5532,19 +7572,21 @@ def work_allocation_entry(request, job_id):
 
     progress_rows = []
 
-    for stage_key, stage_label in WorkProgress.STAGES:
-        p = progress_map.get(stage_key)
+    for p in progress_qs:
+        if not progress_row_has_data(p):
+            continue
 
         progress_rows.append({
-            "stage": stage_key,
-            "label": stage_label,
+            "id": p.id,
+            "stage": p.stage,
+            "label": p.get_stage_display(),
             "start_time": p.start_time if p else None,
             "finish_time": p.finish_time if p else None,
             "employee_id": p.employee_id if p else None,
             "remarks": p.remarks if p else "",
             "progress_id": p.id if p else "",
             "photo_count": p.photos.count() if p else 0,
-            "photo_input_name": progress_photo_input_name(stage_key),
+            "photo_input_name": progress_photo_input_name(p.id),
         })
     assessed_parts = list(JobCardAssessmentPart.objects.filter(
         job=job,
@@ -5568,6 +7610,11 @@ def work_allocation_entry(request, job_id):
             assessment.ko_order_no = saved_part.ko_order_no
             assessment.eta = saved_part.eta
             assessment.remarks = saved_part.remarks
+            assessment.is_additional = saved_part.is_additional
+            assessment.advisor_approval_status = saved_part.advisor_approval_status
+            assessment.additional_approval_photos = list(
+                saved_part.additional_approval_photos.all()
+            )
         else:
             assessment.pick_from_store = False
             assessment.pick_date = None
@@ -5576,6 +7623,9 @@ def work_allocation_entry(request, job_id):
             assessment.ko_order_no = ""
             assessment.eta = None
             assessment.remarks = ""
+            assessment.is_additional = False
+            assessment.advisor_approval_status = ""
+            assessment.additional_approval_photos = []
 
     assessed_labours = list(job.labours.filter(
         jobcardassessmentlabour__decision="Approved"
@@ -5615,6 +7665,17 @@ def work_allocation_entry(request, job_id):
             saved_labour.remarks
             if saved_labour
             else ""
+        )
+        labour.is_additional = saved_labour.is_additional if saved_labour else False
+        labour.advisor_approval_status = (
+            saved_labour.advisor_approval_status
+            if saved_labour
+            else ""
+        )
+        labour.additional_approval_photos = (
+            list(saved_labour.additional_approval_photos.all())
+            if saved_labour
+            else []
         )
     technicians = Employee.objects.filter(
         designation__in=['Technician', 'Denter', 'Painter']
@@ -5708,7 +7769,12 @@ def work_completion_report(request, job_id):
         )
         return redirect("work_allocation_entry", job_id=job.id)
 
-    progress_rows = allocation.progress.select_related("employee").order_by("id")
+    progress_rows = (
+        allocation.progress
+        .select_related("employee")
+        .filter(finish_time__isnull=False)
+        .order_by("finish_time", "id")
+    )
     parts = allocation.parts.select_related("job_part").order_by("id")
     labours = allocation.labours.select_related("job_labour", "employee").order_by("id")
 
