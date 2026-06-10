@@ -1,0 +1,135 @@
+{% extends "registration/base.html" %}
+
+{% block title %}Daily Workshop In/Out Report{% endblock %}
+
+{% block content %}
+<style>
+    .report-kpi {
+        border: 1px solid #d9e2ec;
+        border-left: 4px solid #0d6efd;
+        border-radius: 8px;
+        background: #fff;
+        padding: 10px 12px;
+        min-height: 72px;
+    }
+    .report-kpi span {
+        display: block;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .report-kpi b {
+        display: block;
+        font-size: 28px;
+        line-height: 1.2;
+    }
+    .report-table th {
+        background: #e8f1fb;
+        white-space: nowrap;
+    }
+</style>
+
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="mb-0">Daily Workshop In/Out Report</h4>
+            <small class="text-muted">Gate in, delivered and WIP vehicle count by date.</small>
+        </div>
+    </div>
+
+    <form method="get" class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label mb-1">Branch</label>
+                    {% if report_is_admin %}
+                    <select name="branch_id" class="form-select">
+                        <option value="">All Branches</option>
+                        {% for branch in report_branches %}
+                        <option value="{{ branch.id }}" {% if report_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                            {{ branch.code }} - {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input class="form-control" value="{{ report_branch_name }}" readonly>
+                    <input type="hidden" name="branch_id" value="{{ report_branch_id }}">
+                    {% endif %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">From Date</label>
+                    <input type="date"
+                           name="from_date"
+                           class="form-control"
+                           value="{{ from_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">To Date</label>
+                    <input type="date"
+                           name="to_date"
+                           class="form-control"
+                           value="{{ to_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" type="submit">Apply</button>
+                </div>
+                <div class="col-md-2">
+                    <a class="btn btn-outline-secondary w-100"
+                       href="{% url 'daily_in_out_report' %}{% if report_branch_id %}?branch_id={{ report_branch_id }}{% endif %}">Today</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-4">
+            <div class="report-kpi">
+                <span>Total Gate In</span>
+                <b>{{ total_gate_in }}</b>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="report-kpi" style="border-left-color:#198754;">
+                <span>Total Deliveries</span>
+                <b>{{ total_deliveries }}</b>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="report-kpi" style="border-left-color:#fd7e14;">
+                <span>Pending Vehicles</span>
+                <b>{{ pending_vehicles }}</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm align-middle mb-0 report-table">
+                <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="text-end">Vehicle In</th>
+                    <th class="text-end">Vehicle Delivered</th>
+                    <th class="text-end">WIP</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.date|date:"d-M-Y" }}</td>
+                    <td class="text-end fw-bold">{{ row.vehicle_in }}</td>
+                    <td class="text-end fw-bold">{{ row.vehicle_delivered }}</td>
+                    <td class="text-end fw-bold">{{ row.wip }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">No data found</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

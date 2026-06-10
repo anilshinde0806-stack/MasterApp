@@ -143,11 +143,16 @@ Bodyshop Control Board
                                     <div class="tat-line">
                                         <div class="tat-title">{{ forloop.counter }}. {{ item.label }}</div>
                                         <div class="tat-dates">
-                                            {% if item.start_at %}{{ item.start_at|date:"d-M H:i" }}{% else %}Not recorded{% endif %}
+                                            {{ item.start_display }}
                                             →
-                                            {% if item.end_at %}{{ item.end_at|date:"d-M H:i" }}{% else %}Not recorded{% endif %}
+                                            <span class="{% if item.pending %}tat-pending{% endif %} {% if item.live %}live-tat-now{% endif %}">
+                                                {{ item.end_display }}
+                                            </span>
                                         </div>
-                                        <div class="tat-duration">{{ item.duration }}</div>
+                                        <div class="tat-duration {% if item.pending %}tat-pending{% endif %} {% if item.live %}live-tat-duration{% endif %}"
+                                             {% if item.live %}data-start-seconds="{{ item.duration_seconds }}"{% endif %}>
+                                            {{ item.duration }}
+                                        </div>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -173,7 +178,7 @@ Bodyshop Control Board
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="13" class="text-center text-muted py-4">
+                            <td colspan="14" class="text-center text-muted py-4">
                                 No allocated vehicle found
                             </td>
                         </tr>
@@ -337,7 +342,7 @@ Bodyshop Control Board
     }
     .tat-line {
         display: grid;
-        grid-template-columns: minmax(165px, 1.1fr) minmax(170px, 1fr) 82px;
+        grid-template-columns: minmax(165px, 1.1fr) minmax(190px, 1fr) 116px;
         gap: 8px;
         align-items: center;
         padding: 5px 0;
@@ -357,6 +362,10 @@ Bodyshop Control Board
         color: #084298;
         font-weight: 800;
         text-align: right;
+    }
+    .tat-pending {
+        color: #dc3545 !important;
+        font-weight: 900;
     }
     .status-pending {
         background: #fff8db;
@@ -397,6 +406,43 @@ Bodyshop Control Board
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const modal = document.getElementById("pnaHoverModal");
+    const pageLoadedAt = Date.now();
+
+    function pad(value) {
+        return String(value).padStart(2, "0");
+    }
+
+    function formatDuration(totalSeconds) {
+        totalSeconds = Math.max(Math.floor(totalSeconds || 0), 0);
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    function formatAmPm(date) {
+        const day = pad(date.getDate());
+        const month = date.toLocaleString("en-US", { month: "short" });
+        let hours = date.getHours();
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12;
+        hours = hours || 12;
+        return `${day}-${month} ${pad(hours)}:${minutes}:${seconds} ${ampm}`;
+    }
+
+    function refreshLiveTimeline() {
+        const elapsed = Math.floor((Date.now() - pageLoadedAt) / 1000);
+        document.querySelectorAll(".live-tat-duration").forEach(function (node) {
+            const startSeconds = Number(node.dataset.startSeconds || "0");
+            node.textContent = formatDuration(startSeconds + elapsed);
+        });
+        document.querySelectorAll(".live-tat-now").forEach(function (node) {
+            node.textContent = formatAmPm(new Date());
+        });
+    }
 
     function moveFloatingModal(floatingModal, event) {
         const margin = 14;
@@ -442,6 +488,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     bindHoverModal(".has-pna-hover", ".pna-hover-source", modal);
     bindHoverModal(".tat-cell", ".tat-hover-source", document.getElementById("tatHoverModal"));
+    refreshLiveTimeline();
+    window.setInterval(refreshLiveTimeline, 1000);
 });
 </script>
 

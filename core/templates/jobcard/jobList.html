@@ -4,8 +4,69 @@
 
 {% block content %}
 
-<div class="container-fluid px-2">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+<style>
+.job-grid-page {
+    padding: 10px 12px;
+}
+
+.job-page-header {
+    margin-bottom: 8px;
+}
+
+.job-page-header h3 {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.job-filter-card {
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.job-filter-card.card {
+    padding: 10px 12px !important;
+}
+
+.job-filter-card label {
+    margin-bottom: 3px;
+    color: #4b5563;
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.job-filter-card .form-control,
+.job-filter-card .form-select {
+    min-height: 34px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: .86rem;
+}
+
+#jobGrid {
+    height: calc(100vh - 188px);
+    min-height: 520px;
+    width: 100%;
+    --ag-font-size: 12px;
+    --ag-grid-size: 4px;
+    --ag-row-height: 30px;
+    --ag-header-height: 32px;
+    --ag-list-item-height: 26px;
+    --ag-cell-horizontal-padding: 6px;
+}
+
+#jobGrid .ag-cell {
+    line-height: 29px;
+}
+
+#jobGrid .ag-header-cell-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+</style>
+
+<div class="container-fluid job-grid-page">
+    <div class="d-flex justify-content-between align-items-center job-page-header">
         <h3 class="mb-0">Job Card List</h3>
         <a class="btn btn-outline-primary btn-sm" href="{% url 'part_order_list' %}">
             Part Order Tracking
@@ -13,7 +74,7 @@
     </div>
 
     <!-- FILTER PANEL -->
-    <div class="card p-3 mb-2">
+    <div class="card job-filter-card">
 
         <div class="row">
 
@@ -56,8 +117,7 @@
     <div class="container-fluid px-2">
 
     <div id="jobGrid"
-         class="ag-theme-alpine"
-         style="height: calc(100vh - 140px); width:100%;">
+         class="ag-theme-quartz">
     </div>
 
 </div>
@@ -73,35 +133,43 @@ const columnDefs = [
         headerName: "Job No",
         field: "job_no",
         pinned: "left",
-        filter: true
+        filter: true,
+        width: 126,
+        minWidth: 112
     },
 
     {
-        headerName: "Claim No",
+        headerName: "Claim",
         field: "claim__claim_no",
-        filter: true
+        filter: true,
+        width: 124
     },
 
     {
         headerName: "Reg No",
         field: "claim__vehicle__registration_no",
-        filter: true
+        filter: true,
+        width: 112
     },
 
     {
         headerName: "Model",
-        field: "claim__vehicle__model__name"
+        field: "claim__vehicle__model__name",
+        width: 95
     },
 
     {
         headerName: "Customer",
-        field: "claim__vehicle__customer__name"
+        field: "claim__vehicle__customer__name",
+        minWidth: 130,
+        flex: 1
     },
 
     {
         headerName: "Advisor",
         field: "advisor__name",
         filter: true,
+        width: 118,
         cellRenderer: params =>
             params.value ? params.value : "<span style='color:red'>Unassigned</span>"
     },
@@ -110,6 +178,7 @@ const columnDefs = [
         headerName: "Status",
         field: "repair_status",
         filter: true,
+        width: 92,
         cellRenderer: params => {
             let color =
                 params.value === "Closed" ? "green" :
@@ -124,9 +193,9 @@ const columnDefs = [
     },
 
     {
-        headerName: "Work Progress",
+        headerName: "Progress",
         field: "work_progress_status",
-        minWidth: 220,
+        width: 165,
         filter: true,
         cellRenderer: params => {
             const value = params.value || "Work Not Started";
@@ -145,9 +214,9 @@ const columnDefs = [
     },
 
     {
-        headerName: "Parts Not Available",
+        headerName: "PNA",
         field: "parts_not_available_status",
-        minWidth: 170,
+        width: 108,
         filter: true,
         cellRenderer: params => {
             const value = params.value || "No PNA";
@@ -158,12 +227,14 @@ const columnDefs = [
 
     {
         headerName: "Net Total",
-        field: "grand_total"
+        field: "grand_total",
+        width: 92
     },
 
     {
-        headerName: "Created At",
-        field: "created_at"
+        headerName: "Created",
+        field: "created_at",
+        width: 112
     }
 
 ];
@@ -173,11 +244,19 @@ const gridOptions = {
     columnDefs: columnDefs,
 
     pagination: true,
+    paginationPageSize: 50,
+    rowHeight: 30,
+    headerHeight: 32,
+    animateRows: false,
+    suppressCellFocus: true,
 
     defaultColDef: {
         sortable: true,
         resizable: true,
-        filter: true
+        filter: true,
+        suppressHeaderMenuButton: true,
+        minWidth: 72,
+        flex: 0
     },
 
     rowSelection: "single",
@@ -224,8 +303,15 @@ function loadData() {
         .then(data => {
 
             gridApi.setGridOption("rowData", data);
+            setTimeout(() => gridApi.sizeColumnsToFit(), 0);
         });
 }
+
+window.addEventListener("resize", function () {
+    if (gridApi) {
+        gridApi.sizeColumnsToFit();
+    }
+});
 
 document.getElementById("workProgressFilter").addEventListener("change", loadData);
 document.getElementById("fromDate").addEventListener("change", loadData);

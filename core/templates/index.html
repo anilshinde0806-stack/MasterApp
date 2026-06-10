@@ -8,9 +8,35 @@ Dashboard
 
 <div class="container-fluid py-3">
 
+{% if dashboard_branch %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+        <h4 class="mb-0">Dashboard</h4>
+        <small class="text-muted">Branch scoped dashboard</small>
+    </div>
+    <span class="badge bg-primary px-3 py-2">
+        {{ dashboard_branch.code }} - {{ dashboard_branch.name }}
+    </span>
+</div>
+{% endif %}
+
 <div class="card border-0 shadow-sm mb-3 dashboard-filter">
     <div class="card-body py-2">
         <form method="get" class="row g-2 align-items-end">
+            {% if dashboard_is_admin %}
+            <div class="col-md-2">
+                <label class="form-label">Branch</label>
+                <select class="form-select" name="branch_id">
+                    <option value="">All Branches</option>
+                    {% for branch in dashboard_branches %}
+                    <option value="{{ branch.id }}"
+                            {% if dashboard_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                        {{ branch.code }} - {{ branch.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="col-md-2">
                 <label class="form-label">From Date</label>
                 <input class="form-control"
@@ -264,6 +290,8 @@ Advisor Workload
 
 <th>Advisor</th>
 
+<th>Branch</th>
+
 <th>Claims</th>
 
 </tr>
@@ -279,6 +307,16 @@ Advisor Workload
 <td>
 
 {{ a.employee__name|default:"-" }}
+
+</td>
+
+<td>
+
+{% if a.employee__branch__name %}
+    {{ a.employee__branch__code }} - {{ a.employee__branch__name }}
+{% else %}
+    -
+{% endif %}
 
 </td>
 

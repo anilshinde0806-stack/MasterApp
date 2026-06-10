@@ -157,6 +157,11 @@
                                        type="hidden"
                                        value="{{ logged_emp.id }}">
                                 {% endif %}
+                                <button class="btn btn-sm btn-outline-primary mt-2"
+                                        type="button"
+                                        id="advisorWorkloadBtn">
+                                    View Advisors Workload
+                                </button>
                             </div>
 
                         </div>
@@ -1001,6 +1006,41 @@
                             </div>
 
                             <div class="col-md-3">
+                                {{ vehicle_form.insurance_company.label_tag }}
+                                {{ vehicle_form.insurance_company }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.policy_no.label_tag }}
+                                {{ vehicle_form.policy_no }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.policy_start_date.label_tag }}
+                                {{ vehicle_form.policy_start_date }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.policy_end_date.label_tag }}
+                                {{ vehicle_form.policy_end_date }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.last_service_km.label_tag }}
+                                {{ vehicle_form.last_service_km }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.last_service_type.label_tag }}
+                                {{ vehicle_form.last_service_type }}
+                            </div>
+
+                            <div class="col-md-3">
+                                {{ vehicle_form.last_service_date.label_tag }}
+                                {{ vehicle_form.last_service_date }}
+                            </div>
+
+                            <div class="col-md-3">
                                 {{ form.customer.label_tag }}
                                 {{ vehicle_form.customer }}
                                 <button class="btn btn-outline-secondary mt-2"
@@ -1114,6 +1154,62 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="advisorWorkloadModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title mb-0">Advisor Workload</h5>
+                        <small class="text-muted" id="advisorWorkloadName">All advisor workload summary</small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <div class="workload-stat">
+                                <span>Open Claims</span>
+                                <b id="advisorOpenClaims">0</b>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="workload-stat">
+                                <span>Today's Assign</span>
+                                <b id="advisorTodayClaims">0</b>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="workload-type-grid" id="advisorInwardCounts"></div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Advisor</th>
+                                    <th class="text-end">Total Claim Assign</th>
+                                    <th class="text-end">Today</th>
+                                    <th class="text-end">Walk-in</th>
+                                    <th class="text-end">Pickup</th>
+                                    <th class="text-end">Breakdown</th>
+                                    <th class="text-end">Jobcard Pending</th>
+                                </tr>
+                            </thead>
+                            <tbody id="advisorWorkloadRows">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-3">
+                                        Click View Advisors Workload
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="assessmentModal" tabindex="-1">
         <div class="modal-dialog modal-fullscreen-xl-down assessment-dialog">
             <div class="modal-content">
@@ -1177,6 +1273,8 @@
                                     <th>Job Description</th>
 
                                     <th>Amount</th>
+
+                                    <th>Paint Panel</th>
 
                                     <th>Surveyor Assessment</th>
                                     <th>Painting Deduction %</th>
@@ -1425,6 +1523,46 @@
     width:95vw;
 
     margin:10px auto;
+}
+
+.workload-stat{
+    min-height:58px;
+    border:1px solid #d9e2ec;
+    border-left:4px solid #0d6efd;
+    border-radius:6px;
+    padding:7px 9px;
+    background:#f7faff;
+}
+.workload-stat span{
+    display:block;
+    color:#64748b;
+    font-size:12px;
+    font-weight:700;
+}
+.workload-stat b{
+    font-size:24px;
+    line-height:1.1;
+}
+.workload-type-grid{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:6px;
+}
+.workload-type-pill{
+    min-height:58px;
+    border-radius:6px;
+    padding:6px 7px;
+    background:#fff8db;
+    color:#664d03;
+    font-weight:800;
+}
+.workload-type-pill span{
+    display:block;
+    font-size:11px;
+    color:#6c757d;
+}
+.workload-type-pill b{
+    font-size:20px;
 }
 
 #assessmentModal .modal-content{
@@ -2052,6 +2190,83 @@ if (document.readyState === "loading") {
     let currentJobId = null;
     let currentJobNo = "";
 
+    function getSelectedAdvisorId() {
+        const advisorSelect = document.getElementById("id_employee");
+        const advisorHidden = document.querySelector("input[name='employee'][type='hidden']");
+        return advisorSelect ? advisorSelect.value : (advisorHidden ? advisorHidden.value : "");
+    }
+
+    function escapeHtml(value) {
+        return String(value || "").replace(/[&<>"']/g, function (char) {
+            return {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+            }[char];
+        });
+    }
+
+    function openAdvisorWorkload() {
+        const modalEl = document.getElementById("advisorWorkloadModal");
+        const modal = new bootstrap.Modal(modalEl);
+        document.getElementById("advisorWorkloadName").innerText = "Loading...";
+        document.getElementById("advisorOpenClaims").innerText = "0";
+        document.getElementById("advisorTodayClaims").innerText = "0";
+        document.getElementById("advisorInwardCounts").innerHTML = "";
+        document.getElementById("advisorWorkloadRows").innerHTML = `
+            <tr><td colspan="7" class="text-center text-muted py-3">Loading...</td></tr>
+        `;
+        modal.show();
+
+        fetch(`/ajax/advisor-workload/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== "success") {
+                    showToast(data.message || "Advisor workload not found", "danger");
+                    return;
+                }
+
+                document.getElementById("advisorWorkloadName").innerText = data.advisor;
+                document.getElementById("advisorOpenClaims").innerText = data.open_count;
+                document.getElementById("advisorTodayClaims").innerText = data.today_assigned_count;
+
+                const counts = data.inward_counts || {};
+                document.getElementById("advisorInwardCounts").innerHTML = Object.keys(counts).map(key => `
+                    <div class="workload-type-pill">
+                        <span>${escapeHtml(key)}</span>
+                        <b>${counts[key]}</b>
+                    </div>
+                `).join("");
+
+                const rows = data.summary_rows || [];
+                document.getElementById("advisorWorkloadRows").innerHTML = rows.length ? rows.map(row => `
+                    <tr>
+                        <td><b>${escapeHtml(row.advisor)}</b></td>
+                        <td class="text-end">${row.open_count}</td>
+                        <td class="text-end">${row.today_assigned_count}</td>
+                        <td class="text-end">${(row.inward_counts || {})["Walk-in"] || 0}</td>
+                        <td class="text-end">${(row.inward_counts || {})["Pickup"] || 0}</td>
+                        <td class="text-end">${(row.inward_counts || {})["Breakdown"] || 0}</td>
+                        <td class="text-end">${(row.inward_counts || {})["Jobcard Pending"] || 0}</td>
+                    </tr>
+                `).join("") : `
+                    <tr><td colspan="7" class="text-center text-muted py-3">No advisor workload found</td></tr>
+                `;
+            })
+            .catch(() => {
+                showToast("Advisor workload failed", "danger");
+            });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const advisorWorkloadBtn = document.getElementById("advisorWorkloadBtn");
+        if (advisorWorkloadBtn) {
+            advisorWorkloadBtn.addEventListener("click", openAdvisorWorkload);
+        }
+    });
+
     function openAssessmentModal(jobId) {
 
 
@@ -2103,6 +2318,13 @@ if (document.readyState === "loading") {
                 ${l.amount}
 
             </td>
+                            <td>
+                                <select class="form-select form-select-sm labour-paint-panel" data-id="${l.id}">
+                                    <option value="" ${!l.paint_panel_type ? "selected" : ""}>No Paint Panel</option>
+                                    <option value="New" ${l.paint_panel_type === "New" ? "selected" : ""}>New Panel Painting</option>
+                                    <option value="Repair" ${l.paint_panel_type === "Repair" ? "selected" : ""}>Repair Panel Painting</option>
+                                </select>
+                            </td>
                             <td>
                                 <select class="form-select form-select-sm labour-decision" data-id="${l.id}">
                                   <option value="Reject" ${l.decision === "Reject" ? "selected" : ""}>Reject</option>
@@ -2271,6 +2493,7 @@ document.addEventListener("input", function (e) {
         labours.push({
             id: id,
             revised_amount: input.value,
+            paint_panel_type: document.querySelector(`.labour-paint-panel[data-id="${id}"]`).value,
             decision: document.querySelector(`.labour-decision[data-id="${id}"]`).value,
             deduction_percent: document.querySelector(`.labour-deduction[data-id="${id}"]`).value
         });
@@ -2284,6 +2507,7 @@ document.addEventListener("input", function (e) {
             job_code: input.value.trim(),
             description: row.querySelector(".assessment-new-labour-desc").value,
             amount: row.querySelector(".assessment-new-labour-amount").value.trim(),
+            paint_panel_type: row.querySelector(".assessment-new-labour-paint-panel").value,
             revised_amount: row.querySelector(".assessment-new-labour-revised").value,
             deduction_percent: row.querySelector(".assessment-new-labour-deduction").value,
             decision: row.querySelector(".assessment-new-labour-decision").value,
@@ -2565,6 +2789,13 @@ function printAssessmentReport(targetWindow) {
                         }
                     });
             }
+
+            const prefillRegistrationNo = "{{ prefill_registration_no|default:''|escapejs }}";
+            if (!selectedVehicleId && prefillRegistrationNo) {
+                vehicleSelect.setTextboxValue(prefillRegistrationNo);
+                vehicleSelect.load(prefillRegistrationNo);
+                vehicleSelect.focus();
+            }
         }
 
 
@@ -2573,6 +2804,21 @@ function printAssessmentReport(targetWindow) {
         ================================ */
         const saveVehicleBtn =
             document.getElementById("saveVehicleBtn");
+
+        const vehiclePolicyStartDate = document.getElementById("id_policy_start_date");
+        const vehiclePolicyEndDate = document.getElementById("id_policy_end_date");
+
+        if (vehiclePolicyStartDate && vehiclePolicyEndDate) {
+            vehiclePolicyStartDate.addEventListener("change", function () {
+                if (!this.value) {
+                    return;
+                }
+
+                const startDate = new Date(`${this.value}T00:00:00`);
+                startDate.setDate(startDate.getDate() + 365);
+                vehiclePolicyEndDate.value = startDate.toISOString().slice(0, 10);
+            });
+        }
 
         if (saveVehicleBtn) {
 
@@ -3211,6 +3457,13 @@ function addAssessmentLabourRow() {
                        class="form-control form-control-sm text-end assessment-new-labour-amount labour-original"
                        required
                        value="0">
+            </td>
+            <td>
+                <select class="form-select form-select-sm assessment-new-labour-paint-panel">
+                    <option value="">No Paint Panel</option>
+                    <option value="New">New Panel Painting</option>
+                    <option value="Repair">Repair Panel Painting</option>
+                </select>
             </td>
             <td>
                 <select class="form-select form-select-sm assessment-new-labour-decision">

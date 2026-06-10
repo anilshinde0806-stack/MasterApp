@@ -1,0 +1,449 @@
+{% extends "registration/base.html" %}
+
+{% block title %}Surveyor Performance{% endblock %}
+
+{% block content %}
+<style>
+    .survey-kpi {
+        border: 1px solid #d9e2ec;
+        border-left: 4px solid #0d6efd;
+        border-radius: 8px;
+        background: #fff;
+        padding: 10px 12px;
+        min-height: 72px;
+    }
+    .survey-kpi span {
+        display: block;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .survey-kpi b {
+        display: block;
+        font-size: 27px;
+        line-height: 1.2;
+    }
+    .tat-chart-row {
+        display: grid;
+        grid-template-columns: minmax(110px, 180px) 1fr minmax(75px, 95px);
+        gap: 10px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #edf2f7;
+    }
+    .tat-chart-row:last-child {
+        border-bottom: 0;
+    }
+    .tat-name {
+        font-weight: 800;
+    }
+    .tat-bar-track {
+        height: 22px;
+        border-radius: 4px;
+        background: #eef3f8;
+        overflow: hidden;
+    }
+    .tat-bar {
+        height: 100%;
+        min-width: 3px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, #1d78d3, #51a7f9);
+    }
+    .tat-days {
+        text-align: right;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .surveyor-donut-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 14px;
+    }
+    .surveyor-donut-card {
+        border: 1px solid #d9e2ec;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        background: #fff;
+    }
+    .avg-tat-donut {
+        width: 118px;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background:
+            conic-gradient(
+                #198754 0 var(--on-time),
+                #ffc107 var(--delayed-start) var(--critical-start),
+                #dc3545 var(--critical-start) 100%
+            );
+        position: relative;
+        margin: 0 auto 10px;
+    }
+    .avg-tat-donut::after {
+        content: "";
+        position: absolute;
+        inset: 26px;
+        border-radius: 50%;
+        background: #fff;
+    }
+    .avg-tat-center {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        font-weight: 900;
+    }
+    .avg-tat-center span {
+        color: #64748b;
+        font-size: 10px;
+        text-transform: uppercase;
+    }
+    .surveyor-donut-name {
+        font-weight: 900;
+    }
+    .surveyor-donut-meta {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .mini-status-row {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+        color: #475569;
+        font-size: 11px;
+        font-weight: 800;
+    }
+    .tat-axis-row {
+        display: grid;
+        grid-template-columns: minmax(110px, 180px) 1fr minmax(75px, 95px);
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .tat-axis {
+        position: relative;
+        height: 34px;
+        border-top: 1px solid #9aa8b7;
+    }
+    .tat-axis-tick {
+        position: absolute;
+        top: -1px;
+        transform: translateX(-50%);
+        color: #475569;
+        font-size: 11px;
+        font-weight: 700;
+        text-align: center;
+        white-space: nowrap;
+    }
+    .tat-axis-tick::before {
+        content: "";
+        display: block;
+        width: 1px;
+        height: 7px;
+        margin: 0 auto 3px;
+        background: #9aa8b7;
+    }
+    .survey-table th {
+        background: #e8f1fb;
+        white-space: nowrap;
+    }
+    .score-pill {
+        display: inline-block;
+        min-width: 58px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: #e7f5ef;
+        color: #116149;
+        font-weight: 900;
+        text-align: center;
+    }
+    .donut-wrap {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 18px;
+        align-items: center;
+    }
+    .survey-donut {
+        width: 160px;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background:
+            conic-gradient(
+                #198754 0 {{ survey_tat_donut.on_time_percent }}%,
+                #ffc107 {{ survey_tat_donut.delayed_start }}% {{ survey_tat_donut.critical_start }}%,
+                #dc3545 {{ survey_tat_donut.critical_start }}% 100%
+            );
+        position: relative;
+        margin: auto;
+    }
+    .survey-donut::after {
+        content: "";
+        position: absolute;
+        inset: 36px;
+        border-radius: 50%;
+        background: #fff;
+    }
+    .donut-center {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        font-weight: 900;
+    }
+    .donut-center span {
+        color: #64748b;
+        font-size: 11px;
+        text-transform: uppercase;
+    }
+    .donut-legend {
+        display: grid;
+        gap: 8px;
+    }
+    .donut-legend-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        border-bottom: 1px solid #edf2f7;
+        padding-bottom: 6px;
+        font-weight: 800;
+    }
+    .donut-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+</style>
+
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="mb-0">Surveyor Performance - Avg TAT Days</h4>
+            <small class="text-muted">Average days from survey date to insurance approval. Pending approvals count till today.</small>
+        </div>
+    </div>
+
+    <form method="get" class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label mb-1">Branch</label>
+                    {% if report_is_admin %}
+                    <select name="branch_id" class="form-select">
+                        <option value="">All Branches</option>
+                        {% for branch in report_branches %}
+                        <option value="{{ branch.id }}" {% if report_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                            {{ branch.code }} - {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input class="form-control" value="{{ report_branch_name }}" readonly>
+                    <input type="hidden" name="branch_id" value="{{ report_branch_id }}">
+                    {% endif %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">From Survey Date</label>
+                    <input type="date"
+                           name="from_date"
+                           class="form-control"
+                           value="{{ from_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">To Survey Date</label>
+                    <input type="date"
+                           name="to_date"
+                           class="form-control"
+                           value="{{ to_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-1">Target TAT Days</label>
+                    <input type="number"
+                           step="0.1"
+                           min="0.1"
+                           name="target_tat"
+                           class="form-control"
+                           value="{{ target_tat }}">
+                </div>
+                <div class="col-md-1">
+                    <button class="btn btn-primary w-100" type="submit">Apply</button>
+                </div>
+                <div class="col-md-2">
+                    <a class="btn btn-outline-secondary w-100"
+                       href="{% url 'surveyor_performance_report' %}{% if report_branch_id %}?branch_id={{ report_branch_id }}{% endif %}">This Month</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-4">
+            <div class="survey-kpi">
+                <span>Average TAT</span>
+                <b>{{ overall_avg_tat }} Days</b>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="survey-kpi" style="border-left-color:#198754;">
+                <span>Total Survey Claims</span>
+                <b>{{ total_claims }}</b>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="survey-kpi" style="border-left-color:#fd7e14;">
+                <span>Approval Pending</span>
+                <b>{{ pending_claims }}</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-xl-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    Surveyor Score Card
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0 survey-table">
+                        <thead>
+                        <tr>
+                            <th>Surveyor</th>
+                            <th class="text-end">Cases</th>
+                            <th class="text-end">Avg Survey TAT</th>
+                            <th class="text-end">Avg Approval TAT</th>
+                            <th class="text-end">Avg Liability TAT</th>
+                            <th class="text-center">Score</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td class="fw-bold">{{ row.surveyor }}</td>
+                            <td class="text-end">{{ row.claim_count }}</td>
+                            <td class="text-end">{{ row.avg_survey_tat }}</td>
+                            <td class="text-end">{{ row.avg_approval_tat }}</td>
+                            <td class="text-end">{{ row.avg_liability_tat }}</td>
+                            <td class="text-center">
+                                <span class="score-pill">{{ row.score }}%</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">No data found</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    Survey TAT Status
+                    <span class="text-muted small">(Target {{ survey_tat_target }} day)</span>
+                </div>
+                <div class="card-body">
+                    <div class="donut-wrap">
+                        <div class="survey-donut">
+                            <div class="donut-center">
+                                {{ survey_tat_donut.total }}
+                                <span>Claims</span>
+                            </div>
+                        </div>
+                        <div class="donut-legend">
+                            <div class="donut-legend-item">
+                                <div><span class="donut-dot" style="background:#198754;"></span>On Time</div>
+                                <div>{{ survey_tat_donut.on_time }} ({{ survey_tat_donut.on_time_percent }}%)</div>
+                            </div>
+                            <div class="donut-legend-item">
+                                <div><span class="donut-dot" style="background:#ffc107;"></span>Delayed</div>
+                                <div>{{ survey_tat_donut.delayed }} ({{ survey_tat_donut.delayed_percent }}%)</div>
+                            </div>
+                            <div class="donut-legend-item">
+                                <div><span class="donut-dot" style="background:#dc3545;"></span>Critical</div>
+                                <div>{{ survey_tat_donut.critical }} ({{ survey_tat_donut.critical_percent }}%)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-3">
+                        On Time: TAT &lt;= Target, Delayed: TAT &gt; Target, Critical: TAT &gt; Target + 2 days.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-bold">
+            Surveyor Wise Survey TAT Donut Chart
+            <span class="text-muted small">(Target {{ survey_tat_target }} day)</span>
+        </div>
+        <div class="card-body">
+            <div class="surveyor-donut-grid">
+                {% for row in rows %}
+                <div class="surveyor-donut-card">
+                    <div class="avg-tat-donut"
+                         style="--on-time: {{ row.survey_on_time_percent }}%; --delayed-start: {{ row.survey_delayed_start }}%; --critical-start: {{ row.survey_critical_start }}%;">
+                        <div class="avg-tat-center">
+                            {{ row.claim_count }}
+                            <span>Cases</span>
+                        </div>
+                    </div>
+                    <div class="surveyor-donut-name">{{ row.surveyor }}</div>
+                    <div class="surveyor-donut-meta">Avg Survey TAT {{ row.avg_survey_tat }} days</div>
+                    <div class="mini-status-row">
+                        <span><span class="donut-dot" style="background:#198754;"></span>{{ row.survey_on_time }}</span>
+                        <span><span class="donut-dot" style="background:#ffc107;"></span>{{ row.survey_delayed }}</span>
+                        <span><span class="donut-dot" style="background:#dc3545;"></span>{{ row.survey_critical }}</span>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-3">No surveyor data found</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm align-middle mb-0 survey-table">
+                <thead>
+                <tr>
+                    <th>Surveyor</th>
+                    <th class="text-end">Avg TAT Days</th>
+                    <th class="text-end">Claims</th>
+                    <th class="text-end">Approved</th>
+                    <th class="text-end">Pending</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="fw-bold">{{ row.surveyor }}</td>
+                    <td class="text-end">{{ row.avg_tat }}</td>
+                    <td class="text-end">{{ row.claim_count }}</td>
+                    <td class="text-end">{{ row.approved_count }}</td>
+                    <td class="text-end">{{ row.pending_count }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-3">No data found</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

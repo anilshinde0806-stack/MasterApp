@@ -1,0 +1,291 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Reception Home{% endblock %}
+
+{% block content %}
+
+<style>
+.reception-shell {
+    padding: 14px 8px;
+}
+
+.reception-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.reception-title h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.reception-title small {
+    color: #6c757d;
+}
+
+.metric-strip {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.metric-pill {
+    border: 1px solid #d9dee8;
+    background: #fff;
+    border-radius: 6px;
+    padding: 8px 12px;
+    min-width: 150px;
+}
+
+.metric-pill span {
+    display: block;
+    font-size: .72rem;
+    color: #687385;
+    line-height: 1.1;
+}
+
+.metric-pill b {
+    display: block;
+    font-size: 1.25rem;
+    line-height: 1.2;
+}
+
+.work-panel {
+    border: 1px solid #dfe4ec;
+    background: #fff;
+    border-radius: 6px;
+    height: calc(100vh - 170px);
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+}
+
+.work-panel-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e7ebf1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.work-panel-header h5 {
+    margin: 0;
+    font-size: .95rem;
+    font-weight: 700;
+}
+
+.work-panel-header small {
+    color: #6c757d;
+}
+
+.work-list {
+    overflow: auto;
+}
+
+.work-row {
+    padding: 10px 12px;
+    border-bottom: 1px solid #edf0f5;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.work-row:hover {
+    background: #f8fafc;
+}
+
+.primary-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-weight: 700;
+    font-size: .92rem;
+}
+
+.sub-line {
+    margin-top: 3px;
+    color: #697487;
+    font-size: .78rem;
+}
+
+.meta-line {
+    margin-top: 4px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.mini-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: .7rem;
+    font-weight: 700;
+    background: #eef2f7;
+    color: #475569;
+}
+
+.mini-badge.warn {
+    background: #fff3cd;
+    color: #8a5a00;
+}
+
+.mini-badge.info {
+    background: #e7f1ff;
+    color: #0b5ed7;
+}
+
+.row-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.empty-state {
+    padding: 42px 16px;
+    text-align: center;
+    color: #7b8794;
+}
+
+@media (max-width: 991px) {
+    .work-panel {
+        height: auto;
+        min-height: 320px;
+    }
+
+    .reception-topbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+</style>
+
+<div class="container-fluid reception-shell">
+    <div class="reception-topbar">
+        <div class="reception-title">
+            <h3>Reception Work Queue</h3>
+            <small>
+                {% if branch %}{{ branch.name }}{% else %}All Branches{% endif %}
+                | {{ logged_emp.name|default:request.user.username }}
+            </small>
+        </div>
+
+        <div class="metric-strip">
+            <div class="metric-pill">
+                <span>Gate In Pending</span>
+                <b>{{ gate_pending_count }}</b>
+            </div>
+            <div class="metric-pill">
+                <span>Advisor Assign Pending</span>
+                <b>{{ advisor_pending_count }}</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <section class="work-panel">
+                <div class="work-panel-header">
+                    <div>
+                        <h5>Gate In Pending For Claim Creation</h5>
+                        <small>Bodyshop vehicles waiting at Reception</small>
+                    </div>
+                </div>
+
+                <div class="work-list">
+                    {% for row in gate_rows %}
+                    <div class="work-row">
+                        <div>
+                            <div class="primary-line">
+                                <span>{{ row.registration_no }}</span>
+                                <span class="mini-badge warn">{{ row.waiting }}</span>
+                            </div>
+                            <div class="sub-line">
+                                {{ row.customer|default:"Customer not linked" }}
+                            </div>
+                            <div class="meta-line">
+                                <span class="mini-badge">KM {{ row.current_km }}</span>
+                                <span class="mini-badge info">{{ row.gate_in_display }}</span>
+                                {% if row.branch %}
+                                <span class="mini-badge">{{ row.branch }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row-actions">
+                            <a class="btn btn-sm btn-primary"
+                               href="{% url 'claim' %}?registration_no={{ row.registration_no }}">
+                                Claim
+                            </a>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        No pending Gate In entries.
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-6">
+            <section class="work-panel">
+                <div class="work-panel-header">
+                    <div>
+                        <h5>Claims Pending For Advisor Assign</h5>
+                        <small>Claim created, advisor not assigned yet</small>
+                    </div>
+                    <a href="{% url 'claimList' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fa fa-list"></i>
+                    </a>
+                </div>
+
+                <div class="work-list">
+                    {% for row in claim_rows %}
+                    <div class="work-row">
+                        <div>
+                            <div class="primary-line">
+                                <span>{{ row.claim_no }}</span>
+                                <span class="mini-badge warn">{{ row.waiting }}</span>
+                            </div>
+                            <div class="sub-line">
+                                {{ row.registration_no }}{% if row.customer %} | {{ row.customer }}{% endif %}
+                            </div>
+                            <div class="meta-line">
+                                {% if row.model %}
+                                <span class="mini-badge">{{ row.model }}</span>
+                                {% endif %}
+                                <span class="mini-badge info">{{ row.created_display }}</span>
+                                {% if row.branch %}
+                                <span class="mini-badge">{{ row.branch }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row-actions">
+                            <a class="btn btn-sm btn-primary"
+                               href="{% url 'claim_edit' row.id %}">
+                                Assign
+                            </a>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        No claims pending advisor assignment.
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

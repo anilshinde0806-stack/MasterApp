@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.21.5.final using JasperReports Library version 6.21.5-74d586df47b25dbd05bd0957999819196e59934a  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="JOBCARD_ID" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="dabbae44-bba8-43b2-9d93-ae0ab90974a7">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Bodyshop PostgreSQL"/>
+	<property name="com.jaspersoft.studio.report.description" value=""/>
+	<parameter name="JOBCARD_ID" class="java.lang.Long"/>
+	<queryString language="SQL">
+		<![CDATA[SELECT
+    j.id AS jobcard_id,
+    j.job_no AS jobcard_no,
+    j.job_date,
+    j.km,
+    j.jobcard_type,
+    v.registration_no,
+    m.name,
+    vv.name,
+    v.color,
+    c.name AS customer_name,
+    c.mobile_no,
+    c.email,
+    c.address,
+    cl.claim_no
+FROM core_jobcard j
+LEFT JOIN core_claim cl ON j.claim_id = cl.id
+LEFT JOIN core_vehicle v ON cl.vehicle_id = v.id
+LEFT JOIN core_customer c ON v.customer_id = c.id
+LEFT JOIN core_vehiclemodel m ON v.model_id = m.id
+LEFT JOIN core_vehiclevariant vv ON v.variant_id = vv.id
+WHERE j.id = $P{JOBCARD_ID}]]>
+	</queryString>
+	<field name="jobcard_id" class="java.lang.Long">
+		<property name="com.jaspersoft.studio.field.name" value="jobcard_id"/>
+		<property name="com.jaspersoft.studio.field.label" value="jobcard_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="jobcard_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="jobcard_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="jobcard_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="job_date" class="java.sql.Timestamp">
+		<property name="com.jaspersoft.studio.field.name" value="job_date"/>
+		<property name="com.jaspersoft.studio.field.label" value="job_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="km" class="java.lang.Integer">
+		<property name="com.jaspersoft.studio.field.name" value="km"/>
+		<property name="com.jaspersoft.studio.field.label" value="km"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="jobcard_type" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="jobcard_type"/>
+		<property name="com.jaspersoft.studio.field.label" value="jobcard_type"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="registration_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="registration_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="registration_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehicle"/>
+	</field>
+	<field name="name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="name"/>
+		<property name="com.jaspersoft.studio.field.label" value="name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehiclemodel"/>
+	</field>
+	<field name="COLUMN_8" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="name"/>
+		<property name="com.jaspersoft.studio.field.label" value="name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehiclevariant"/>
+	</field>
+	<field name="color" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="color"/>
+		<property name="com.jaspersoft.studio.field.label" value="color"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehicle"/>
+	</field>
+	<field name="customer_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="customer_name"/>
+		<property name="com.jaspersoft.studio.field.label" value="customer_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="mobile_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="mobile_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="mobile_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="email" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="email"/>
+		<property name="com.jaspersoft.studio.field.label" value="email"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="address" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="address"/>
+		<property name="com.jaspersoft.studio.field.label" value="address"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="claim_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="claim_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="claim_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_claim"/>
+	</field>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="79" splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band height="35" splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="66" splitType="Stretch">
+			<textField>
+				<reportElement x="107" y="36" width="100" height="30" uuid="a3341e6f-30da-43d2-856c-2cd6b8cded33"/>
+				<textFieldExpression><![CDATA[$F{jobcard_no}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="125" splitType="Stretch"/>
+	</detail>
+	<columnFooter>
+		<band height="45" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="54" splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

@@ -3,6 +3,7 @@ from typing import Any
 from django.core.validators import RegexValidator
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 class ItemData(models.Model):
     item_code = models.CharField(max_length=50, unique=True)
@@ -121,6 +122,19 @@ class Vehicle(models.Model):
 
     color = models.CharField(max_length=30)
     sale_date = models.DateField()
+    insurance_company = models.ForeignKey(
+        "InsuranceCompany",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="vehicles"
+    )
+    policy_no = models.CharField(max_length=100, blank=True)
+    policy_start_date = models.DateField(null=True, blank=True)
+    policy_end_date = models.DateField(null=True, blank=True)
+    last_service_km = models.PositiveIntegerField(null=True, blank=True)
+    last_service_type = models.CharField(max_length=50, blank=True)
+    last_service_date = models.DateField(null=True, blank=True)
 
     vehicle_type = models.CharField(
         max_length=2,
@@ -190,6 +204,8 @@ class Employee(models.Model):
         ('Advisor', 'Advisor'),
         ('MANAGER', 'Manager'),
         ('Floor Supervisor', 'Floor Supervisor'),
+        ('Gate Security', 'Gate Security'),
+        ('Reception', 'Reception'),
     ]
 
     user = models.OneToOneField(
@@ -205,6 +221,20 @@ class Employee(models.Model):
     email = models.EmailField(blank=True, null=True)
 
     employee_code = models.CharField(max_length=20, unique=True)
+
+    profile_photo = models.ImageField(
+        upload_to="employee_profile_photos/",
+        blank=True,
+        null=True
+    )
+
+    branch = models.ForeignKey(
+        "Branch",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees"
+    )
 
     designation = models.CharField(max_length=100, blank=True, null=True)
     department = models.CharField(max_length=100, blank=True, null=True)
@@ -313,6 +343,14 @@ class Claim(models.Model):
         related_name="claims"
     )
 
+    branch = models.ForeignKey(
+        "Branch",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="claims"
+    )
+
     employee = models.ForeignKey(
         Employee,
         on_delete=models.SET_NULL,
@@ -412,7 +450,7 @@ class Claim(models.Model):
     status = models.CharField(
         max_length=30,
         choices=STATUS_CHOICES,
-        default="Created"
+        default="Open"
     )
 
     # =========================
@@ -614,6 +652,14 @@ class Claim(models.Model):
 
 
 class JobCard(models.Model):
+    JOBCARD_TYPE_CHOICES = [
+        ("Cashless", "Cashless"),
+        ("NonCashless", "Non-Cashless"),
+        ("Paid", "Paid"),
+        ("FOC", "FOC"),
+        ("Warranty", "Warranty"),
+    ]
+
     INWARD_TYPE_CHOICES = [
         ("Pickup", "Pickup"),
         ("Walk-in", "Walk-in"),
@@ -631,7 +677,25 @@ class JobCard(models.Model):
 
     claim = models.OneToOneField(
             Claim,
-            on_delete=models.CASCADE
+            on_delete=models.SET_NULL,
+            null=True,
+            blank=True
+        )
+
+    vehicle = models.ForeignKey(
+            Vehicle,
+            on_delete=models.SET_NULL,
+            null=True,
+            blank=True,
+            related_name="direct_jobcards"
+        )
+
+    branch = models.ForeignKey(
+            "Branch",
+            on_delete=models.SET_NULL,
+            null=True,
+            blank=True,
+            related_name="jobcards"
         )
 
 
@@ -641,6 +705,13 @@ class JobCard(models.Model):
         )
 
     job_date = models.DateTimeField(auto_now_add=True)
+
+
+    jobcard_type = models.CharField(
+            max_length=30,
+            choices=JOBCARD_TYPE_CHOICES,
+            default="Paid"
+        )
 
 
     advisor = models.ForeignKey(
@@ -784,6 +855,99 @@ class JobCard(models.Model):
         super().save(*args, **kwargs)
     def __str__(self):
             return self.job_no
+
+
+class GateInEntry(models.Model):
+    SERVICE_TYPE_CHOICES = [
+        ("Service", "Service"),
+        ("Bodyshop", "Bodyshop"),
+        ("Other", "Other"),
+    ]
+
+    STATUS_CHOICES = [
+        ("Pending", "Pending"),
+        ("Converted", "Converted"),
+        ("Gate Out", "Gate Out"),
+        ("Cancelled", "Cancelled"),
+    ]
+
+    registration_no = models.CharField(max_length=20, db_index=True)
+    current_km = models.PositiveIntegerField()
+    service_type = models.CharField(
+        max_length=20,
+        choices=SERVICE_TYPE_CHOICES,
+        default="Bodyshop",
+    )
+    gate_in_datetime = models.DateTimeField(default=timezone.now, db_index=True)
+    branch = models.ForeignKey(
+        "Branch",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gate_in_entries",
+    )
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gate_in_entries",
+    )
+    jobcard = models.OneToOneField(
+        JobCard,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gate_in_entry",
+    )
+    entered_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gate_in_entries",
+    )
+    cancelled_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_gate_in_entries",
+    )
+    gate_out_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gate_out_entries",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="Pending",
+        db_index=True,
+    )
+    remarks = models.TextField(blank=True)
+    cancellation_remark = models.TextField(blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    gate_out_datetime = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-gate_in_datetime"]
+        indexes = [
+            models.Index(fields=["registration_no", "status"]),
+            models.Index(fields=["service_type", "status"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.registration_no = (self.registration_no or "").strip().upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.registration_no} - {self.service_type}"
+
 
 def reinspection_photo_upload_path(instance, filename):
         claim_no = "unknown_claim"
@@ -966,6 +1130,11 @@ class ClaimTimeline(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class JobCardLabour(models.Model):
+    PAINT_PANEL_TYPE_CHOICES = [
+        ("", "No Paint Panel"),
+        ("New", "New Panel Painting"),
+        ("Repair", "Repair Panel Painting"),
+    ]
 
     job = models.ForeignKey(
         JobCard,
@@ -980,6 +1149,12 @@ class JobCardLabour(models.Model):
     rate = models.DecimalField(max_digits=10, decimal_places=2)
 
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    paint_panel_type = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=PAINT_PANEL_TYPE_CHOICES,
+        default=""
+    )
 
     def save(self, *args, **kwargs):
         self.amount = self.labour_hrs * self.rate
@@ -1136,6 +1311,37 @@ class CompanySetup(models.Model):
 
     def __str__(self):
         return self.company_name
+
+
+class Branch(models.Model):
+    parent = models.ForeignKey(
+        CompanySetup,
+        on_delete=models.CASCADE,
+        related_name="branches",
+        null=True,
+        blank=True
+    )
+    name = models.CharField(max_length=150)
+    code = models.CharField(max_length=20, unique=True)
+    claim_no_alias = models.CharField(max_length=16, blank=True, null=True)
+    jobcard_no_alias = models.CharField(max_length=16, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    pincode = models.CharField(max_length=20, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    mobile = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    gst_no = models.CharField(max_length=50, blank=True, null=True)
+    is_head_office = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
 
 class JobCardAssessmentPart(models.Model):
     job = models.ForeignKey(
@@ -1573,10 +1779,81 @@ from django.db import models
 
 
 class Customer(models.Model):
+    CUSTOMER_TYPE_CHOICES = [
+        ("Individual", "Individual"),
+        ("Corporate", "Corporate"),
+    ]
 
+    SALUTATION_CHOICES = [
+        ("Mr", "Mr"),
+        ("Mrs", "Mrs"),
+        ("Ms", "Ms"),
+    ]
+
+    GENDER_CHOICES = [
+        ("Male", "Male"),
+        ("Female", "Female"),
+    ]
+
+    CONTACT_METHOD_CHOICES = [
+        ("Mobile", "Mobile"),
+        ("WhatsApp", "WhatsApp"),
+        ("Email", "Email"),
+    ]
+
+    customer_code = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        null=True
+    )
+
+    customer_type = models.CharField(
+        max_length=20,
+        choices=CUSTOMER_TYPE_CHOICES,
+        default="Individual"
+    )
+
+    salutation = models.CharField(
+        max_length=10,
+        choices=SALUTATION_CHOICES,
+        blank=True
+    )
 
     name = models.CharField(
         max_length=150
+    )
+
+    gender = models.CharField(
+        max_length=10,
+        choices=GENDER_CHOICES,
+        blank=True
+    )
+
+    date_of_birth = models.DateField(
+        blank=True,
+        null=True
+    )
+
+    anniversary_date = models.DateField(
+        blank=True,
+        null=True
+    )
+
+    gst_registered = models.BooleanField(
+        default=False
+    )
+
+    pan_no = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True
+    )
+
+    aadhaar_no = models.CharField(
+        max_length=12,
+        blank=True,
+        null=True
     )
 
     mobile_no = models.CharField(
@@ -1585,7 +1862,37 @@ class Customer(models.Model):
         null=True
     )
 
+    alternate_mobile_no = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True
+    )
+
+    whatsapp_no = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True
+    )
+
     email = models.EmailField(
+        blank=True,
+        null=True
+    )
+
+    preferred_contact_method = models.CharField(
+        max_length=20,
+        choices=CONTACT_METHOD_CHOICES,
+        default="Mobile"
+    )
+
+    address_line_1 = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    address_line_2 = models.CharField(
+        max_length=255,
         blank=True,
         null=True
     )
@@ -1617,6 +1924,37 @@ class Customer(models.Model):
         blank=True,
         null=True
     )
+    country = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        default="India"
+    )
+
+    company_name = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    contact_person = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    designation = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    company_gst_no = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True
     )
@@ -1634,6 +1972,15 @@ class Customer(models.Model):
         return (
             f"{self.name}"
         )
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        if not self.customer_code:
+            self.customer_code = f"CUST{self.pk:04d}"
+            Customer.objects.filter(pk=self.pk).update(
+                customer_code=self.customer_code
+            )
 
 class Announcement(models.Model):
         TYPE_CHOICES = [

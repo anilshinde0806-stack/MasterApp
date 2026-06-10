@@ -5,8 +5,49 @@ from .models import JobCard
 from .models import Vehicle
 from .models import Customer
 from django import forms
+from django.db.models import Q
 from .models import Surveyor
 from .models import Employee
+
+
+def logged_employee_for_user(user):
+    if not user or not getattr(user, "is_authenticated", False):
+        return None
+    return Employee.objects.filter(user=user).select_related("branch").first()
+
+
+def is_manager_user(user, employee=None):
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    employee = employee or logged_employee_for_user(user)
+    role = (employee.employee_type or "").upper() if employee else ""
+    return role == "MANAGER" or user.groups.filter(name__iexact="Manager").exists()
+
+
+def branch_limited_employee_queryset(user, queryset=None):
+    queryset = queryset or Employee.objects.all()
+    employee = logged_employee_for_user(user)
+    if is_manager_user(user, employee) and employee and employee.branch_id and not user.is_superuser:
+        queryset = queryset.filter(branch=employee.branch)
+    return queryset
+
+
+def advisor_queryset_for_user(user):
+    return branch_limited_employee_queryset(
+        user,
+        Employee.objects.filter(
+            Q(employee_type__iexact="Advisor")
+            | Q(designation__iexact="Advisor"),
+            is_active=True
+        ),
+    ).order_by("name")
+
+
+def active_employee_queryset_for_user(user):
+    return branch_limited_employee_queryset(
+        user,
+        Employee.objects.filter(is_active=True),
+    ).order_by("name")
 
 
 
@@ -52,7 +93,10 @@ class VehicleForm(forms.ModelForm):
         model = Vehicle
         fields = '__all__'
         widgets = {
-            'sale_date': forms.DateInput(attrs={'type': 'date'})
+            'sale_date': forms.DateInput(attrs={'type': 'date'}),
+            'policy_start_date': forms.DateInput(attrs={'type': 'date'}),
+            'policy_end_date': forms.DateInput(attrs={'type': 'date'}),
+            'last_service_date': forms.DateInput(attrs={'type': 'date'}),
         }
 
     def clean_registration_no(self):
@@ -79,62 +123,122 @@ class VehicleForm(forms.ModelForm):
         self.fields['variant'].widget.attrs.update({'class': 'form-select'})
         self.fields['vehicle_type'].widget.attrs.update({'class': 'form-select'})
         self.fields['customer'].widget.attrs.update({'class': 'form-select'})
+        self.fields['insurance_company'].widget.attrs.update({
+            'class': 'form-select',
+            'id': 'id_vehicle_insurance_company',
+        })
 
 
 
 class CustomerForm(forms.ModelForm):
-            class Meta:
-                model = Customer
-                fields = [
-                    'name',
-                    'mobile_no',
-                    'email',
-                    'address',
-                    'city',
-                    'state',
-                    'pin_code',
-                    'gst_no'
+    class Meta:
+        model = Customer
+        fields = [
+            'customer_type',
+            'name',
+            'salutation',
+            'gender',
+            'date_of_birth',
+            'anniversary_date',
+            'gst_registered',
+            'gst_no',
+            'pan_no',
+            'aadhaar_no',
+            'mobile_no',
+            'alternate_mobile_no',
+            'whatsapp_no',
+            'email',
+            'preferred_contact_method',
+            'address_line_1',
+            'address_line_2',
+            'address',
+            'city',
+            'state',
+            'pin_code',
+            'country',
+            'company_name',
+            'contact_person',
+            'designation',
+            'company_gst_no',
+        ]
+
+        widgets = {
+            'customer_type': forms.Select(attrs={'class': 'form-select'}),
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'salutation': forms.Select(attrs={'class': 'form-select'}),
+            'gender': forms.Select(attrs={'class': 'form-select'}),
+            'date_of_birth': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'anniversary_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'gst_registered': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'gst_no': forms.TextInput(attrs={'class': 'form-control'}),
+            'pan_no': forms.TextInput(attrs={'class': 'form-control'}),
+            'aadhaar_no': forms.TextInput(attrs={'class': 'form-control'}),
+            'mobile_no': forms.TextInput(attrs={'class': 'form-control'}),
+            'alternate_mobile_no': forms.TextInput(attrs={'class': 'form-control'}),
+            'whatsapp_no': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'preferred_contact_method': forms.Select(attrs={'class': 'form-select'}),
+            'address_line_1': forms.TextInput(attrs={'class': 'form-control'}),
+            'address_line_2': forms.TextInput(attrs={'class': 'form-control'}),
+            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'city': forms.TextInput(attrs={'class': 'form-control'}),
+            'state': forms.TextInput(attrs={'class': 'form-control'}),
+            'pin_code': forms.TextInput(attrs={'class': 'form-control'}),
+            'country': forms.TextInput(attrs={'class': 'form-control'}),
+            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'contact_person': forms.TextInput(attrs={'class': 'form-control'}),
+            'designation': forms.TextInput(attrs={'class': 'form-control'}),
+            'company_gst_no': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+    def clean_mobile_no(self):
+        mobile = self.cleaned_data.get('mobile_no')
+
+        if mobile:
+            qs = Customer.objects.filter(mobile_no=mobile)
+
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise forms.ValidationError("Mobile number already exists")
+
+        return mobile
+
+    def clean_gst_no(self):
+        gst = self.cleaned_data.get('gst_no')
+
+        if gst:
+            qs = Customer.objects.filter(gst_no=gst)
+
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise forms.ValidationError("GST already exists")
+
+        return gst
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        if instance.gst_no:
+            instance.gst_registered = True
+
+        if not instance.address and (instance.address_line_1 or instance.address_line_2):
+            instance.address = "\n".join(
+                part for part in [
+                    instance.address_line_1,
+                    instance.address_line_2
                 ]
+                if part
+            )
 
-                widgets = {
-                    'name': forms.TextInput(attrs={'class': 'form-control'}),
-                    'mobile_no': forms.TextInput(attrs={'class': 'form-control'}),
-                    'email': forms.EmailInput(attrs={'class': 'form-control'}),
-                    'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-                    'city': forms.TextInput(attrs={'class': 'form-control'}),
-                    'state': forms.TextInput(attrs={'class': 'form-control'}),
-                    'pin_code': forms.TextInput(attrs={'class': 'form-control'}),
-                    'gst_no': forms.TextInput(attrs={'class': 'form-control'}),
-                }
+        if commit:
+            instance.save()
+            self.save_m2m()
 
-                def clean_mobile_no(self):
-                    mobile = self.cleaned_data.get('mobile_no')
-
-                    if mobile:
-                        qs = Customer.objects.filter(mobile_no=mobile)
-
-                        # 🔥 exclude self (for edit case)
-                        if self.instance.pk:
-                            qs = qs.exclude(pk=self.instance.pk)
-
-                        if qs.exists():
-                            raise forms.ValidationError("Mobile number already exists")
-
-                    return mobile
-
-                def clean_gst_no(self):
-                    gst = self.cleaned_data.get('gst_no')
-
-                    if gst:
-                        qs = Customer.objects.filter(gst_no=gst)
-
-                        if self.instance.pk:
-                            qs = qs.exclude(pk=self.instance.pk)
-
-                        if qs.exists():
-                            raise forms.ValidationError("GST already exists")
-
-                    return gst
+        return instance
 
 
 class SurveyorForm(forms.ModelForm):
@@ -296,8 +400,18 @@ class ClaimForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
 
         user = kwargs.pop('user', None)
+        if args:
+            data = args[0]
+            if hasattr(data, "get") and data.get("status") == "Created":
+                data = data.copy()
+                data["status"] = "Open"
+                args = (data, *args[1:])
 
         super().__init__(*args, **kwargs)
+
+        if self.instance and self.instance.status == "Created":
+            self.instance.status = "Open"
+            self.initial["status"] = "Open"
 
         self.fields["pre_invoice_sent_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["liability_received_at"].input_formats = ["%Y-%m-%dT%H:%M"]
@@ -311,18 +425,11 @@ class ClaimForm(forms.ModelForm):
         # ONLY ADVISORS
         # =====================================
 
-        self.fields['employee'].queryset = Employee.objects.filter(
-            employee_type="Advisor",
-            is_active=True
-        )
+        self.fields['employee'].queryset = advisor_queryset_for_user(user)
 
-        self.fields["delivered_by"].queryset = Employee.objects.filter(
-            is_active=True
-        ).order_by("name")
+        self.fields["delivered_by"].queryset = active_employee_queryset_for_user(user)
 
-        logged_emp = Employee.objects.filter(
-            user=user
-        ).first()
+        logged_emp = logged_employee_for_user(user)
 
         # =====================================
         # ADVISOR LOGIN
@@ -333,6 +440,10 @@ class ClaimForm(forms.ModelForm):
             self.fields['employee'].initial = logged_emp.id
 
             self.fields['employee'].disabled = True
+
+    def clean_status(self):
+        status = self.cleaned_data.get("status")
+        return "Open" if status == "Created" else status
 
 
 
@@ -347,6 +458,8 @@ class JobCardForm(forms.ModelForm):
 
         exclude = [
             "claim",
+            "vehicle",
+            "branch",
             "created_at",
             "job_date",
             "parts_total",
@@ -375,6 +488,10 @@ class JobCardForm(forms.ModelForm):
             "job_date": forms.DateTimeInput(attrs={
                 "class": "form-control",
                 "type": "datetime-local"
+            }),
+
+            "jobcard_type": forms.Select(attrs={
+                "class": "form-select"
             }),
 
             'employee': forms.Select(attrs={'class': 'form-select'}),
@@ -465,6 +582,8 @@ class JobCardForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
 
+        user = kwargs.pop("user", None)
+
         super().__init__(*args, **kwargs)
 
         # =====================================
@@ -486,13 +605,9 @@ class JobCardForm(forms.ModelForm):
         # ONLY ADVISOR IN ADVISOR DROPDOWN
         # =====================================
 
-        self.fields["advisor"].queryset = (
-            self.fields["advisor"]
-            .queryset
-            .filter(
-                employee_type="Advisor"
-            )
-        )
+        self.fields["advisor"].queryset = advisor_queryset_for_user(user)
+        if "employee" in self.fields:
+            self.fields["employee"].queryset = active_employee_queryset_for_user(user)
 
 from django import forms
 from .models import CompanySetup

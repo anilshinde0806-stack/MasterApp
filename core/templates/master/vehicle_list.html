@@ -5,23 +5,178 @@
 {% block content %}
 
 <style>
-    .inline-add-box {
+.inline-add-box {
     background: #f8f9fa;
     border: 1px dashed #0d6efd;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 10px;
     margin-bottom: 12px;
 }
+
+.vehicle-modal-dialog {
+    max-width: 1120px;
+}
+
+#vehicleModal .modal-content {
+    border: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+}
+
+#vehicleModal .modal-header {
+    padding: 12px 18px;
+    background: #17202a;
+}
+
+#vehicleModal .modal-title {
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.vehicle-modal-body {
+    max-height: calc(100vh - 205px);
+    overflow-y: auto;
+    padding: 14px 18px 10px;
+    background: #f6f8fb;
+}
+
+.vehicle-form-section {
+    background: #fff;
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    padding: 10px 12px 12px;
+    margin-bottom: 10px;
+}
+
+.vehicle-section-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+    color: #1f2937;
+    font-size: .82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.vehicle-section-title i {
+    color: #0d6efd;
+}
+
+#vehicleForm label {
+    margin-bottom: 3px;
+    color: #4b5563;
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+#vehicleForm .form-control,
+#vehicleForm .form-select,
+#vehicleForm .ts-control {
+    min-height: 36px;
+    border-radius: 6px;
+    font-size: .9rem;
+}
+
+#vehicleForm .btn-icon-add {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vehicle-modal-footer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    background: #fff;
+    border-top: 1px solid #dfe5ee;
+}
+
+.vehicle-footer-note {
+    color: #6b7280;
+    font-size: .78rem;
+}
+
+.vehicle-master-page {
+    padding: 10px 12px;
+}
+
+.vehicle-toolbar {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.vehicle-toolbar .form-control,
+.vehicle-toolbar .btn {
+    min-height: 34px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: .88rem;
+}
+
+#myGrid {
+    height: calc(100vh - 210px);
+    min-height: 520px;
+    width: 100%;
+    --ag-font-size: 12px;
+    --ag-grid-size: 4px;
+    --ag-row-height: 30px;
+    --ag-header-height: 32px;
+    --ag-list-item-height: 26px;
+    --ag-cell-horizontal-padding: 6px;
+}
+
+#myGrid .ag-header-cell-label {
+    justify-content: flex-start;
+}
+
+#myGrid .ag-header-cell-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#myGrid .ag-cell {
+    line-height: 29px;
+}
+
+@media (max-width: 767px) {
+    .vehicle-modal-dialog {
+        margin: 8px;
+    }
+
+    .vehicle-modal-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .vehicle-toolbar {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
-<div class="container mt-4">
-    <div class="container mt-3">
+<div class="container-fluid vehicle-master-page">
+    <div class="vehicle-toolbar">
         <input id="vehicle_id" name="vehicle_id" type="hidden">
-        <input class="form-control mb-2" id="quickFilter" placeholder="Search..." type="text">
-        <button class="btn btn-primary mb-3" data-bs-target="#vehicleModal" data-bs-toggle="modal">
-            + Add New Vehicle
+        <input class="form-control" id="quickFilter" placeholder="Search vehicle, customer, policy..." type="text">
+        <button class="btn btn-primary" data-bs-target="#vehicleModal" data-bs-toggle="modal">
+            <i class="fa fa-plus me-1"></i>
+            Add Vehicle
         </button>
-        <button class="btn btn-secondary mb-2" id="toggleColumns">
-            ⚙ Show / Hide Columns
+        <button class="btn btn-outline-secondary" id="toggleColumns">
+            <i class="fa fa-columns me-1"></i>
+            Columns
         </button>
 
 
@@ -51,96 +206,175 @@
         </div>
     </div>
     <div class="ag-theme-quartz"
-         id="myGrid"
-         style="height:600px;width:100%;">
+         id="myGrid">
     </div>
 </div>
 <!-- Vehicle Modal -->
 <div class="modal fade" id="vehicleModal" tabindex="-1">
-    <div class="modal-dialog vehicle-modal-dialog">
+    <div class="modal-dialog vehicle-modal-dialog modal-dialog-centered">
         <div class="modal-content">
-
             <div class="modal-header bg-dark text-white">
                 <h5 class="modal-title">Add Vehicle</h5>
                 <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
             </div>
 
-            <div class="card-body">
-                <form id="vehicleForm" method="post">
-                    {% csrf_token %}
+            <form id="vehicleForm" method="post">
+                {% csrf_token %}
 
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            {{ form.registration_no.label_tag }}
-                            {{ form.registration_no }}
-                            <small class="text-danger" id="reg_error"></small>
+                <div class="vehicle-modal-body">
+                    <div class="vehicle-form-section">
+                        <div class="vehicle-section-title">
+                            <i class="fa fa-car"></i>
+                            Vehicle Details
                         </div>
 
-                        <div class="col-md-4">
-                            {{ form.chassis_no.label_tag }}
-                            {{ form.chassis_no }}
-                        </div>
-
-                        <div class="col-md-4">
-                            {{ form.engine_no.label_tag }}
-                            {{ form.engine_no }}
-                        </div>
-                        <div class="col-md-4">
-                            {{ form.vehicle_type.label_tag }}
-                            {{ form.vehicle_type }}
-                        </div>
-                        <div class="col-md-4">
-                            {{ form.model.label_tag }}
-
-                            <div class="d-flex">
-                                {{ form.model }}
-                                <button class="btn btn-outline-primary ms-2" data-bs-target="#modelModal" data-bs-toggle="modal"
-                                        type="button"> +
-                                </button>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                {{ form.registration_no.label_tag }}
+                                {{ form.registration_no }}
+                                <small class="text-danger" id="reg_error"></small>
                             </div>
-                        </div>
-                        <div class="col-md-4">
-                            {{ form.variant.label_tag }}
 
-                            <div class="d-flex">
-                                {{ form.variant }}
-                                <button class="btn btn-outline-primary ms-2" data-bs-target="#variantModal" data-bs-toggle="modal"
-                                        type="button">
-                                    +
-                                </button>
+                            <div class="col-md-4">
+                                {{ form.chassis_no.label_tag }}
+                                {{ form.chassis_no }}
                             </div>
-                        </div>
 
+                            <div class="col-md-4">
+                                {{ form.engine_no.label_tag }}
+                                {{ form.engine_no }}
+                            </div>
 
-                        <div class="col-md-4">
-                            {{ form.color.label_tag }}
-                            {{ form.color }}
-                        </div>
+                            <div class="col-md-3">
+                                {{ form.vehicle_type.label_tag }}
+                                {{ form.vehicle_type }}
+                            </div>
 
-                        <div class="col-md-4">
-                            {{ form.sale_date.label_tag }}
-                            {{ form.sale_date }}
-                        </div>
+                            <div class="col-md-4">
+                                {{ form.model.label_tag }}
+                                <div class="d-flex gap-2">
+                                    {{ form.model }}
+                                    <button class="btn btn-outline-primary btn-icon-add"
+                                            data-bs-target="#modelModal"
+                                            data-bs-toggle="modal"
+                                            title="Add model"
+                                            type="button">
+                                        <i class="fa fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
 
+                            <div class="col-md-4">
+                                {{ form.variant.label_tag }}
+                                <div class="d-flex gap-2">
+                                    {{ form.variant }}
+                                    <button class="btn btn-outline-primary btn-icon-add"
+                                            data-bs-target="#variantModal"
+                                            data-bs-toggle="modal"
+                                            title="Add variant"
+                                            type="button">
+                                        <i class="fa fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
 
-                        <div class="col-md-4">
-                            {{ form.customer.label_tag }}
-                            {{ form.customer }}
-                            <button class="btn btn-outline-secondary mt-2" onclick="openCustomerCard(document.getElementById('id_customer').value)"
-                                    type="button">
-                                👁 View Customer
-                            </button>
-                        </div>
+                            <div class="col-md-3">
+                                {{ form.color.label_tag }}
+                                {{ form.color }}
+                            </div>
 
-
-                        <div class="mt-4 text-end">
-                            <button class="btn btn-success px-4" type="submit">
-                                Save Vehicle
-                            </button>
+                            <div class="col-md-3">
+                                {{ form.sale_date.label_tag }}
+                                {{ form.sale_date }}
+                            </div>
                         </div>
                     </div>
-                </form>
-            </div>
+
+                    <div class="vehicle-form-section">
+                        <div class="vehicle-section-title">
+                            <i class="fa fa-shield-alt"></i>
+                            Policy Details
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                {{ form.insurance_company.label_tag }}
+                                {{ form.insurance_company }}
+                            </div>
+
+                            <div class="col-md-4">
+                                {{ form.policy_no.label_tag }}
+                                {{ form.policy_no }}
+                            </div>
+
+                            <div class="col-md-2">
+                                {{ form.policy_start_date.label_tag }}
+                                {{ form.policy_start_date }}
+                            </div>
+
+                            <div class="col-md-2">
+                                {{ form.policy_end_date.label_tag }}
+                                {{ form.policy_end_date }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vehicle-form-section">
+                        <div class="vehicle-section-title">
+                            <i class="fa fa-wrench"></i>
+                            Last Service
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                {{ form.last_service_km.label_tag }}
+                                {{ form.last_service_km }}
+                            </div>
+
+                            <div class="col-md-4">
+                                {{ form.last_service_type.label_tag }}
+                                {{ form.last_service_type }}
+                            </div>
+
+                            <div class="col-md-4">
+                                {{ form.last_service_date.label_tag }}
+                                {{ form.last_service_date }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vehicle-form-section">
+                        <div class="vehicle-section-title">
+                            <i class="fa fa-user"></i>
+                            Customer
+                        </div>
+
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-8">
+                                {{ form.customer.label_tag }}
+                                {{ form.customer }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-secondary w-100"
+                                        onclick="openCustomerCard(document.getElementById('id_customer').value)"
+                                        type="button">
+                                    <i class="fa fa-eye me-1"></i>
+                                    View Customer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="vehicle-modal-footer">
+                    <span class="vehicle-footer-note">Vehicle master, policy and service data</span>
+                    <button class="btn btn-success px-4" type="submit">
+                        <i class="fa fa-save me-1"></i>
+                        Save Vehicle
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -297,71 +531,6 @@
 
 <script>
     // =========================
-    // FORM SUBMIT (AJAX)
-    // =========================
-    const form = document.getElementById("vehicleForm");
-
-    if (form) {
-        form.addEventListener("submit", function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(form);
-
-            fetch("", {
-                method: "POST",
-                body: formData,
-                headers: {
-                    "X-CSRFToken": getCookie("csrftoken")
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                console.log("SERVER RESPONSE:", data);  // 🔥 ADD THIS
-                if (data.status === "success") {
-
-                    showToast("Vehicle added successfully");
-
-                    lastAddedId = data.id;
-
-                    form.reset();
-                    // 🔥 CLOSE MODAL
-                        bootstrap.Modal.getInstance(
-                            document.getElementById('vehicleModal')
-                        ).hide();
-
-              loadVehicleGrid();
-
-
-
-
-
-                } else {
-                   //console.error("FORM ERRORS:", data. errors);  // 🔥 ADD
-                    //showToast("Error saving vehicle", "danger");
-                    // 🔥 CLEAR OLD ERRORS
-    document.querySelectorAll(".error-text").forEach(el => el.remove());
-
-    // 🔥 SHOW NEW ERRORS
-                    for (let field in data. Errors) {
-
-                        const input = document.getElementById("id_" + field);
-
-                        if (input) {
-                            const error = document.createElement("div");
-                            error.className = "text-danger error-text";
-                            error.innerText = data.errors[field][0];
-
-                            input.parentNode.appendChild(error);
-                        }
-                    }
-                }
-
-            });
-        });
-    }
-
-
-    // =========================
     // MODEL → VARIANT DEPENDENT
     // =========================
     const modelDropdown = document.getElementById("id_model");
@@ -383,6 +552,21 @@
 
                 });
 
+        });
+    }
+
+    const policyStartDate = document.getElementById("id_policy_start_date");
+    const policyEndDate = document.getElementById("id_policy_end_date");
+
+    if (policyStartDate && policyEndDate) {
+        policyStartDate.addEventListener("change", function () {
+            if (!this.value) {
+                return;
+            }
+
+            const startDate = new Date(`${this.value}T00:00:00`);
+            startDate.setDate(startDate.getDate() + 365);
+            policyEndDate.value = startDate.toISOString().slice(0, 10);
         });
     }
 
@@ -761,7 +945,14 @@ const columnGroups = {
         "engine_no",
         "color",
         "sale_date",
-        "vehicle_type"
+        "vehicle_type",
+        "insurance_company__ins_co_name",
+        "policy_no",
+        "policy_start_date",
+        "policy_end_date",
+        "last_service_km",
+        "last_service_type",
+        "last_service_date"
     ],
 
     "Model Info": [
@@ -788,38 +979,107 @@ document.addEventListener("DOMContentLoaded", function () {
         rowSelection: "single",
 
         pagination: true,
+        paginationPageSize: 50,
+        rowHeight: 30,
+        headerHeight: 32,
+        animateRows: false,
+        suppressCellFocus: true,
 
         defaultColDef: {
             sortable: true,
             filter: true,
-            resizable: true
+            resizable: true,
+            floatingFilter: false,
+            suppressHeaderMenuButton: true,
+            minWidth: 72,
+            flex: 0
         },
 
         columnDefs: [
             {
                 field: "registration_no",
+                headerName: "Reg No",
                 pinned: "left",
-                editable: true
+                editable: true,
+                width: 118,
+                minWidth: 108
             },
-            { field: "chassis_no" },
-            { field: "engine_no" },
+            {
+                field: "chassis_no",
+                headerName: "Chassis",
+                width: 132
+            },
+            {
+                field: "engine_no",
+                headerName: "Engine",
+                width: 128
+            },
             {
                 field: "model__name",
-                headerName: "Model"
+                headerName: "Model",
+                width: 92
             },
             {
                 field: "variant__name",
-                headerName: "Variant"
+                headerName: "Variant",
+                width: 105
             },
             {
                 field: "color",
-                editable: true
+                editable: true,
+                width: 78
             },
-            { field: "sale_date" },
-            { field: "vehicle_type" },
+            {
+                field: "sale_date",
+                headerName: "Sale",
+                width: 92
+            },
+            {
+                field: "vehicle_type",
+                headerName: "Type",
+                width: 70
+            },
+            {
+                field: "insurance_company__ins_co_name",
+                headerName: "Ins. Co.",
+                width: 130,
+                minWidth: 110
+            },
+            {
+                field: "policy_no",
+                headerName: "Policy",
+                width: 110
+            },
+            {
+                field: "policy_start_date",
+                headerName: "P.Start",
+                width: 92
+            },
+            {
+                field: "policy_end_date",
+                headerName: "P.End",
+                width: 92
+            },
+            {
+                field: "last_service_km",
+                headerName: "Last KM",
+                width: 88
+            },
+            {
+                field: "last_service_type",
+                headerName: "Last Type",
+                width: 98
+            },
+            {
+                field: "last_service_date",
+                headerName: "Last Date",
+                width: 92
+            },
             {
                 field: "customer__name",
-                headerName: "Customer"
+                headerName: "Customer",
+                minWidth: 130,
+                flex: 1
             }
         ],
 
@@ -906,9 +1166,19 @@ function loadVehicleGrid() {
                 data
             );
 
+            setTimeout(() => {
+                gridApi.sizeColumnsToFit();
+            }, 0);
+
         });
 
 }
+
+window.addEventListener("resize", function () {
+    if (gridApi) {
+        gridApi.sizeColumnsToFit();
+    }
+});
 
 
 // ====================================
@@ -1150,11 +1420,15 @@ function resetColumns() {
 document.getElementById("vehicleForm").addEventListener("submit", function(e) {
 
     e.preventDefault();
+    document.querySelectorAll(".error-text").forEach(el => el.remove());
 
     const vehicleId = document.getElementById("vehicle_id").value;
     const formData = new FormData(this);
+    const url = vehicleId
+        ? `/ajax/vehicle/${vehicleId}/update/`
+        : `/ajax/add-vehicle/`;
 
-    fetch(`/ajax/vehicle/${vehicleId}/update/`, {
+    fetch(url, {
         method: "POST",
         body: formData,
         headers: {
@@ -1165,12 +1439,24 @@ document.getElementById("vehicleForm").addEventListener("submit", function(e) {
     .then(data => {
 
         if (data.status === "success") {
-            showToast("Vehicle updated successfully");
+            showToast(vehicleId ? "Vehicle updated successfully" : "Vehicle added successfully");
             bootstrap.Modal.getInstance(document.getElementById("vehicleModal")).hide();
+            document.getElementById("vehicle_id").value = "";
+            document.getElementById("vehicleForm").reset();
+            loadVehicleGrid();
+        } else if (data.errors) {
+            Object.keys(data.errors).forEach(function(field) {
+                const input = document.getElementById("id_" + field);
+                if (!input) return;
 
-            gridApi.refreshServerSide
-                ? gridApi.refreshServerSide()
-                : location.reload();
+                const error = document.createElement("div");
+                error.className = "text-danger error-text small mt-1";
+                error.innerText = data.errors[field][0];
+                input.closest(".col-md-2, .col-md-3, .col-md-4, .col-md-8")?.appendChild(error);
+            });
+            showToast("Please correct vehicle details", "danger");
+        } else if (data.message) {
+            showToast(data.message, "danger");
         }
     });
 });
@@ -1200,6 +1486,40 @@ document.getElementById("vehicleForm").addEventListener("submit", function(e) {
              document.getElementById(
                 "id_sale_date"
             ).value = data.id_sale_date;
+
+            const insuranceCompanyEl =
+                document.getElementById(
+                    "id_vehicle_insurance_company"
+                );
+
+            if (insuranceCompanyEl) {
+                insuranceCompanyEl.value =
+                    data.insurance_company || "";
+            }
+
+            document.getElementById(
+                "id_policy_no"
+            ).value = data.policy_no || "";
+
+            document.getElementById(
+                "id_policy_start_date"
+            ).value = data.policy_start_date || "";
+
+            document.getElementById(
+                "id_policy_end_date"
+            ).value = data.policy_end_date || "";
+
+            document.getElementById(
+                "id_last_service_km"
+            ).value = data.last_service_km || "";
+
+            document.getElementById(
+                "id_last_service_type"
+            ).value = data.last_service_type || "";
+
+            document.getElementById(
+                "id_last_service_date"
+            ).value = data.last_service_date || "";
             // CUSTOMER
             const customerEl =
                 document.getElementById(

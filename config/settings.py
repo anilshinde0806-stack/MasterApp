@@ -50,11 +50,20 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production.
 DEBUG = env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = env_list(
-    "ALLOWED_HOSTS",
-    "*"
-)
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    "192.168.29.251",
+    "10.211.98.91",
+    "scion-splurge-book.ngrok-free.dev",
+    ".ngrok-free.dev",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "http://192.168.29.251:8000",
+    "http://10.211.98.91:8000",
+    "https://scion-splurge-book.ngrok-free.dev",
+    "https://*.ngrok-free.dev",
+]
 
 
 # Application definition
@@ -174,8 +183,19 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_TOKEN = WHATSAPP_ACCESS_TOKEN
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_GRAPH_VERSION = os.getenv("WHATSAPP_GRAPH_VERSION", "v23.0")
+WHATSAPP_ADVISOR_ASSIGN_TEMPLATE = os.getenv("WHATSAPP_ADVISOR_ASSIGN_TEMPLATE", "service_advisor_intro")
+WHATSAPP_ADVISOR_ASSIGN_LANGUAGE = os.getenv("WHATSAPP_ADVISOR_ASSIGN_LANGUAGE", "en_US")
+WHATSAPP_BODYSHOP_MANAGER_NAME = os.getenv("WHATSAPP_BODYSHOP_MANAGER_NAME", "Mr. Kaushal")
+WHATSAPP_BODYSHOP_MANAGER_PHONE = os.getenv("WHATSAPP_BODYSHOP_MANAGER_PHONE", "8980007687")
+WHATSAPP_BODYSHOP_HEAD_NAME = os.getenv("WHATSAPP_BODYSHOP_HEAD_NAME", "Mr. Yatin")
+WHATSAPP_BODYSHOP_HEAD_PHONE = os.getenv("WHATSAPP_BODYSHOP_HEAD_PHONE", "8980007630")
+WHATSAPP_AREA_MANAGER_NAME = os.getenv("WHATSAPP_AREA_MANAGER_NAME", "Mr. Gunjan Patel")
+WHATSAPP_AREA_MANAGER_EMAIL = os.getenv("WHATSAPP_AREA_MANAGER_EMAIL", "patel.gunjan@tatamotors.com")
+WHATSAPP_CUSTOMER_CARE_EMAIL = os.getenv("WHATSAPP_CUSTOMER_CARE_EMAIL", "customercare.support@tatamotors.com")
 PDF_SECRET_TOKEN = os.getenv("PDF_SECRET_TOKEN", "dev-pdf-token-change-before-live")
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 

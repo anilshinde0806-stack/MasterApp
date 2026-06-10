@@ -495,6 +495,17 @@
             </tbody>
 
         </table>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            <span class="badge text-bg-primary px-3 py-2">
+                New Panel Painting: {{ new_paint_panel_count }}
+            </span>
+            <span class="badge text-bg-warning px-3 py-2">
+                Repair Panel Painting: {{ repair_paint_panel_count }}
+            </span>
+            <span class="badge text-bg-dark px-3 py-2">
+                Total Paint Panel Count: {{ total_paint_panel_count }}
+            </span>
+        </div>
         <button type="button"
                 class="btn btn-sm btn-outline-primary mt-2"
                 id="addLabourLineBtn">

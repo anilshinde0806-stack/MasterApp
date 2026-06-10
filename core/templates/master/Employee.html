@@ -15,6 +15,7 @@
             <th>Code</th>            <th>Mobile</th>
             <th>Designation</th>
             <th>Department</th>
+            <th>Branch</th>
             <th>Type</th>
             <th>Action</th>
             </tr>
@@ -46,20 +47,31 @@
                 </div>
                 <div class="col-md-6 mb-2">
                     <input class="form-control" name="mobile_no" id="mobile_no" placeholder="Mobile">
+                </div>
 
-                    <div class="col-md-6 mb-2">
+                <div class="col-md-6 mb-2">
                     <input class="form-control" name="designation" id="designation" placeholder="Designation">
                 </div>
-                    <div class="col-md-6 mb-2">
-                    <select class="form-control" name="department" id="department" >
 
+                <div class="col-md-6 mb-2">
+                    <select class="form-control" name="department" id="department" >
                         <option value="Front Office">Front Office</option>
                         <option value="Back Office">Back Office</option>
                         <option value="Floor">Floor</option>
                         <option value="washing">Washing & VAS</option>
                    </select>
                 </div>
-               <div class="col-md-4">
+
+                <div class="col-md-6 mb-2">
+                    <select class="form-select" name="branch" id="branch">
+                        <option value="">Select Branch</option>
+                        {% for branch in branches %}
+                            <option value="{{ branch.id }}">{{ branch.code }} - {{ branch.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+               <div class="col-md-6 mb-2">
                     <select name="employee_type" id="employee_type" class="form-select">
                         <option value="STAFF">Staff</option>
                         <option value="ADMIN">Admin</option>
@@ -102,6 +114,7 @@ $(document).ready(function () {
             { data: 'mobile_no' },
             { data: 'designation' },
             { data: 'department' },
+            { data: 'branch_name' },
             { data: 'employee_type' },
             {
                 data: 'id',
@@ -132,6 +145,7 @@ $('#employeeTable').on('click', '.editBtn', function () {
         $('#mobile_no').val(data.mobile_no);
         $('#designation').val(data.designation);
         $('#department').val(data.department);
+        $('#branch').val(data.branch_id);
         $('#employee_type').val(data.employee_type);
 
         $('#employeeModal').modal('show');

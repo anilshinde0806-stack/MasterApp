@@ -14,6 +14,17 @@
 
         <div class="card-body">
             <form method="get" class="row g-2 align-items-end mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Select Branch</label>
+                    <select class="form-select" name="branch_id" id="branchSelect">
+                        <option value="">All Branches</option>
+                        {% for branch in branches %}
+                        <option value="{{ branch.id }}" {% if selected_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                            {{ branch.code }} - {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="col-md-5">
                     <label class="form-label">Select User</label>
                     <select class="form-select" name="user_id" id="userSelect">
@@ -37,6 +48,7 @@
             <form method="post" id="userAccessForm">
                 {% csrf_token %}
                 <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+                <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
 
                 <div class="d-flex gap-2 mb-3">
                     <button class="btn btn-outline-success btn-sm" type="button" id="checkAllMenus">
@@ -114,6 +126,14 @@ document.getElementById("userSelect")?.addEventListener("change", function () {
     if (this.value) {
         this.form.submit();
     }
+});
+
+document.getElementById("branchSelect")?.addEventListener("change", function () {
+    const userSelect = document.getElementById("userSelect");
+    if (userSelect) {
+        userSelect.value = "";
+    }
+    this.form.submit();
 });
 
 function setChildMenus(checkbox, checked) {

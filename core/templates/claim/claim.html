@@ -5,9 +5,139 @@
 
 {% block content %}
 
-<div class="container-fluid py-3">
+<style>
+.claim-grid-page {
+    padding: 10px 12px;
+    position: relative;
+}
 
-    <div class="card shadow-sm mb-3">
+.claim-filter-card {
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.claim-filter-card .card-body {
+    padding: 10px 12px;
+}
+
+.claim-filter-card label {
+    margin-bottom: 3px;
+    color: #4b5563;
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.claim-filter-card .form-control,
+.claim-filter-card .form-select,
+.claim-filter-card .btn,
+.claim-grid-toolbar .form-control,
+.claim-grid-toolbar .btn {
+    min-height: 34px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: .86rem;
+}
+
+.claim-grid-toolbar {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+#myGrid {
+    height: calc(100vh - 218px);
+    min-height: 520px;
+    width: 100%;
+    --ag-font-size: 12px;
+    --ag-grid-size: 4px;
+    --ag-row-height: 30px;
+    --ag-header-height: 32px;
+    --ag-list-item-height: 26px;
+    --ag-cell-horizontal-padding: 6px;
+}
+
+#myGrid .ag-cell {
+    line-height: 29px;
+}
+
+#myGrid .ag-header-cell-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.column-manager {
+    position: fixed;
+    right: auto;
+    top: 0;
+    z-index: 99999;
+    width: min(760px, calc(100vw - 32px));
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, .18);
+    pointer-events: auto;
+}
+
+.cm-toolbar {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto auto;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+#columnList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 6px;
+    max-height: min(360px, calc(100vh - 260px));
+    overflow: auto;
+}
+
+.cm-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: #f8fafc;
+    cursor: default;
+    font-size: .82rem;
+    user-select: none;
+}
+
+.cm-item input[type="checkbox"] {
+    cursor: pointer;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+}
+
+@media (max-width: 767px) {
+    .claim-grid-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .cm-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .column-manager {
+        left: 12px;
+        right: 12px;
+        width: auto;
+    }
+}
+</style>
+
+<div class="container-fluid claim-grid-page">
+
+    <div class="card shadow-sm claim-filter-card">
     <div class="card-body">
 
         <div class="row g-3 align-items-end">
@@ -108,11 +238,13 @@
 
 
 
-<input type="text" id="quickFilter" placeholder="Search..." class="form-control mb-2">
+<div class="claim-grid-toolbar">
+<input type="text" id="quickFilter" placeholder="Search claim, vehicle, customer..." class="form-control">
 
-    <button id="toggleColumns" class="btn btn-secondary mb-2">
-    ⚙ Show / Hide Columns
+    <button id="toggleColumns" class="btn btn-outline-secondary">
+    <i class="fa fa-columns me-1"></i> Columns
     </button>
+</div>
 
 
 <div id="columnManager" class="column-manager d-none">
@@ -142,8 +274,7 @@
         </div>
        <div id="myGrid"
 
-         class="ag-theme-alpine"
-     style="height: calc(100vh - 180px); width: 100%;">
+         class="ag-theme-quartz">
 </div>
 </div>
     <!-- ========================================= -->
@@ -660,77 +791,41 @@
 
 
 
+    const CLAIM_COLUMN_PREF_KEY = "claimListGridColumns";
+
     const columnDefs = [
-
-    {
-        headerName: "Primary",
-        children: [
-            { field: "claim_no", headerName: "Claim No", pinned: "left", width: 130 },
-            { field: "vehicle__registration_no", headerName: "Reg No", pinned: "left", width: 120 },
-            { field: "vehicle__customer__name", headerName: "Customer", width: 160 },
-            { field: "vehicle__customer__mobile_no", headerName: "Mobile", width: 120 },
-            { field: "vehicle__model__name", headerName: "Model", width: 130 },
-            {
-                field: "claim_stage_name",
-                headerName: "Stage",
-                width: 160,
-                pinned: "right",
-                cellRenderer: params =>
-                    `<span class="badge bg-info text-dark">${params.value || ""}</span>`
-            },
-        ]
-    },
-
-    {
-        headerName: "Workflow",
-        children: [
-
-            { field: "status", headerName: "Status", width: 110 },
-            { field: "employee__name", headerName: "Advisor", width: 140 },
-            { field: "created_at", headerName: "Created", width: 120 },
-        ]
-    },
-
-    {
-        headerName: "Insurance",
-        children: [
-            { field: "claim_type", headerName: "Type", width: 110 },
-            { field: "insurance_company__ins_co_name", headerName: "Insurance Co", width: 160 },
-            { field: "policy_no", headerName: "Policy No", width: 130 },
-            { field: "ic_claim_no", headerName: "IC Claim No", width: 130 },
-            { field: "surveyor__name", headerName: "Surveyor", width: 140 },
-        ]
-    },
-
-    {
-        headerName: "Dates",
-        children: [
-            { field: "accident_date", headerName: "Accident", width: 120 },
-            { field: "intimation_date", headerName: "Intimation", width: 120 },
-            { field: "survey_date", headerName: "Survey", width: 120 },
-        ]
-    },
-
-    {
-        headerName: "Financial",
-        children: [
-            { field: "estimated_amount", headerName: "Estimate", type: "numericColumn", width: 120 },
-            { field: "approved_amount", headerName: "Approved", type: "numericColumn", width: 120 },
-        ]
-    },
-
-    {
-        headerName: "Notes",
-        children: [
-            { field: "remarks", headerName: "Remarks", width: 220 },
-        ]
-    },
-
+   { field: "claim_no", headerName: "Claim", pinned: "left", width: 128, minWidth: 112 },
+   { field: "vehicle__registration_no", headerName: "Reg No", pinned: "left", width: 112, minWidth: 100 },
+   { field: "vehicle__customer__name", headerName: "Customer", width: 145, minWidth: 120 },
+   { field: "vehicle__customer__mobile_no", headerName: "Mobile", width: 104 },
+   { field: "vehicle__model__name", headerName: "Model", width: 98 },
+   {
+    field: "claim_stage_name",
+    headerName: "Stage",
+    width: 138,
+    pinned: "right",
+    cellRenderer: params =>
+        `<span class="badge bg-info text-dark">${params.value || ""}</span>`
+   },
+   { field: "status", headerName: "Status", width: 88 },
+   { field: "employee__name", headerName: "Advisor", width: 118 },
+   { field: "created_at", headerName: "Created", width: 110 },
+   { field: "claim_type", headerName: "Type", width: 92 },
+   { field: "insurance_company__ins_co_name", headerName: "Ins. Co.", width: 130 },
+   { field: "policy_no", headerName: "Policy", width: 112 },
+   { field: "ic_claim_no", headerName: "IC Claim", width: 112 },
+   { field: "surveyor__name", headerName: "Surveyor", width: 120 },
+   { field: "accident_date", headerName: "Accident", width: 98 },
+   { field: "intimation_date", headerName: "Intimation", width: 108 },
+   { field: "survey_date", headerName: "Survey", width: 98 },
+   { field: "estimated_amount", headerName: "Estimate", type: "numericColumn", width: 98 },
+   { field: "approved_amount", headerName: "Approved", type: "numericColumn", width: 102 },
+   { field: "remarks", headerName: "Remarks", width: 150 },
    {
     headerName: "Action",
     field: "id",
     pinned: "right",
-    width: 150,
+    width: 132,
 
     cellRenderer: function (params) {
 
@@ -1033,28 +1128,7 @@ document.getElementById('quickFilter')
 
 
 
-const columnGroups = {
-    "Vehicle Info": [
-        "registration_no",
-        "chassis_no",
-        "engine_no",
-        "color",
-        "sale_date",
-        "vehicle_type"
-    ],
-
-    "Model Info": [
-        "model__name",
-        "variant__name"
-    ],
-
-    "Customer Info": [
-        "customer__name"
-    ]
-};
-
 let gridApi = null;
-let draggedCol = null;
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -1067,11 +1141,19 @@ document.addEventListener("DOMContentLoaded", function () {
             rowSelection: "single",
 
             pagination: true,
+            paginationPageSize: 50,
+            rowHeight: 30,
+            headerHeight: 32,
+            animateRows: false,
+            suppressCellFocus: true,
 
             defaultColDef: {
                 sortable: true,
                 filter: true,
-                resizable: true
+                resizable: true,
+                suppressHeaderMenuButton: true,
+                minWidth: 72,
+                flex: 0
             },
 
             columnDefs: columnDefs,
@@ -1159,9 +1241,21 @@ function loadVehicleGrid() {
                 data
             );
 
+            if (!document.getElementById("columnManager")?.classList.contains("d-none")) {
+                return;
+            }
+
         });
 
 }
+
+window.addEventListener("resize", function () {
+    const panel = document.getElementById("columnManager");
+    if (gridApi && panel && !panel.classList.contains("d-none")) {
+        positionColumnPanel();
+        buildColumnManager();
+    }
+});
 
 
 // ====================================
@@ -1176,9 +1270,29 @@ function toggleColumnPanel() {
 
     if (!panel.classList.contains("d-none")) {
 
+        positionColumnPanel();
         buildColumnManager();
 
     }
+}
+
+function positionColumnPanel() {
+    const panel = document.getElementById("columnManager");
+    const button = document.getElementById("toggleColumns");
+
+    if (!panel || !button) return;
+
+    const buttonRect = button.getBoundingClientRect();
+    const panelWidth = Math.min(760, window.innerWidth - 32);
+    let left = buttonRect.right - panelWidth;
+    left = Math.max(12, Math.min(left, window.innerWidth - panelWidth - 12));
+    const maxTop = Math.max(12, window.innerHeight - 180);
+    const top = Math.min(buttonRect.bottom + 6, maxTop);
+
+    panel.style.width = panelWidth + "px";
+    panel.style.left = left + "px";
+    panel.style.right = "auto";
+    panel.style.top = top + "px";
 }
 
 
@@ -1192,41 +1306,21 @@ function buildColumnManager() {
 
     container.innerHTML = "";
 
-    const columns = gridApi.getColumns();
+    const columns = gridApi.getColumns().filter(col => col.getColId() !== "id");
 
-    Object.keys(columnGroups).forEach(group => {
-
-        // GROUP TITLE
-        const title = document.createElement("div");
-
-        title.className = "cm-group";
-
-        title.innerText = group;
-
-        container.appendChild(title);
-
-        // COLUMNS
-        columnGroups[group].forEach(colId => {
-
-            const col =
-                columns.find(
-                    c => c.getColId() === colId
-                );
-
-            if (!col) return;
-
+    columns.forEach(col => {
             const item =
                 document.createElement("div");
 
             item.className = "cm-item";
 
-            item.draggable = true;
-
+            const colId = col.getColId();
+            const colDef = col.getColDef();
             item.dataset.col = colId;
 
             item.innerHTML = `
                 <span>
-                    ${colId.replaceAll("_", " ")}
+                    ${colDef.headerName || colId.replaceAll("_", " ")}
                 </span>
 
                 <input type="checkbox"
@@ -1237,8 +1331,14 @@ function buildColumnManager() {
             // ==================
             // SHOW/HIDE
             // ==================
-            item.querySelector("input")
-                .addEventListener("change", function () {
+            const checkbox = item.querySelector("input");
+            checkbox.addEventListener("pointerdown", function (event) {
+                event.stopPropagation();
+            });
+            checkbox.addEventListener("click", function (event) {
+                event.stopPropagation();
+            });
+            checkbox.addEventListener("change", function () {
 
                     gridApi.setColumnsVisible(
                         [colId],
@@ -1249,91 +1349,9 @@ function buildColumnManager() {
 
                 });
 
-            // ==================
-            // DRAG EVENTS
-            // ==================
-            item.addEventListener(
-                "dragstart",
-                dragStart
-            );
-
-            item.addEventListener(
-                "dragover",
-                dragOver
-            );
-
-            item.addEventListener(
-                "drop",
-                drop
-            );
-
             container.appendChild(item);
 
-        });
-
     });
-
-}
-
-
-// ====================================
-// DRAG START
-// ====================================
-function dragStart() {
-
-    draggedCol = this.dataset.col;
-
-}
-
-
-// ====================================
-// DRAG OVER
-// ====================================
-function dragOver(e) {
-
-    e.preventDefault();
-
-}
-
-
-// ====================================
-// DROP
-// ====================================
-function drop() {
-
-    const targetCol = this.dataset.col;
-
-    if (
-        !draggedCol ||
-        draggedCol === targetCol
-    ) return;
-
-    const state =
-        gridApi.getColumnState();
-
-    const fromIndex =
-        state.findIndex(
-            c => c.colId === draggedCol
-        );
-
-    const toIndex =
-        state.findIndex(
-            c => c.colId === targetCol
-        );
-
-    const moved =
-        state.splice(fromIndex, 1)[0];
-
-    state.splice(toIndex, 0, moved);
-
-    gridApi.applyColumnState({
-        state: state,
-        applyOrder: true
-    });
-
-    saveColumnState();
-
-    buildColumnManager();
 
 }
 
@@ -1347,9 +1365,22 @@ function saveColumnState() {
         gridApi.getColumnState();
 
     localStorage.setItem(
-        "vehicleGridColumns",
+        CLAIM_COLUMN_PREF_KEY,
         JSON.stringify(state)
     );
+
+    fetch("/api/save-columns/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({
+            screen: "claim_list",
+            name: "default",
+            state: state
+        })
+    }).catch(() => {});
 
     showToast("Preferences saved");
 
@@ -1363,24 +1394,35 @@ function restoreColumnState() {
 
     const saved =
         localStorage.getItem(
-            "vehicleGridColumns"
+            CLAIM_COLUMN_PREF_KEY
         );
 
-    if (!saved) return;
-
-    try {
-
-        gridApi.applyColumnState({
-            state: JSON.parse(saved),
-            applyOrder: true
-        });
-
-    } catch (err) {
-
-        console.error(err);
-
+    if (saved) {
+        applyClaimColumnState(saved);
+        return;
     }
 
+    fetch("/api/load-columns/?screen=claim_list&name=default")
+        .then(res => res.json())
+        .then(data => {
+            if (data.state && data.state.length) {
+                localStorage.setItem(CLAIM_COLUMN_PREF_KEY, JSON.stringify(data.state));
+                applyClaimColumnState(data.state);
+            }
+        })
+        .catch(() => {});
+
+}
+
+function applyClaimColumnState(state) {
+    try {
+        gridApi.applyColumnState({
+            state: typeof state === "string" ? JSON.parse(state) : state,
+            applyOrder: true
+        });
+    } catch (err) {
+        console.error(err);
+    }
 }
 
 
@@ -1390,10 +1432,11 @@ function restoreColumnState() {
 function resetColumns() {
 
     localStorage.removeItem(
-        "vehicleGridColumns"
+        CLAIM_COLUMN_PREF_KEY
     );
 
     gridApi.resetColumnState();
+    saveColumnState();
 
     buildColumnManager();
 
@@ -1620,6 +1663,11 @@ function resetColumns() {
         'rowData',
         data
     );
+
+      const panelOpen = !document.getElementById("columnManager")?.classList.contains("d-none");
+      if (!panelOpen) {
+          setTimeout(() => gridApi.sizeColumnsToFit(), 0);
+      }
 
     });
 

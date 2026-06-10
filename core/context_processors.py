@@ -103,10 +103,15 @@ def build_breadcrumb(menu_dict):
 
     breadcrumb.reverse()
     return breadcrumb
-from .models import CompanySetup
+from .models import CompanySetup, Employee
 
 def company_data(request):
+    employee = None
+    if request.user.is_authenticated:
+        employee = Employee.objects.filter(user=request.user).select_related("branch").first()
 
     return {
-        'company_setup': CompanySetup.objects.first()
+        'company_setup': CompanySetup.objects.first(),
+        'logged_employee': employee,
+        'logged_branch': employee.branch if employee and employee.branch_id else None,
     }

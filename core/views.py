@@ -2,9 +2,10 @@ import math
 import os
 import zipfile
 import base64
-from datetime import datetime, time as datetime_time
+from datetime import datetime, timedelta, time as datetime_time
 from io import BytesIO
 
+from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
@@ -12,21 +13,29 @@ from django.core.files.base import ContentFile
 from django.contrib.sites import requests
 from django.db import IntegrityError
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import get_template
+from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.cache import never_cache
 from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.http import require_POST
 from psycopg import rows
 from xhtml2pdf import pisa
 
 from config import settings
 from .forms import VehicleForm, InsuranceCompanyForm, CustomerForm, SurveyorForm, EmployeeForm, JobCardForm
-from .models import InsuranceCompany, VehicleModel, Customer, ColumnPreference, Surveyor, JobCardPart, \
-    JobCardLabour, JobCardAssessmentPart, JobCardAssessmentLabour, JobCardTyreInventory, \
-    CommunicationLog, UserNotification, ClaimStageCode, WorkProgress, WorkAllocation, AnnouncementRead, Announcement, \
-    PartOrder, PartOrderHeader, WorkAllocationPart, WorkAllocationLabour, JobCardReInspectionPhoto, \
-    JobCardVehicleConditionPhoto, ClaimDocument, WorkProgressPhoto, JobCardAdditionalApprovalPhoto
+from .models import (
+    InsuranceCompany, VehicleModel, Customer, ColumnPreference, Surveyor, JobCardPart,
+    JobCardLabour, JobCardAssessmentPart, JobCardAssessmentLabour, JobCardTyreInventory,
+    CommunicationLog, UserNotification, ClaimStageCode, WorkProgress, WorkAllocation,
+    AnnouncementRead, Announcement, PartOrder, PartOrderHeader, WorkAllocationPart,
+    WorkAllocationLabour, JobCardReInspectionPhoto, JobCardVehicleConditionPhoto,
+    ClaimDocument, WorkProgressPhoto, JobCardAdditionalApprovalPhoto, Branch, GateInEntry,
+)
+from .numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
+from .whatsapp import send_advisor_assigned_whatsapp, send_whatsapp_template_message
 
 
 REINSPECTION_MAX_PHOTOS_PER_JOBCARD = getattr(settings, "REINSPECTION_MAX_PHOTOS_PER_JOBCARD", 25)
@@ -495,6 +504,61 @@ def is_admin_or_manager_user(user, employee=None):
     )
 
 
+def is_admin_user(user, employee=None):
+    if not user or not user.is_authenticated:
+        return False
+
+    role_text = f"{employee.employee_type if employee else ''} {employee.designation if employee else ''}".upper()
+    return (
+        user.is_superuser
+        or user.groups.filter(name__iexact="Admin").exists()
+        or "ADMIN" in role_text
+    )
+
+
+def branch_scoped_queryset_for_user(queryset, user, branch_field="branch"):
+    employee = Employee.objects.filter(user=user).select_related("branch").first()
+
+    if is_admin_user(user, employee):
+        return queryset
+
+    if employee and employee.branch_id:
+        return queryset.filter(**{branch_field: employee.branch})
+
+    return queryset.none()
+
+
+def report_branch_context(request):
+    employee = Employee.objects.filter(user=request.user).select_related("branch").first()
+    admin_user = is_admin_user(request.user, employee)
+    branches = Branch.objects.filter(is_active=True).order_by("name")
+    selected_branch_id = request.GET.get("branch_id") or ""
+    selected_branch = None
+
+    if admin_user and selected_branch_id:
+        selected_branch = branches.filter(pk=selected_branch_id).first()
+    elif not admin_user:
+        selected_branch = employee.branch if employee and employee.branch_id else None
+        selected_branch_id = str(selected_branch.id) if selected_branch else ""
+
+    return {
+        "report_is_admin": admin_user,
+        "report_branches": branches,
+        "report_branch": selected_branch,
+        "report_branch_id": selected_branch_id,
+        "report_branch_name": selected_branch.name if selected_branch else "All Branches",
+    }
+
+
+def apply_report_branch_scope(queryset, branch_context, branch_field="branch"):
+    branch = branch_context.get("report_branch")
+    if branch:
+        return queryset.filter(**{branch_field: branch})
+    if branch_context.get("report_is_admin"):
+        return queryset
+    return queryset.none()
+
+
 def create_user_notification(user, title, message, url=""):
     if not user:
         return
@@ -551,6 +615,123 @@ def floor_incharge_users():
     return users
 
 
+def reception_users(branch=None):
+    employees = Employee.objects.filter(
+        is_active=True,
+        user__isnull=False,
+    )
+    if branch:
+        employees = employees.filter(Q(branch=branch) | Q(branch__isnull=True))
+
+    users = []
+    seen_user_ids = set()
+
+    for employee in employees:
+        role_text = " ".join([
+            employee.employee_type or "",
+            employee.designation or "",
+            employee.department or "",
+        ]).upper()
+
+        if not any(keyword in role_text for keyword in ["RECEPTION", "FRONT OFFICE"]):
+            continue
+
+        if employee.user_id in seen_user_ids:
+            continue
+
+        users.append(employee.user)
+        seen_user_ids.add(employee.user_id)
+
+    return users
+
+
+def notify_reception_gate_in(entry):
+    if not entry or entry.service_type != "Bodyshop":
+        return
+
+    gate_time = timezone.localtime(entry.gate_in_datetime).strftime("%d/%m/%Y %H:%M")
+    message = (
+        f"Vehicle {entry.registration_no} entered Bodyshop gate at {gate_time}. "
+        f"Current KM: {entry.current_km}. Create claim entry."
+    )
+
+    for user in reception_users(entry.branch):
+        create_user_notification(
+            user,
+            "Gate In - Claim Creation",
+            message,
+            "/claim/",
+        )
+
+
+def notify_reception_gate_in_changed(entry, cancelled=False):
+    if not entry:
+        return
+
+    if not cancelled and entry.service_type != "Bodyshop":
+        return
+
+    gate_time = timezone.localtime(entry.gate_in_datetime).strftime("%d/%m/%Y %H:%M")
+    if cancelled:
+        title = "Gate In Cancelled"
+        message = (
+            f"Gate In for vehicle {entry.registration_no} was cancelled. "
+            f"Remark: {entry.cancellation_remark or '-'}"
+        )
+        url = "/"
+    else:
+        title = "Gate In Updated - Claim Creation"
+        message = (
+            f"Gate In updated for vehicle {entry.registration_no}. "
+            f"Gate time: {gate_time}. Current KM: {entry.current_km}. "
+            f"Create claim entry."
+        )
+        url = "/claim/"
+
+    for user in reception_users(entry.branch):
+        create_user_notification(
+            user,
+            title,
+            message,
+            url,
+        )
+
+
+def is_reception_employee(employee):
+    if not employee:
+        return False
+
+    role_text = " ".join([
+        employee.employee_type or "",
+        employee.designation or "",
+        employee.department or "",
+    ]).upper()
+
+    return any(keyword in role_text for keyword in ["RECEPTION", "FRONT OFFICE"])
+
+
+def compact_wait_time(value):
+    if not value:
+        return "-"
+
+    current = timezone.now()
+    if timezone.is_naive(value):
+        value = timezone.make_aware(value)
+
+    total_minutes = max(0, int((current - value).total_seconds() // 60))
+    if total_minutes < 60:
+        return f"{total_minutes}m"
+
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    if hours < 24:
+        return f"{hours}h {minutes}m"
+
+    days = hours // 24
+    rem_hours = hours % 24
+    return f"{days}d {rem_hours}h"
+
+
 def notify_floor_incharge_work_allocated(job):
     if not job:
         return
@@ -588,7 +769,7 @@ def notify_floor_incharge_work_allocation_pending(claim):
     job_no = job.job_no if job else "-"
     url = f"/work-allocation/{job.id}/" if job else f"/claim/{claim.id}/edit/"
     message = (
-        f"Claim {claim.claim_no} moved to Work Allocation. "
+        f"Claim {claim.claim_no} Assign For Work Allocation. "
         f"Jobcard {job_no} ({registration_no} - {model_name})"
     )
 
@@ -691,6 +872,268 @@ def can_update_second_approval(user, employee, job):
     )
 
 
+def latest_pending_gate_entry_for_claim(claim):
+    if not claim or not claim.vehicle_id:
+        return None
+
+    branch = branch_for_claim(claim)
+    return latest_pending_gate_entry_for_vehicle(claim.vehicle, branch=branch)
+
+
+def latest_pending_gate_entry_for_vehicle(vehicle, branch=None):
+    if not vehicle:
+        return None
+
+    entries = GateInEntry.objects.filter(
+        Q(vehicle=vehicle) | Q(registration_no__iexact=vehicle.registration_no),
+        status="Pending",
+        jobcard__isnull=True,
+    )
+    if branch:
+        entries = entries.filter(Q(branch=branch) | Q(branch__isnull=True))
+
+    return entries.order_by("-gate_in_datetime").first()
+
+
+@login_required
+def vehicle_gate_in_status(request):
+    vehicle_id = request.GET.get("vehicle_id") or request.GET.get("id")
+    if not vehicle_id or not str(vehicle_id).isdigit():
+        return JsonResponse({
+            "status": "error",
+            "message": "Select valid vehicle first.",
+        }, status=400)
+
+    vehicle = Vehicle.objects.filter(pk=vehicle_id).first()
+    if not vehicle:
+        return JsonResponse({
+            "status": "error",
+            "message": "Vehicle not found.",
+        }, status=404)
+
+    branch = None if is_admin_user(request.user) else branch_for_user(request.user)
+    entry = latest_pending_gate_entry_for_vehicle(vehicle, branch=branch)
+    if not entry:
+        return JsonResponse({
+            "status": "missing",
+            "message": "First Gate In Entry then continue.",
+        })
+
+    return JsonResponse({
+        "status": "success",
+        "gate_entry_id": entry.id,
+        "message": "Gate In Entry found.",
+        "gate_in_display": timezone.localtime(entry.gate_in_datetime).strftime("%d/%m/%Y %I:%M %p"),
+        "current_km": entry.current_km,
+        "service_type": entry.service_type,
+    })
+
+
+@never_cache
+@login_required
+def gate_in_entry(request):
+    if request.method == "POST":
+        registration_no = (request.POST.get("registration_no") or "").strip().upper()
+        current_km_raw = (request.POST.get("current_km") or "").strip()
+        service_type = (request.POST.get("service_type") or "").strip()
+        remarks = (request.POST.get("remarks") or "").strip()
+
+        if not registration_no:
+            messages.error(request, "Vehicle No is required.")
+            return redirect("gate_in_entry")
+
+        try:
+            current_km = int(current_km_raw)
+        except (TypeError, ValueError):
+            current_km = 0
+
+        if current_km <= 0:
+            messages.error(request, "Enter valid Current KM.")
+            return redirect("gate_in_entry")
+
+        valid_service_types = dict(GateInEntry.SERVICE_TYPE_CHOICES)
+        if service_type not in valid_service_types:
+            messages.error(request, "Select valid Service Type.")
+            return redirect("gate_in_entry")
+
+        duplicate = GateInEntry.objects.filter(
+            registration_no__iexact=registration_no,
+            status="Pending",
+        ).first()
+        if duplicate:
+            messages.error(
+                request,
+                f"{registration_no} already has a pending Gate In entry from "
+                f"{timezone.localtime(duplicate.gate_in_datetime):%d/%m/%Y %H:%M}.",
+            )
+            return redirect("gate_in_entry")
+
+        vehicle = Vehicle.objects.filter(registration_no__iexact=registration_no).first()
+        entry = GateInEntry.objects.create(
+            registration_no=registration_no,
+            current_km=current_km,
+            service_type=service_type,
+            gate_in_datetime=timezone.now(),
+            branch=branch_for_user(request.user),
+            vehicle=vehicle,
+            entered_by=request.user,
+            remarks=remarks,
+        )
+        notify_reception_gate_in(entry)
+
+        messages.success(request, f"Gate In saved for {registration_no}.")
+        return redirect("gate_in_entry")
+
+    return render(
+        request,
+        "gate/gate_in_entry.html",
+        {
+            "service_types": GateInEntry.SERVICE_TYPE_CHOICES,
+        },
+    )
+
+
+@never_cache
+@login_required
+def gate_in_entry_data(request):
+    status_filter = (request.GET.get("status") or "Pending").strip()
+    service_type = (request.GET.get("service_type") or "").strip()
+    entries = GateInEntry.objects.select_related(
+        "vehicle",
+        "vehicle__customer",
+        "branch",
+        "entered_by",
+        "jobcard",
+    ).order_by("-gate_in_datetime")
+
+    if status_filter and status_filter.lower() != "all":
+        entries = entries.filter(status=status_filter)
+
+    if service_type:
+        entries = entries.filter(service_type=service_type)
+
+    data = []
+    for entry in entries[:200]:
+        data.append({
+            "id": entry.id,
+            "registration_no": entry.registration_no,
+            "customer": entry.vehicle.customer.name if entry.vehicle_id and entry.vehicle.customer_id else "",
+            "current_km": entry.current_km,
+            "service_type": entry.service_type,
+            "gate_in_datetime": timezone.localtime(entry.gate_in_datetime).strftime("%d/%m/%Y %H:%M"),
+            "branch": entry.branch.name if entry.branch_id else "",
+            "entered_by": entry.entered_by.username if entry.entered_by_id else "",
+            "status": entry.status,
+            "job_no": entry.jobcard.job_no if entry.jobcard_id else "",
+            "remarks": entry.remarks,
+            "cancellation_remark": entry.cancellation_remark,
+        })
+
+    return JsonResponse({"data": data})
+
+
+@require_POST
+@login_required
+def gate_in_entry_update(request, pk):
+    entry = get_object_or_404(GateInEntry, pk=pk)
+    if entry.status == "Converted":
+        messages.error(request, "Converted Gate In entry cannot be edited.")
+        return redirect("gate_in_entry")
+
+    registration_no = (request.POST.get("registration_no") or "").strip().upper()
+    current_km_raw = (request.POST.get("current_km") or "").strip()
+    service_type = (request.POST.get("service_type") or "").strip()
+    remarks = (request.POST.get("remarks") or "").strip()
+    cancel_entry = request.POST.get("cancel_entry") == "on"
+    cancellation_remark = (request.POST.get("cancellation_remark") or "").strip()
+
+    if not registration_no:
+        messages.error(request, "Vehicle No is required.")
+        return redirect("gate_in_entry")
+
+    try:
+        current_km = int(current_km_raw)
+    except (TypeError, ValueError):
+        current_km = 0
+
+    if current_km <= 0:
+        messages.error(request, "Enter valid Current KM.")
+        return redirect("gate_in_entry")
+
+    if service_type not in dict(GateInEntry.SERVICE_TYPE_CHOICES):
+        messages.error(request, "Select valid Service Type.")
+        return redirect("gate_in_entry")
+
+    if cancel_entry and not cancellation_remark:
+        messages.error(request, "Cancel remark is required when marking Gate In as cancelled.")
+        return redirect("gate_in_entry")
+
+    duplicate = GateInEntry.objects.filter(
+        registration_no__iexact=registration_no,
+        status="Pending",
+    ).exclude(pk=entry.pk).first()
+    if duplicate and not cancel_entry:
+        messages.error(
+            request,
+            f"{registration_no} already has another pending Gate In entry from "
+            f"{timezone.localtime(duplicate.gate_in_datetime):%d/%m/%Y %H:%M}.",
+        )
+        return redirect("gate_in_entry")
+
+    entry.registration_no = registration_no
+    entry.current_km = current_km
+    entry.service_type = service_type
+    entry.vehicle = Vehicle.objects.filter(registration_no__iexact=registration_no).first()
+    entry.remarks = remarks
+
+    update_fields = [
+        "registration_no",
+        "current_km",
+        "service_type",
+        "vehicle",
+        "remarks",
+        "updated_at",
+    ]
+
+    if cancel_entry:
+        entry.status = "Cancelled"
+        entry.cancellation_remark = cancellation_remark
+        entry.cancelled_at = timezone.now()
+        entry.cancelled_by = request.user
+        update_fields.extend(["status", "cancellation_remark", "cancelled_at", "cancelled_by"])
+
+    entry.save(update_fields=update_fields)
+    notify_reception_gate_in_changed(entry, cancelled=cancel_entry)
+    messages.success(
+        request,
+        f"Gate In {'cancelled' if cancel_entry else 'updated'} for {entry.registration_no}.",
+    )
+    return redirect("gate_in_entry")
+
+
+@require_POST
+@login_required
+def gate_in_entry_cancel(request, pk):
+    entry = get_object_or_404(GateInEntry, pk=pk)
+    if entry.status == "Converted":
+        messages.error(request, "Converted Gate In entry cannot be cancelled.")
+        return redirect("gate_in_entry")
+
+    cancellation_remark = (request.POST.get("cancellation_remark") or "").strip()
+    if not cancellation_remark:
+        messages.error(request, "Cancel remark is required.")
+        return redirect("gate_in_entry")
+
+    entry.status = "Cancelled"
+    entry.cancellation_remark = cancellation_remark
+    entry.cancelled_at = timezone.now()
+    entry.cancelled_by = request.user
+    entry.save(update_fields=["status", "cancellation_remark", "cancelled_at", "cancelled_by", "updated_at"])
+    notify_reception_gate_in_changed(entry, cancelled=True)
+    messages.success(request, f"Gate In cancelled for {entry.registration_no}.")
+    return redirect("gate_in_entry")
+
+
 # Create your views here.
 @login_required
 @login_required
@@ -701,6 +1144,73 @@ def dashboard(request):
     logged_emp = Employee.objects.filter(
         user=request.user
     ).first()
+
+    if is_reception_employee(logged_emp):
+        branch = logged_emp.branch if logged_emp and logged_emp.branch_id else None
+
+        gate_entries = GateInEntry.objects.select_related(
+            "vehicle",
+            "vehicle__customer",
+            "branch",
+            "entered_by",
+        ).filter(
+            service_type="Bodyshop",
+            status="Pending",
+            jobcard__isnull=True,
+        )
+        pending_claims = Claim.objects.select_related(
+            "vehicle",
+            "vehicle__customer",
+            "vehicle__model",
+            "branch",
+        ).filter(
+            claim_stage=ClaimStageCode.CLAIM_CREATED,
+            employee__isnull=True,
+        ).exclude(
+            status="Closed",
+        )
+
+        if branch:
+            gate_entries = gate_entries.filter(Q(branch=branch) | Q(branch__isnull=True))
+            pending_claims = pending_claims.filter(Q(branch=branch) | Q(branch__isnull=True))
+
+        gate_rows = []
+        for entry in gate_entries.order_by("gate_in_datetime")[:30]:
+            gate_rows.append({
+                "id": entry.id,
+                "registration_no": entry.registration_no,
+                "customer": entry.vehicle.customer.name if entry.vehicle_id and entry.vehicle.customer_id else "",
+                "current_km": entry.current_km,
+                "gate_in_datetime": entry.gate_in_datetime,
+                "gate_in_display": timezone.localtime(entry.gate_in_datetime).strftime("%d/%m/%Y %H:%M"),
+                "waiting": compact_wait_time(entry.gate_in_datetime),
+                "branch": entry.branch.name if entry.branch_id else "",
+                "remarks": entry.remarks,
+            })
+
+        claim_rows = []
+        for claim in pending_claims.order_by("created_at")[:30]:
+            vehicle = claim.vehicle if claim.vehicle_id else None
+            claim_rows.append({
+                "id": claim.id,
+                "claim_no": claim.claim_no,
+                "registration_no": vehicle.registration_no if vehicle else "",
+                "customer": vehicle.customer.name if vehicle and vehicle.customer_id else "",
+                "model": vehicle.model.name if vehicle and vehicle.model_id else "",
+                "created_at": claim.created_at,
+                "created_display": timezone.localtime(claim.created_at).strftime("%d/%m/%Y %H:%M"),
+                "waiting": compact_wait_time(claim.created_at),
+                "branch": claim.branch.name if claim.branch_id else "",
+            })
+
+        return render(request, "dashboard/reception_home.html", {
+            "logged_emp": logged_emp,
+            "gate_rows": gate_rows,
+            "claim_rows": claim_rows,
+            "gate_pending_count": gate_entries.count(),
+            "advisor_pending_count": pending_claims.count(),
+            "branch": branch,
+        })
 
     if is_repair_resource(logged_emp):
         return redirect("my_work_list")
@@ -723,8 +1233,15 @@ def dashboard(request):
     # MANAGER
     elif logged_emp and logged_emp.employee_type == "MANAGER":
 
-        claims = Claim.objects.all()
-        jobcards = JobCard.objects.all()
+        claims = branch_scoped_queryset_for_user(
+            Claim.objects.all(),
+            request.user,
+        )
+        jobcards = branch_scoped_queryset_for_user(
+            JobCard.objects.all(),
+            request.user,
+            "claim__branch",
+        )
         show_manager_dashboard = True
 
     # ADVISOR
@@ -751,11 +1268,23 @@ def dashboard(request):
 
     today = date.today()
     default_from_date = today.replace(day=1)
+    dashboard_is_admin = is_admin_user(request.user, logged_emp)
+    dashboard_branches = Branch.objects.filter(is_active=True).order_by("name")
+    dashboard_branch_id = request.GET.get("branch_id") or ""
+    dashboard_selected_branch = (
+        dashboard_branches.filter(pk=dashboard_branch_id).first()
+        if dashboard_is_admin and dashboard_branch_id
+        else None
+    )
     from_date = parse_date(request.GET.get("from_date") or "") or default_from_date
     to_date = parse_date(request.GET.get("to_date") or "") or today
     status_scope = request.GET.get("status_scope") or ""
     main_status = request.GET.get("main_status") or ""
     advisor_id = request.GET.get("advisor") or ""
+
+    if dashboard_selected_branch:
+        claims = claims.filter(branch=dashboard_selected_branch)
+        jobcards = jobcards.filter(claim__branch=dashboard_selected_branch)
 
     if from_date:
         claims = claims.filter(created_at__date__gte=from_date)
@@ -783,7 +1312,17 @@ def dashboard(request):
     ).filter(
         Q(employee_type__iexact="Advisor")
         | Q(designation__iexact="Advisor")
-    ).order_by("name")
+    )
+    if (
+        logged_emp
+        and logged_emp.employee_type == "MANAGER"
+        and logged_emp.branch_id
+        and not is_admin_user(request.user, logged_emp)
+    ):
+        advisor_options = advisor_options.filter(branch=logged_emp.branch)
+    elif dashboard_selected_branch:
+        advisor_options = advisor_options.filter(branch=dashboard_selected_branch)
+    advisor_options = advisor_options.order_by("name")
 
     # MANAGER REPORT DEFAULTS
     total_claims = 0
@@ -825,7 +1364,7 @@ def dashboard(request):
 
         advisor_counts = (
             claims
-            .values("employee__name")
+            .values("employee__name", "employee__branch__code", "employee__branch__name")
             .annotate(total=Count("id"))
             .order_by("-total")[:10]
         )
@@ -869,6 +1408,10 @@ def dashboard(request):
         "filter_status_scope": status_scope,
         "filter_main_status": main_status,
         "filter_advisor": advisor_id,
+        "dashboard_is_admin": dashboard_is_admin,
+        "dashboard_branches": dashboard_branches,
+        "dashboard_branch_id": dashboard_branch_id,
+        "dashboard_branch": logged_emp.branch if logged_emp and logged_emp.branch_id and not is_admin_user(request.user, logged_emp) else None,
         "claim_status_choices": Claim.STATUS_CHOICES,
         "jobcard_status_choices": [
             ("Open", "Open"),
@@ -998,7 +1541,7 @@ def load_variants(request):
 @login_required
 def vehicle_list_api(request):
     data = list(
-        Vehicle.objects.select_related('model', 'variant', 'customer')
+        Vehicle.objects.select_related('model', 'variant', 'customer', 'insurance_company')
         .values(
             'id',
             'registration_no',
@@ -1008,6 +1551,14 @@ def vehicle_list_api(request):
             'variant__name',
             'color',
             'sale_date',
+            'insurance_company',
+            'insurance_company__ins_co_name',
+            'policy_no',
+            'policy_start_date',
+            'policy_end_date',
+            'last_service_km',
+            'last_service_type',
+            'last_service_date',
             'vehicle_type',
             'customer',
             'customer__name'
@@ -1030,6 +1581,7 @@ def vehicle_update_api(request, pk):
         customer_id = request.POST.get("customer")
         model_id = request.POST.get("model")
         variant_id = request.POST.get("variant")
+        insurance_company_id = request.POST.get("insurance_company")
 
         if customer_id:
             vehicle.customer_id = customer_id
@@ -1039,6 +1591,8 @@ def vehicle_update_api(request, pk):
 
         if variant_id:
             vehicle.variant_id = variant_id
+
+        vehicle.insurance_company_id = insurance_company_id or None
 
         vehicle.registration_no = request.POST.get(
             "registration_no",
@@ -1064,6 +1618,25 @@ def vehicle_update_api(request, pk):
             "vehicle_type",
             vehicle.vehicle_type
         )
+
+        vehicle.sale_date = request.POST.get(
+            "sale_date",
+            vehicle.sale_date
+        )
+
+        vehicle.policy_no = request.POST.get(
+            "policy_no",
+            vehicle.policy_no
+        )
+
+        vehicle.policy_start_date = request.POST.get("policy_start_date") or None
+        vehicle.policy_end_date = request.POST.get("policy_end_date") or None
+        vehicle.last_service_km = request.POST.get("last_service_km") or None
+        vehicle.last_service_type = request.POST.get(
+            "last_service_type",
+            vehicle.last_service_type
+        )
+        vehicle.last_service_date = request.POST.get("last_service_date") or None
 
         vehicle.save()
 
@@ -1183,16 +1756,19 @@ def check_customer(request):
 
 @login_required
 def customer_search(request):
-    term = request.GET.get('term')
+    term = request.GET.get('term', '').strip()
 
     customers = Customer.objects.filter(
-        name__icontains=term
+        Q(name__icontains=term)
+        | Q(mobile_no__icontains=term)
+        | Q(whatsapp_no__icontains=term)
+        | Q(customer_code__icontains=term)
     )[:10]
 
     results = [
         {
             'id': c.id,
-            'text': f"{c.name} ({c.mobile_no})"
+            'text': f"{c.customer_code or ''} - {c.name} ({c.mobile_no or c.whatsapp_no or ''})"
         }
         for c in customers
     ]
@@ -1206,6 +1782,8 @@ def add_customer(request):
 
     name = data.get("name", "").strip()
     mobile = data.get("mobile", "").strip()
+    whatsapp_no = data.get("whatsapp_no", "").strip()
+    email = data.get("email", "").strip()
 
     if not name:
         return JsonResponse({"status": "error", "message": "Name required"})
@@ -1227,7 +1805,9 @@ def add_customer(request):
     # ✅ CREATE
     customer = Customer.objects.create(
         name=name,
-        mobile_no=mobile
+        mobile_no=mobile,
+        whatsapp_no=whatsapp_no,
+        email=email
     )
 
     return JsonResponse({
@@ -1261,13 +1841,33 @@ def get_customer_details(request):
         return JsonResponse({
             "status": "success",
             "data": {
+                "customer_code": c.customer_code,
+                "customer_type": c.customer_type,
+                "salutation": c.salutation,
                 "name": c.name,
+                "gender": c.gender,
+                "date_of_birth": c.date_of_birth,
+                "anniversary_date": c.anniversary_date,
+                "gst_registered": c.gst_registered,
                 "mobile": c.mobile_no,
+                "alternate_mobile_no": c.alternate_mobile_no,
+                "whatsapp_no": c.whatsapp_no,
                 "email": c.email,
+                "preferred_contact_method": c.preferred_contact_method,
+                "address_line_1": c.address_line_1,
+                "address_line_2": c.address_line_2,
                 "city": c.city,
                 "state": c.state,
                 "gst": c.gst_no,
-                "address": c.address
+                "pan_no": c.pan_no,
+                "aadhaar_no": c.aadhaar_no,
+                "address": c.address,
+                "pin_code": c.pin_code,
+                "country": c.country,
+                "company_name": c.company_name,
+                "contact_person": c.contact_person,
+                "designation": c.designation,
+                "company_gst_no": c.company_gst_no
             }
         })
 
@@ -1314,11 +1914,33 @@ def customer_get(request, id):
     obj = Customer.objects.get(id=id)
     return JsonResponse({
         'id': obj.id,
+        'customer_code': obj.customer_code,
+        'customer_type': obj.customer_type,
         'name': obj.name,
+        'salutation': obj.salutation,
+        'gender': obj.gender,
+        'date_of_birth': obj.date_of_birth,
+        'anniversary_date': obj.anniversary_date,
+        'gst_registered': obj.gst_registered,
+        'gst_no': obj.gst_no,
+        'pan_no': obj.pan_no,
+        'aadhaar_no': obj.aadhaar_no,
         'mobile_no': obj.mobile_no,
+        'alternate_mobile_no': obj.alternate_mobile_no,
+        'whatsapp_no': obj.whatsapp_no,
         'email': obj.email,
+        'preferred_contact_method': obj.preferred_contact_method,
+        'address_line_1': obj.address_line_1,
+        'address_line_2': obj.address_line_2,
+        'address': obj.address,
         'city': obj.city,
-        'gst_no': obj.gst_no
+        'state': obj.state,
+        'pin_code': obj.pin_code,
+        'country': obj.country,
+        'company_name': obj.company_name,
+        'contact_person': obj.contact_person,
+        'designation': obj.designation,
+        'company_gst_no': obj.company_gst_no,
     })
 
 
@@ -1344,6 +1966,21 @@ def customer_save(request):
         })
 
     # core/views.py
+
+
+@login_required
+def customer_check_mobile(request):
+    mobile = request.GET.get("mobile", "").strip()
+    customer_id = request.GET.get("id", "").strip()
+
+    qs = Customer.objects.filter(mobile_no=mobile)
+
+    if customer_id.isdigit():
+        qs = qs.exclude(id=customer_id)
+
+    return JsonResponse({
+        "exists": bool(mobile and qs.exists())
+    })
 
 
 @login_required
@@ -1473,12 +2110,31 @@ def check_surveyor_mobile(request):
 @login_required
 def employee_page(request):
     form = EmployeeForm()
-    return render(request, "master/employee.html", {"form": form})
+    branches = Branch.objects.filter(is_active=True).order_by("name")
+    return render(request, "master/employee.html", {"form": form, "branches": branches})
 
 
 @login_required
 def employee_data(request):
-    data = list(Employee.objects.values())
+    data = [
+        {
+            **item,
+            "branch_name": item["branch__name"] or "",
+            "branch_code": item["branch__code"] or "",
+        }
+        for item in Employee.objects.select_related("branch").values(
+            "id",
+            "name",
+            "employee_code",
+            "mobile_no",
+            "designation",
+            "department",
+            "employee_type",
+            "branch_id",
+            "branch__name",
+            "branch__code",
+        )
+    ]
     return JsonResponse({"data": data})
 
 
@@ -1513,347 +2169,14 @@ from datetime import datetime
 
 
 def generate_claim_no():
-    year = datetime.now().year
-
-    last = Claim.objects.order_by('-id').first()
-
-    if last:
-        number = last.id + 1
-    else:
-        number = 1
-
-    return f"CLM-{year}-{number:04d}"
+    return next_claim_no()
 
 
-@login_required
-def claim_page(request):
-    print("LOGIN USER in CLAIM PAGE", request.user.id)
-
-    # =====================================
-    # LOGGED EMPLOYEE
-    # =====================================
-
-    logged_emp = Employee.objects.filter(
-        user=request.user
-    ).first()
-
-    # =====================================
-    # CLAIM FILTER
-    # =====================================
-
-    if logged_emp and logged_emp.employee_type.upper() == "STAFF":
-
-        claims = Claim.objects.filter(
-            employee__isnull=True
-        )
-
-    elif logged_emp and logged_emp.employee_type.upper() == "ADVISOR":
-
-        claims = Claim.objects.filter(
-            employee=logged_emp
-        )
-
-    else:
-
-        claims = Claim.objects.all()
-
-    # =====================================
-    # ROLE CHECK
-    # =====================================
-
-    can_change_advisor = (
-            logged_emp and
-            logged_emp.employee_type.upper() != "ADVISOR"
-    )
-
-    # =====================================
-    # FORM
-    # =====================================
-
-    current_stage = 1
-    pending_days = 0
-
-    claim_form = ClaimForm(initial={
-        'claim_no': generate_claim_no(),
-        'employee': logged_emp.id if logged_emp else None
-    })
-
-    vehicle_form = VehicleForm()
-
-    # =====================================
-    # CONTEXT
-    # =====================================
-
-    context = {
-        "form": claim_form,
-        "vehicle_form": vehicle_form,
-        "logged_emp": logged_emp,
-        "can_change_advisor": can_change_advisor,
-        "current_stage": current_stage,
-        "pending_days": pending_days,
-        "claim_document_slots": get_claim_document_slots(None),
-        "claims": claims,
-        "breadcrumbs": [
-
-            {
-                "title": "Claims",
-                "url": "",
-                "icon": "fa fa-list"
-            },
-
-            {
-                "title": "Claim  List",
-                "url": "claimList",
-                "icon": "fa fa-file"
-            },
-
-            {
-                "title": "Create New Claim",
-                "icon": "fa fa-plus"
-            }
-        ]
-    }
-
-    return render(
-        request,
-        "claim/claimEntry.html",
-        context
-    )
-
-
-@never_cache
-@login_required
-def claimList_page(request):
-    claim_form = ClaimForm(initial={
-        "claim_no": generate_claim_no()
-    })
-
-    vehicle_form = VehicleForm()
-
-    context = {
-        "form": claim_form,
-        "vehicle_form": vehicle_form,
-
-        "breadcrumbs": [
-            {
-                "title": "Claims",
-                "icon": "fa fa-list"
-            },
-            {
-                "title": "Claim List",
-                "url": "claimList",
-                "icon": "fa fa-file"
-            }
-        ]
-    }
-
-    return render(
-        request,
-        "claim/claim.html",
-        context
-    )
-
-
-@never_cache
-@login_required
-def jobList_page(request):
-    job_form = JobCardForm(initial={
-        'job_no': generate_job_no()})
-    claim_form = ClaimForm()
-
-    context = {
-        "form": job_form,
-        "claimform": claim_form,
-    }
-
-    return render(request, "jobcard/jobList.html", context)
+def generate_claim_no_for_user(user):
+    return next_claim_no(branch_for_user(user))
 
 
 from .models import Employee
-
-
-@login_required
-def claim_save(request, pk=None):
-    claim = None
-
-    if pk:
-        claim = get_object_or_404(
-            Claim,
-            pk=pk
-        )
-
-    if request.method == "POST":
-
-        form = ClaimForm(
-            request.POST,
-            instance=claim
-        )
-
-        if form.is_valid():
-
-            obj = form.save(commit=False)
-
-            try:
-
-                employee = Employee.objects.get(
-                    user=request.user
-                )
-
-                obj.employee = employee
-
-            except Employee.DoesNotExist:
-
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Employee mapping missing"
-                })
-
-            # preserve claim no
-            if not obj.claim_no:
-                obj.claim_no = generate_claim_no()
-
-            obj.save()
-
-            return JsonResponse({
-                "status": "success",
-                "id": obj.id
-            })
-
-        return JsonResponse({
-            "status": "error",
-            "errors": form.errors
-        })
-
-    form = ClaimForm(instance=claim)
-
-    pending_days = (
-        (timezone.localdate() - timezone.localdate(claim.created_at)).days
-        if claim and claim.created_at
-        else 0
-    )
-
-    return render(
-        request,
-        "claim/claimEntry.html",
-        {
-            "form": form,
-            "claim": claim,
-            "pending_days": pending_days,
-            "claim_document_slots": get_claim_document_slots(claim),
-        }
-    )
-
-
-@login_required
-def claim_data(request):
-    data = Claim.objects.select_related(
-        'vehicle',
-        'customer',
-        'insurance_company',
-        'surveyor'
-    ).values(
-        'id',
-        'claim_no',
-        'vehicle__registration_no',
-        'customer__name',
-        'insurance_company__ins_co_name',
-        'surveyor__name',
-        'status',
-        'estimated_amount',
-        'approved_amount'
-    )
-
-    return JsonResponse({
-        "data": list(data)
-    })
-
-
-@never_cache
-@login_required
-def claim_list_api(request):
-    logged_emp = Employee.objects.filter(user=request.user).first()
-
-    if request.user.is_superuser:
-        claims = Claim.objects.all()
-    elif logged_emp and logged_emp.employee_type.upper() == "ADVISOR":
-        claims = Claim.objects.filter(employee=logged_emp)
-    else:
-        claims = Claim.objects.all()
-
-    from_date = request.GET.get("from_date")
-    to_date = request.GET.get("to_date")
-    claim_status = request.GET.get("claim_status", "open").strip().lower()
-
-    if claim_status == "closed":
-        claims = claims.filter(claim_stage=ClaimStageCode.CLOSED)
-    elif claim_status != "all":
-        claims = claims.exclude(claim_stage=ClaimStageCode.CLOSED)
-
-    if from_date:
-        claims = claims.filter(created_at__date__gte=from_date)
-
-    if to_date:
-        claims = claims.filter(created_at__date__lte=to_date)
-
-    if request.GET.get("advisor_blank") == "1":
-        claims = claims.filter(employee__isnull=True)
-
-    if request.GET.get("advisor_assigned") == "1":
-        claims = claims.filter(employee__isnull=False)
-
-    claims = claims.select_related(
-        "vehicle",
-        "vehicle__model",
-        "vehicle__customer",
-        "surveyor",
-        "insurance_company",
-        "employee",
-        "jobcard"
-    )
-
-    data = []
-
-    for claim in claims:
-        job = JobCard.objects.filter(claim=claim).first()
-
-        data.append({
-            "id": claim.id,
-            "claim_no": claim.claim_no,
-
-            "employee__name": claim.employee.name if claim.employee else "",
-
-            "vehicle__registration_no": claim.vehicle.registration_no if claim.vehicle else "",
-            "vehicle__model__name": claim.vehicle.model.name if claim.vehicle and claim.vehicle.model else "",
-            "vehicle__customer__name": claim.vehicle.customer.name if claim.vehicle and claim.vehicle.customer else "",
-            "vehicle__customer__mobile_no": claim.vehicle.customer.mobile_no if claim.vehicle and claim.vehicle.customer else "",
-            "insurance_company__ins_co_name": claim.insurance_company.ins_co_name if claim.insurance_company else "",
-
-            "surveyor__name": claim.surveyor.name if claim.surveyor else "",
-            "surveyor__mobile_no": claim.surveyor.mobile_no if claim.surveyor else "",
-
-            "policy_no": claim.policy_no,
-            "ic_claim_no": claim.ic_claim_no,
-            "claim_type": claim.claim_type,
-
-            "accident_date": claim.accident_date,
-            "intimation_date": claim.intimation_date,
-            "survey_date": claim.survey_date,
-            "survey_status": claim.survey_status,
-
-            "claim_stage": claim.claim_stage,
-            "claim_stage_name": claim.get_claim_stage_display(),
-            "status": claim.status,
-
-            "estimated_amount": claim.estimated_amount,
-            "approved_amount": claim.approved_amount,
-            "remarks": claim.remarks,
-            "created_at": claim.created_at,
-
-            "has_jobcard": True if job else False,
-            "jobcard_id": job.id if job else None,
-        })
-
-    return JsonResponse(data, safe=False)
 
 
 @login_required
@@ -2015,734 +2338,6 @@ from .models import Claim
 from .forms import ClaimForm
 
 
-@never_cache
-@login_required
-def claim_edit(request, pk=None):
-    from django.utils.dateparse import parse_date
-    from datetime import datetime, time
-    from django.utils import timezone
-
-    print("LOGIN USER in claim_edit", request.user.id)
-
-    claim = None
-
-    if pk:
-        claim = get_object_or_404(
-            Claim,
-            pk=pk
-        )
-
-    logged_emp = Employee.objects.filter(
-        user=request.user
-    ).first()
-    role = (
-        logged_emp.employee_type.upper()
-        if logged_emp else ""
-    )
-    can_reopen_claim = (
-        request.user.is_superuser
-        or role == "MANAGER"
-        or request.user.groups.filter(name__iexact="Manager").exists()
-    )
-
-    if (
-        claim
-        and int(claim.claim_stage or 0) == ClaimStageCode.CLOSED
-        and claim.status != "Closed"
-    ):
-        claim.status = "Closed"
-        claim.save(update_fields=["status"])
-
-    is_claim_locked = bool(
-        claim
-        and (
-            int(claim.claim_stage or 0) == ClaimStageCode.CLOSED
-            or claim.status == "Closed"
-        )
-        and not can_reopen_claim
-    )
-
-    # =====================================
-    # POST
-    # =====================================
-
-    if request.method == "POST":
-        if is_claim_locked:
-            messages.error(
-                request,
-                "Closed claim cannot be updated. Only Admin or Manager can re-open it."
-            )
-            return redirect("claim_edit", pk=claim.id)
-
-        form = ClaimForm(
-            request.POST,
-            request.FILES,
-            instance=claim
-        )
-
-        print("FORM VALID:", form.is_valid())
-        old_advisor_id = claim.employee_id if claim and claim.employee_id else None
-        old_stage = claim.claim_stage if claim else None
-        old_status = claim.status if claim else None
-        if request.method == "POST":
-
-            vehicle_id = request.POST.get("vehicle")
-
-            if vehicle_id:
-
-                open_claim = Claim.objects.filter(
-                    vehicle_id=vehicle_id
-                ).exclude(
-                    claim_stage=ClaimStageCode.CLOSED
-                )
-
-                # edit mode exclude same claim
-                if claim:
-                    open_claim = open_claim.exclude(id=claim.id)
-
-                if open_claim.exists():
-                    existing = open_claim.first()
-
-                    return JsonResponse({
-                        "status": "error",
-                        "message": (
-                            f"Open claim already exists for this vehicle. "
-                            f"Claim No: {existing.claim_no}"
-                        )
-                    })
-        if form.is_valid():
-
-            obj = form.save(commit=False)
-            jobcard = JobCard.objects.filter(claim=obj).first() if obj.pk else None
-            claim_created_date = parse_workflow_datetime(
-                request.POST.get("claim_created_date") or ""
-            )
-            validate_labels = set()
-            if not claim:
-                validate_labels = {
-                    "Claim Created Date",
-                    "Claim Intimation Date",
-                    "Survey Date",
-                    "Insurance Approval Date",
-                    "Liability Received Date",
-                    "Invoice Date",
-                    "Delivery Date",
-                }
-            else:
-                if workflow_date_changed(claim.created_at, claim_created_date):
-                    validate_labels.add("Claim Created Date")
-                if workflow_date_changed(claim.intimation_date, obj.intimation_date):
-                    validate_labels.add("Claim Intimation Date")
-                if workflow_date_changed(claim.survey_date, obj.survey_date):
-                    validate_labels.add("Survey Date")
-                if workflow_date_changed(claim.insurance_approval_date, obj.insurance_approval_date):
-                    validate_labels.add("Insurance Approval Date")
-                if workflow_date_changed(claim.liability_received_at, obj.liability_received_at):
-                    validate_labels.add("Liability Received Date")
-                if workflow_date_changed(claim.invoice_datetime, obj.invoice_datetime):
-                    validate_labels.add("Invoice Date")
-                if workflow_date_changed(claim.delivery_datetime, obj.delivery_datetime):
-                    validate_labels.add("Delivery Date")
-
-            date_error = validate_claim_job_workflow_dates(
-                obj,
-                job=jobcard,
-                allocation=getattr(jobcard, "allocation", None) if jobcard else None,
-                claim_created_date=claim_created_date,
-                validate_labels=validate_labels,
-            )
-            if date_error:
-                messages.error(request, date_error)
-                return redirect("claim_edit", pk=obj.id if obj.id else pk)
-
-            future_error = validate_no_future_workflow_dates([
-                ("Claim Created Date", claim_created_date),
-                ("Claim Intimation Date", obj.intimation_date),
-                ("Survey Date", obj.survey_date),
-                ("Insurance Approval Date", obj.insurance_approval_date),
-                ("Liability Received Date", obj.liability_received_at),
-                ("Invoice Date", obj.invoice_datetime),
-                ("Delivery Date", obj.delivery_datetime),
-            ])
-            if future_error:
-                messages.error(request, future_error)
-                return redirect("claim_edit", pk=obj.id if obj.id else pk)
-
-
-            has_invoice_data = any([
-                obj.invoice_datetime,
-                obj.invoice_amount and obj.invoice_amount > 0,
-                obj.invoice_parts_amount and obj.invoice_parts_amount > 0,
-                obj.invoice_labour_amount and obj.invoice_labour_amount > 0,
-                obj.payment_mode,
-                obj.payment_details,
-            ])
-
-            if (
-                has_invoice_data
-                and (
-                    not jobcard
-                    or sync_jobcard_main_status(jobcard) != "Closed"
-                )
-            ):
-                messages.error(
-                    request,
-                    "First close the linked jobcard for this claim before saving invoice details."
-                )
-                return redirect("claim_edit", pk=obj.id if obj.id else pk)
-
-            # =====================================
-            # AUTO ASSIGN ADVISOR
-            # =====================================
-
-            if logged_emp and logged_emp.employee_type == "Advisor":
-                obj.employee = logged_emp
-
-            # =====================================
-            # AUTO CLAIM NO
-            # =====================================
-
-            if not obj.claim_no:
-                obj.claim_no = generate_claim_no()
-
-            # =====================================
-            # STAGE LOGIC
-            # =====================================
-            has_liability_document = bool(
-                obj.liability_document
-                or (
-                    claim
-                    and claim.liability_document
-                    and not request.FILES.get("liability_document")
-                )
-            )
-
-            if (
-                    obj.liability_received_at
-                    and obj.liability_do_amount
-                    and obj.liability_do_amount > 0
-                    and has_liability_document
-            ):
-                if claim and claim.claim_stage >= ClaimStageCode.INVOICED:
-                    obj.claim_stage = claim.claim_stage
-                else:
-                    obj.claim_stage = ClaimStageCode.INVOICED
-            elif (
-                    obj.insurance_approval_date
-                    and obj.assessment_file
-            ):
-                obj.claim_stage = ClaimStageCode.INSURANCE_APPROVAL
-            elif (
-                    obj.survey_date
-                    and obj.surveyor
-            ):
-                obj.claim_stage = ClaimStageCode.SURVEY
-            elif (
-                    obj.intimation_date
-                    and obj.insurance_company
-                    and obj.policy_no
-            ):
-
-                obj.claim_stage = ClaimStageCode.INTIMATION
-
-            elif claim and claim.claim_stage >= ClaimStageCode.ESTIMATE_CREATED:
-
-                obj.claim_stage = claim.claim_stage
-
-            elif obj.employee:
-
-                obj.claim_stage = ClaimStageCode.ADVISOR_ASSIGNED
-
-            else:
-
-                obj.claim_stage = ClaimStageCode.CLAIM_CREATED
-
-            delivery_complete = (
-                obj.delivery_datetime
-                and obj.delivered_by
-                and obj.delivered_to
-                and (
-                    obj.delivered_to != "Drop By Driver"
-                    or obj.delivery_driver_name
-                )
-            )
-
-            if delivery_complete:
-                obj.claim_stage = ClaimStageCode.CLOSED
-                obj.status = "Closed"
-
-            # =====================================
-            # SAVE
-            # =====================================
-
-            is_new = obj.pk is None
-
-            obj.save()
-            jobcard = JobCard.objects.filter(claim=obj).first()
-            save_claim_documents(request, obj)
-            if jobcard and obj.self_survey:
-                save_vehicle_condition_photos(request, jobcard)
-            if claim_created_date:
-                obj.created_at = claim_created_date
-                obj.save(update_fields=["created_at"])
-
-            if claim and claim.employee:
-                old_advisor_id = claim.employee_id
-
-            obj.save()
-
-            new_advisor_id = obj.employee_id
-            new_stage = obj.claim_stage
-            new_status = obj.status
-
-            if jobcard:
-                uploaded_reinspection_images = request.FILES.getlist("reinspection_images")
-                posted_reinspection_done = request.POST.get("reinspection_done") == "1"
-                posted_reinspection_date = parse_workflow_datetime(
-                    request.POST.get("reinspection_date") or ""
-                )
-                posted_reinspection_done_by = request.POST.get(
-                    "reinspection_done_by",
-                    ""
-                ).strip()
-                current_claim_stage = int((claim.claim_stage if claim else obj.claim_stage) or 0)
-                should_update_reinspection_fields = (
-                    current_claim_stage <= ClaimStageCode.RE_INSPECTION
-                    or posted_reinspection_done
-                    or bool(posted_reinspection_date)
-                    or bool(posted_reinspection_done_by)
-                )
-                if should_update_reinspection_fields:
-                    future_error = validate_no_future_workflow_dates([
-                        ("Re-Inspection Date", posted_reinspection_date),
-                    ])
-                    if future_error:
-                        messages.error(request, future_error)
-                        return redirect("claim_edit", pk=obj.id)
-
-                if uploaded_reinspection_images:
-                    existing_reinspection_photo_count = jobcard.reinspection_photos.count()
-                    existing_reinspection_photo_size = get_reinspection_photo_storage_size(jobcard)
-                    total_photo_count = existing_reinspection_photo_count + len(uploaded_reinspection_images)
-
-                    if total_photo_count > REINSPECTION_MAX_PHOTOS_PER_JOBCARD:
-                        messages.error(
-                            request,
-                            "Re-inspection image limit exceeded. "
-                            f"Maximum {REINSPECTION_MAX_PHOTOS_PER_JOBCARD} images are allowed per jobcard."
-                        )
-                        return redirect("claim_edit", pk=obj.id)
-
-                    oversized_image = next(
-                        (
-                            image for image in uploaded_reinspection_images
-                            if image.size > REINSPECTION_MAX_IMAGE_SIZE_BYTES
-                        ),
-                        None
-                    )
-
-                    if oversized_image:
-                        messages.error(
-                            request,
-                            f"{oversized_image.name} is too large. "
-                            f"Maximum {REINSPECTION_MAX_IMAGE_SIZE_MB} MB is allowed per image."
-                        )
-                        return redirect("claim_edit", pk=obj.id)
-
-                    upload_total_size = sum(image.size for image in uploaded_reinspection_images)
-
-                    if existing_reinspection_photo_size + upload_total_size > REINSPECTION_MAX_TOTAL_SIZE_BYTES:
-                        messages.error(
-                            request,
-                            "Re-inspection image storage limit exceeded. "
-                            f"Maximum {REINSPECTION_MAX_TOTAL_SIZE_MB} MB is allowed per jobcard."
-                        )
-                        return redirect("claim_edit", pk=obj.id)
-
-                if should_update_reinspection_fields:
-                    jobcard.reinspection_done = posted_reinspection_done
-                    jobcard.reinspection_date = posted_reinspection_date
-                    jobcard.reinspection_done_by = posted_reinspection_done_by
-                    jobcard.save(update_fields=[
-                        "reinspection_done",
-                        "reinspection_date",
-                        "reinspection_done_by",
-                    ])
-
-                for image in uploaded_reinspection_images:
-                    JobCardReInspectionPhoto.objects.create(
-                        job=jobcard,
-                        image=image
-                    )
-
-                if should_update_reinspection_fields and jobcard.reinspection_done:
-                    obj.claim_stage = ClaimStageCode.LIABILITY
-                    obj.save(update_fields=["claim_stage"])
-
-                sync_jobcard_main_status(jobcard)
-
-            notify_title = None
-            notify_message = None
-
-            # 1. New advisor assigned
-            if old_advisor_id != new_advisor_id and obj.employee:
-
-                notify_title = "New Claim Assigned"
-                notify_message = f"Claim {obj.claim_no} assigned to you"
-
-            # 2. Stage changed
-            elif old_stage != new_stage and obj.employee:
-
-                notify_title = "Claim Stage Updated"
-                notify_message = (
-                    f"Claim {obj.claim_no} stage updated to "
-                    f"{obj.get_claim_stage_display()}"
-                )
-
-            # 3. Status changed
-            elif old_status != new_status and obj.employee:
-
-                notify_title = "Claim Status Updated"
-                notify_message = (
-                    f"Claim {obj.claim_no} status changed to "
-                    f"{obj.status}"
-                )
-
-            # 4. Normal edit
-            elif obj.employee:
-
-                notify_title = "Claim Updated"
-                notify_message = f"Claim {obj.claim_no} details updated"
-
-            if notify_title and obj.employee and obj.employee.user:
-                UserNotification.objects.create(
-                    user=obj.employee.user,
-                    title=notify_title,
-                    message=notify_message,
-                    url=f"/claim/{obj.id}/edit/"
-                )
-            # =====================================
-            # SUCCESS MESSAGE
-            # =====================================
-
-            if is_new:
-
-                messages.success(
-                    request,
-                    f"Claim {obj.claim_no} created successfully"
-                )
-
-            else:
-
-                messages.success(
-                    request,
-                    f"Claim {obj.claim_no} updated successfully"
-                )
-
-            return redirect(
-                "claim_edit",
-                pk=obj.id
-            )
-
-        else:
-
-            print("FORM ERRORS:", form.errors)
-
-            return JsonResponse({
-                "status": "error",
-                "errors": form.errors
-            })
-
-    # =====================================
-    # GET
-    # =====================================
-    move_stage = request.GET.get("move_stage")
-
-    if claim and move_stage:
-
-        current = int(
-            claim.claim_stage or
-            ClaimStageCode.CLAIM_CREATED
-        )
-        old_stage_before_move = current
-
-        if move_stage == "next":
-
-            is_valid, missing = validate_claim_stage_before_next(claim)
-
-            if not is_valid:
-                messages.error(
-                    request,
-                    "Cannot move next. Missing: "
-                    + ", ".join(missing)
-                )
-
-                return redirect(
-                    "claim_edit",
-                    pk=claim.id
-                )
-
-            if current == ClaimStageCode.LIABILITY:
-                jobcard = JobCard.objects.filter(claim=claim).first()
-                if not jobcard or sync_jobcard_main_status(jobcard) != "Closed":
-                    messages.error(
-                        request,
-                        "First close the linked jobcard for this claim before moving to Invoiced stage."
-                    )
-                    return redirect(
-                        "claim_edit",
-                        pk=claim.id
-                    )
-
-            current += 1
-
-        elif move_stage == "back":
-            if (
-                current >= ClaimStageCode.REPAIR_IN_PROGRESS
-                and claim_has_repair_progress_data(claim)
-            ):
-                messages.error(
-                    request,
-                    "Cannot move to previous stage because repair progress entries exist. "
-                    "First clear the started/finished progress rows and uploaded progress photos from Work Allocation."
-                )
-                return redirect(
-                    "claim_edit",
-                    pk=claim.id
-                )
-
-            current -= 1
-
-        current = max(1, min(current, ClaimStageCode.CLOSED))
-
-        claim.claim_stage = current
-
-        if current == ClaimStageCode.CLOSED:
-            claim.status = "Closed"
-            claim.save(update_fields=["claim_stage", "status"])
-        else:
-            claim.save(update_fields=["claim_stage"])
-
-        jobcard = JobCard.objects.filter(claim=claim).first()
-
-        if jobcard:
-            sync_jobcard_main_status(jobcard)
-
-        if (
-            old_stage_before_move != current
-            and current == ClaimStageCode.WORK_ALLOCATION
-        ):
-            notify_floor_incharge_work_allocation_pending(claim)
-
-        messages.success(
-            request,
-            f"Stage changed to {claim.get_claim_stage_display()}"
-        )
-
-        return redirect(
-            "claim_edit",
-            pk=claim.id
-        )
-    can_change_advisor = role != "ADVISOR"
-
-    form = ClaimForm(instance=claim)
-    if is_claim_locked:
-        for field in form.fields.values():
-            field.disabled = True
-
-    jobcard = JobCard.objects.filter(claim=claim).first() if claim else None
-    existing_reinspection_photo_count = (
-        jobcard.reinspection_photos.count()
-        if jobcard else 0
-    )
-    existing_reinspection_photo_size = (
-        get_reinspection_photo_storage_size(jobcard)
-        if jobcard else 0
-    )
-
-    # =====================================
-    # SHOW ONLY ADVISORS IN DROPDOWN
-    # =====================================
-
-    form.fields['employee'].queryset = Employee.objects.filter(
-        designation__iexact="Advisor",
-        is_active=True
-    )
-    current_stage = int(claim.claim_stage or ClaimStageCode.CLAIM_CREATED)
-    claim_created_date_value = (
-        datetime_local_value(claim.created_at)
-        if claim and claim.created_at
-        else timezone.localtime().strftime("%Y-%m-%dT%H:%M")
-    )
-    is_jobcard_closed = bool(
-        jobcard
-        and sync_jobcard_main_status(jobcard) == "Closed"
-    )
-    is_reinspection_done = bool(
-        jobcard
-        and (
-            jobcard.reinspection_done
-            or current_stage >= ClaimStageCode.LIABILITY
-        )
-    )
-    has_repair_progress_data = claim_has_repair_progress_data(claim)
-    has_repair_progress_started = bool(
-        jobcard
-        and WorkProgress.objects.filter(
-            allocation__job=jobcard,
-            start_time__isnull=False,
-        ).exists()
-    )
-    second_approval_pending = bool(
-        jobcard
-        and jobcard.additional_approval_required
-        and jobcard.second_approval_status == "Pending"
-    )
-    next_stage_label = (
-        ClaimStageCode(current_stage + 1).label
-        if current_stage < ClaimStageCode.CLOSED
-        else "Completed"
-    )
-    pending_days = (
-        timezone.localdate() - timezone.localdate(claim.created_at)
-    ).days if claim.created_at else 0
-    print("current_stage = ", current_stage)
-
-    # =====================================
-    # RENDER
-    # =====================================
-    is_manager = request.user.groups.filter(
-        name__iexact="Manager"
-    ).exists()
-    return render(
-        request,
-        "claim/claimEntry.html",
-        {
-            "form": form,
-            "claim": claim,
-            "logged_emp": logged_emp,
-            "can_change_advisor": can_change_advisor,
-            "current_stage": current_stage,
-            "claim_created_date_value": claim_created_date_value,
-            "next_stage_label": next_stage_label,
-            "pending_days": pending_days,
-            "is_manager": is_manager,
-            "jobcard": jobcard,
-            "is_jobcard_closed": is_jobcard_closed,
-            "is_reinspection_done": is_reinspection_done,
-            "has_repair_progress_data": has_repair_progress_data,
-            "has_repair_progress_started": has_repair_progress_started,
-            "second_approval_pending": second_approval_pending,
-            "is_claim_locked": is_claim_locked,
-            "can_reopen_claim": can_reopen_claim,
-            "vehicle_photo_slots": get_vehicle_condition_photo_slots(jobcard),
-            "existing_reinspection_photo_count": existing_reinspection_photo_count,
-            "existing_reinspection_photo_size_mb": round(
-                existing_reinspection_photo_size / (1024 * 1024),
-                2
-            ),
-            "reinspection_max_photos": REINSPECTION_MAX_PHOTOS_PER_JOBCARD,
-            "reinspection_max_image_size_mb": REINSPECTION_MAX_IMAGE_SIZE_MB,
-            "reinspection_max_total_size_mb": REINSPECTION_MAX_TOTAL_SIZE_MB,
-            "claim_document_slots": get_claim_document_slots(claim),
-            "stage_steps": [
-                (ClaimStageCode.CLAIM_CREATED, "Claim Created"),
-                (ClaimStageCode.ADVISOR_ASSIGNED, "Advisor Assigned"),
-                (ClaimStageCode.ESTIMATE_CREATED, "Job Estimation"),
-                (ClaimStageCode.INTIMATION, "Claim Intimation"),
-                (ClaimStageCode.SURVEY, "Survey"),
-                (ClaimStageCode.INSURANCE_APPROVAL, "Approval"),
-                (ClaimStageCode.WORK_ALLOCATION, "Pending Work Allocation"),
-                (ClaimStageCode.REPAIR_IN_PROGRESS, "Repair Work"),
-                (ClaimStageCode.WORK_COMPLETED, "Work Completed"),
-                (ClaimStageCode.RE_INSPECTION, "Re Inspection"),
-                (ClaimStageCode.LIABILITY, "Liability"),
-                (ClaimStageCode.INVOICED, "Invoiced"),
-                (ClaimStageCode.DELIVERY, "Delivery"),
-                (ClaimStageCode.CLOSED, "Closed"),
-            ],
-            "breadcrumbs": [
-
-                {
-                    "title": "Claim",
-                    "url": "",
-                    "icon": "fa fa-list"
-                },
-
-                {
-                    "title": "Claim List",
-                    "url": "claimList",
-                    "icon": "fa fa-file"
-                },
-
-                {
-                    "title": "Edit Claim No:",
-                    "icon": "fa fa-plus"
-                }
-            ]
-        }
-    )
-
-
-@login_required
-def claimdashboard(request):
-    logged_emp = Employee.objects.filter(
-        user=request.user
-    ).first()
-
-    claims = Claim.objects.none()
-
-    # =====================================
-    # ADMIN
-    # =====================================
-
-    if request.user.is_superuser:
-
-        claims = Claim.objects.all()
-
-    # =====================================
-    # RECEPTION / STAFF
-    # =====================================
-
-    elif logged_emp and logged_emp.employee_type in [
-        "STAFF",
-        "RECEPTION",
-        "ADMIN"
-    ]:
-
-        claims = Claim.objects.filter(
-            employee__isnull=True
-        )
-
-    # =====================================
-    # ADVISOR
-    # =====================================
-
-    elif logged_emp and logged_emp.employee_type == "Advisor":
-
-        claims = Claim.objects.filter(
-            employee=logged_emp
-        )
-
-    # =====================================
-    # MANAGER
-    # =====================================
-
-    elif logged_emp and logged_emp.employee_type == "MANAGER":
-
-        claims = Claim.objects.all()
-
-    context = {
-        "claims": claims
-    }
-
-    return render(
-        request,
-        "dashboard.html",
-        context
-    )
-
-
 def job_save(self, *args, **kwargs):
     is_new = self.pk is None
 
@@ -2755,24 +2350,23 @@ def job_save(self, *args, **kwargs):
     if self.claim:
 
         # JOB CARD CREATED
-        if self.claim.claim_stage < 3:
-            self.claim.claim_stage = 3
+        if self.claim.employee_id and self.claim.claim_stage < ClaimStageCode.INTIMATION:
+            self.claim.claim_stage = ClaimStageCode.INTIMATION
             self.claim.save(
                 update_fields=["claim_stage"]
             )
 
 
 def generate_job_no():
-    year = datetime.now().year
+    return next_jobcard_no()
 
-    last = JobCard.objects.order_by('-id').first()
 
-    if last:
-        number = last.id + 1
-    else:
-        number = 1
+def generate_job_no_for_user(user):
+    return next_jobcard_no(branch_for_user(user))
 
-    return f"JOB-{year}-{number:04d}"
+
+def generate_job_no_for_claim(claim):
+    return next_jobcard_no(branch_for_claim(claim))
 
 
 def get_inventory_context(job=None):
@@ -2821,7 +2415,10 @@ def get_inventory_context(job=None):
 
     damage_marks = []
 
-    for m in raw_marks:
+    damage_image_ratio = 1117 / 736
+
+    for raw_mark in raw_marks:
+        m = dict(raw_mark)
 
         if m.get("type") == "scratch":
             x1 = float(m.get("x1", 0))
@@ -2832,8 +2429,8 @@ def get_inventory_context(job=None):
             dx = x2 - x1
             dy = y2 - y1
 
-            m["length"] = round((dx * dx + dy * dy) ** 0.5, 2)
-            m["angle"] = round(math.degrees(math.atan2(dy, dx)), 2)
+            m["length"] = round((dx * dx + (dy * damage_image_ratio) ** 2) ** 0.5, 2)
+            m["angle"] = round(math.degrees(math.atan2(dy * damage_image_ratio, dx)), 2)
 
         damage_marks.append(m)
     tyre_map = {}
@@ -2905,958 +2502,6 @@ def get_inventory_context(job=None):
             for key, label in tyre_positions
         ],
     }
-
-
-@login_required
-@login_required
-def jobcard_create(request, claim_id=None):
-    from django.utils import timezone
-    from django.utils.dateparse import parse_date
-
-    claim = None
-    job = None
-    if claim_id:
-        claim = get_object_or_404(Claim, id=claim_id)
-
-    job_no = generate_job_no()
-
-    form = JobCardForm(initial={
-        "job_no": job_no,
-        "claim": claim.id if claim else None,
-        "advisor": claim.employee if claim else None
-    })
-    variant_name = ""
-
-    if (
-            claim
-            and claim.vehicle
-            and claim.vehicle.variant
-    ):
-        variant_name = claim.vehicle.variant.name or ""
-
-    is_cng_vehicle = "CNG" in variant_name.upper()
-    logged_emp = Employee.objects.filter(
-        user=request.user
-    ).first()
-
-    role = (
-        logged_emp.employee_type.upper()
-        if logged_emp else ""
-    )
-
-    can_change_advisor = role != "ADVISOR"
-    can_edit_jobcard_entries = (
-        request.user.is_superuser
-        or role in ["MANAGER", "ADVISOR"]
-        or request.user.groups.filter(name__iexact="Manager").exists()
-    )
-    can_reopen_jobcard = (
-        request.user.is_superuser
-        or role == "MANAGER"
-        or request.user.groups.filter(name__iexact="Manager").exists()
-    )
-
-    if request.method == "POST":
-
-        form = JobCardForm(request.POST, request.FILES)
-
-        if form.is_valid():
-
-            obj = form.save(commit=False)
-
-            if claim:
-                obj.claim = claim
-                obj.advisor = claim.employee
-
-            if not obj.job_no:
-                obj.job_no = generate_job_no()
-
-            job_created_date = parse_workflow_datetime(
-                request.POST.get("job_created_date") or ""
-            )
-            validate_labels = set()
-            if workflow_date_changed(None, job_created_date):
-                validate_labels.add("Jobcard Created Date")
-            if workflow_date_changed(None, obj.gate_in_datetime):
-                validate_labels.add("Gate In Date")
-
-            date_error = validate_claim_job_workflow_dates(
-                obj.claim,
-                job=obj,
-                job_created_date=job_created_date,
-                validate_labels=validate_labels,
-            )
-            if date_error:
-                messages.error(request, date_error)
-                if claim_id:
-                    return redirect("jobcard_create_with_claim", claim_id=claim_id)
-                return redirect("jobCreate")
-
-            future_error = validate_no_future_workflow_dates([
-                ("Gate In Date", obj.gate_in_datetime),
-                ("Jobcard Created Date", job_created_date),
-            ])
-            if future_error:
-                messages.error(request, future_error)
-                if claim_id:
-                    return redirect("jobcard_create_with_claim", claim_id=claim_id)
-                return redirect("jobCreate")
-
-            obj.save()
-
-            save_job_inventory(
-                request,
-                obj
-            )
-            # =========================
-            # 2. PARTS CALCULATION
-            # =========================
-            part_no = request.POST.getlist("part_no[]")
-            part_desc = request.POST.getlist("part_desc[]")
-            qty = request.POST.getlist("qty[]")
-            rate = request.POST.getlist("rate[]")
-
-            parts_total = Decimal("0")
-
-            for i in range(len(part_no)):
-                amount = Decimal(qty[i]) * Decimal(rate[i])
-
-                JobCardPart.objects.create(
-                    job=obj,
-                    part_no=part_no[i],
-                    description=part_desc[i],
-                    qty=qty[i],
-                    rate=rate[i],
-                    amount=amount
-                )
-
-                parts_total += amount
-
-            # =========================
-            # 3. LABOUR CALCULATION
-            # =========================
-            job_code = request.POST.getlist("job_code[]")
-            lab_desc = request.POST.getlist("lab_desc[]")
-            hrs = request.POST.getlist("hrs[]")
-            lab_rate = request.POST.getlist("lab_rate[]")
-
-            labour_total = Decimal("0")
-
-            for i in range(len(job_code)):
-                amount = Decimal(hrs[i]) * Decimal(lab_rate[i])
-
-                JobCardLabour.objects.create(
-                    job=obj,
-                    job_code=job_code[i],
-                    description=lab_desc[i],
-                    labour_hrs=hrs[i],
-                    rate=lab_rate[i],
-                    amount=amount
-                )
-
-                labour_total += amount
-
-            # =========================
-            # 4. GST CALCULATION (18%)
-            # =========================
-            base_total = parts_total + labour_total
-            gst_amount = (base_total * Decimal("18")) / Decimal("100")
-            net_total = base_total + gst_amount
-
-            obj.parts_total = parts_total
-            obj.labour_total = labour_total
-            obj.grand_total = base_total
-            obj.gst_amount = gst_amount
-            obj.net_total = net_total
-
-            obj.save()
-            save_vehicle_condition_photos(request, obj)
-            save_jobcard_signatures(request, obj)
-            if obj.claim_id:
-                save_claim_documents(request, obj.claim)
-            if job_created_date:
-                JobCard.objects.filter(pk=obj.pk).update(
-                    job_date=job_created_date
-                )
-                obj.job_date = job_created_date
-
-            if request.POST.get("send_whatsapp") == "on":
-                send_jobcard_whatsapp(obj)
-            # =========================
-            # 5. UPDATE CLAIM STAGE
-            # =========================
-            if claim:
-                claim.claim_stage = ClaimStageCode.ESTIMATE_CREATED
-                claim.save()
-
-            messages.success(
-                request,
-                f"Job Card {obj.job_no} created successfully"
-            )
-
-            return redirect("jobcard_edit", pk=obj.id)
-
-        return JsonResponse({
-            "status": "error",
-            "errors": form.errors
-        })
-
-    return render(request, "jobcard/jobcardEntry.html", {
-        "form": form,
-        "claim": claim,
-        "job": None,
-        "job_created_date_value": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
-        **get_inventory_context(None),
-        "can_change_advisor": can_change_advisor,
-        "can_edit_jobcard_entries": can_edit_jobcard_entries,
-        "is_cng_vehicle": is_cng_vehicle,
-        "logged_emp": logged_emp,
-        "vehicle_photo_slots": get_vehicle_condition_photo_slots(None),
-        "claim_document_slots": get_claim_document_slots(claim),
-        "fuel_percent": JobCardInventory.fuel_percent if JobCardInventory else 0,
-        "cng_percent": JobCardInventory.cng_percent if JobCardInventory else 0,
-        # ✅ BREADCRUMB
-        "breadcrumbs": [
-
-            {
-                "title": "Jobcards",
-                "url": "",
-                "icon": "fa fa-list"
-            },
-
-            {
-                "title": "Job Card List",
-                "url": "jobList",
-                "icon": "fa fa-file"
-            },
-
-            {
-                "title": "Create Job Card",
-                "icon": "fa fa-plus"
-            }
-        ]
-
-    })
-
-
-@never_cache
-@login_required
-def jobcard_edit(request, pk):
-    from django.utils.dateparse import parse_date
-
-    job = get_object_or_404(JobCard, pk=pk)
-    claim = job.claim
-    insurance_companies = InsuranceCompany.objects.all()
-    variant_name = ""
-
-    if (
-            claim
-            and claim.vehicle
-            and claim.vehicle.variant
-    ):
-        variant_name = claim.vehicle.variant.name or ""
-
-    is_cng_vehicle = "CNG" in variant_name.upper()
-    logged_emp = Employee.objects.filter(
-        user=request.user
-    ).first()
-
-    role = (
-        logged_emp.employee_type.upper()
-        if logged_emp else ""
-    )
-
-    can_change_advisor = role != "ADVISOR"
-    can_edit_jobcard_entries = (
-        request.user.is_superuser
-        or role in ["MANAGER", "ADVISOR"]
-        or request.user.groups.filter(name__iexact="Manager").exists()
-    )
-    can_reopen_jobcard = (
-        request.user.is_superuser
-        or role == "MANAGER"
-        or request.user.groups.filter(name__iexact="Manager").exists()
-    )
-    can_approve_second_approval = can_update_second_approval(
-        request.user,
-        logged_emp,
-        job,
-    )
-    second_approval_pending = bool(
-        job.additional_approval_required
-        and job.second_approval_status == "Pending"
-    )
-    allocation = getattr(job, "allocation", None)
-    additional_approval_parts = (
-        list(allocation.parts.filter(is_additional=True)
-        .select_related("job_part")
-        .prefetch_related("additional_approval_photos"))
-        if allocation
-        else []
-    )
-    additional_approval_labours = (
-        list(allocation.labours.filter(is_additional=True)
-        .select_related("job_labour")
-        .prefetch_related("additional_approval_photos"))
-        if allocation
-        else []
-    )
-    additional_approval_lines = [
-        *additional_approval_parts,
-        *additional_approval_labours,
-    ]
-    additional_approval_total_count = len(additional_approval_lines)
-    additional_approval_approved_count = sum(
-        1
-        for line in additional_approval_lines
-        if line.advisor_approval_status == "Approved"
-    )
-    additional_approval_rejected_count = sum(
-        1
-        for line in additional_approval_lines
-        if line.advisor_approval_status == "Rejected"
-    )
-    additional_approval_pending_count = (
-        additional_approval_total_count
-        - additional_approval_approved_count
-        - additional_approval_rejected_count
-    )
-    is_jobcard_locked = job.repair_status == "Closed" and not can_reopen_jobcard
-    can_edit_jobcard_entries = can_edit_jobcard_entries and not is_jobcard_locked
-
-    if request.method == "POST":
-        if is_jobcard_locked:
-            messages.error(
-                request,
-                "Closed jobcard cannot be updated. Only Admin or Manager can re-open it."
-            )
-            return redirect("jobcard_edit", pk=job.id)
-
-        old_repair_status = job.repair_status
-        old_grand_total = job.grand_total
-        old_parts_total = job.parts_total
-        old_labour_total = job.labour_total
-        old_expected_delivery = job.expected_delivery_datetime
-        old_gate_in_datetime = job.gate_in_datetime
-        old_job_date = job.job_date
-
-        form = JobCardForm(
-            request.POST,
-            request.FILES,
-            instance=job
-        )
-
-        if form.is_valid():
-
-            requested_main_status = request.POST.get("jobcard_main_status", "")
-            is_closing_now = (
-                requested_main_status == "Closed"
-                and job.repair_status != "Closed"
-            )
-
-            if (
-                job.repair_status == "Closed"
-                and requested_main_status
-                and requested_main_status != "Closed"
-                and not can_reopen_jobcard
-            ):
-                messages.error(
-                    request,
-                    "Only Admin or Manager can re-open a closed jobcard."
-                )
-                return redirect("jobcard_edit", pk=job.id)
-
-            if is_closing_now:
-                close_job = JobCard.objects.select_related(
-                    "claim",
-                    "allocation"
-                ).get(pk=job.pk)
-                pending_close_items = get_jobcard_close_pending_items(close_job)
-
-                if pending_close_items:
-                    messages.error(
-                        request,
-                        "Before closing jobcard, complete: "
-                        + ", ".join(pending_close_items)
-                    )
-                    return redirect("jobcard_edit", pk=job.id)
-
-                missing_close_checks = []
-
-                if request.POST.get("road_test_done") != "on":
-                    missing_close_checks.append("Road Test")
-
-                if request.POST.get("washing_done") != "on":
-                    missing_close_checks.append("Washing")
-
-                if request.POST.get("ready_for_delivery") != "on":
-                    missing_close_checks.append("Ready")
-
-                if missing_close_checks:
-                    messages.error(
-                        request,
-                        "Before closing jobcard, tick: "
-                        + ", ".join(missing_close_checks)
-                    )
-                    return redirect("jobcard_edit", pk=job.id)
-
-            with transaction.atomic():
-
-                obj = form.save(commit=False)
-                # =====================================
-                # AUTO ASSIGN ADVISOR
-                # =====================================
-
-                if logged_emp and logged_emp.employee_type == "Advisor":
-                    obj.employee = logged_emp
-                is_new = obj.pk is None
-
-                job_created_date = parse_workflow_datetime(
-                    request.POST.get("job_created_date") or ""
-                )
-                validate_labels = set()
-                if workflow_date_changed(old_gate_in_datetime, obj.gate_in_datetime):
-                    validate_labels.add("Gate In Date")
-                if workflow_date_changed(old_job_date, job_created_date):
-                    validate_labels.add("Jobcard Created Date")
-
-                date_error = validate_claim_job_workflow_dates(
-                    obj.claim,
-                    job=obj,
-                    allocation=getattr(obj, "allocation", None),
-                    job_created_date=job_created_date,
-                    validate_labels=validate_labels,
-                )
-                if date_error:
-                    messages.error(request, date_error)
-                    return redirect("jobcard_edit", pk=job.id)
-
-                future_error = validate_no_future_workflow_dates([
-                    ("Gate In Date", obj.gate_in_datetime),
-                    ("Jobcard Created Date", job_created_date),
-                ])
-                if future_error:
-                    messages.error(request, future_error)
-                    return redirect("jobcard_edit", pk=job.id)
-
-                print("FUEL:", request.POST.get("fuel_percent"))
-                print("CNG:", request.POST.get("cng_percent"))
-                print("MARKS:", request.POST.get("damage_marks"))
-                save_job_inventory(
-                    request,
-                    obj
-                )
-                # PARTS
-                part_ids = request.POST.getlist("part_id[]")
-                part_no = request.POST.getlist("part_no[]")
-                part_desc = request.POST.getlist("part_desc[]")
-                qty = request.POST.getlist("qty[]")
-                rate = request.POST.getlist("rate[]")
-
-                parts_total = Decimal("0")
-                existing_parts = list(obj.parts.all().order_by("id"))
-                existing_parts_by_id = {
-                    str(part.id): part for part in existing_parts
-                }
-                saved_part_ids = []
-
-                for i in range(len(part_no)):
-
-                    if not part_no[i].strip():
-                        continue
-
-                    q = Decimal(qty[i] or "0")
-                    r = Decimal(rate[i] or "0")
-                    amount = q * r
-
-                    part_id = (
-                        part_ids[i]
-                        if i < len(part_ids)
-                        else ""
-                    )
-                    part = existing_parts_by_id.get(part_id)
-
-                    if part is None:
-                        part = JobCardPart(job=obj)
-
-                    part.part_no = part_no[i]
-                    part.description = part_desc[i]
-                    part.qty = q
-                    part.rate = r
-                    part.amount = amount
-                    part.save()
-                    saved_part_ids.append(part.id)
-
-                    parts_total += amount
-
-                obj.parts.exclude(id__in=saved_part_ids).filter(
-                    jobcardassessmentpart__isnull=True
-                ).delete()
-                parts_total = sum(
-                    (p.amount for p in obj.parts.all()),
-                    Decimal("0")
-                )
-
-                # LABOUR
-                labour_ids = request.POST.getlist("labour_id[]")
-                job_code = request.POST.getlist("job_code[]")
-                lab_desc = request.POST.getlist("lab_desc[]")
-                hrs = request.POST.getlist("hrs[]")
-                lab_rate = request.POST.getlist("lab_rate[]")
-
-                labour_total = Decimal("0")
-                existing_labours = list(obj.labours.all().order_by("id"))
-                existing_labours_by_id = {
-                    str(labour.id): labour for labour in existing_labours
-                }
-                saved_labour_ids = []
-
-                for i in range(len(job_code)):
-
-                    if not job_code[i].strip():
-                        continue
-
-                    h = Decimal(hrs[i] or "0")
-                    r = Decimal(lab_rate[i] or "0")
-                    amount = h * r
-
-                    labour_id = (
-                        labour_ids[i]
-                        if i < len(labour_ids)
-                        else ""
-                    )
-                    labour = existing_labours_by_id.get(labour_id)
-
-                    if labour is None:
-                        labour = JobCardLabour(job=obj)
-
-                    labour.job_code = job_code[i]
-                    labour.description = lab_desc[i]
-                    labour.labour_hrs = h
-                    labour.rate = r
-                    labour.amount = amount
-                    labour.save()
-                    saved_labour_ids.append(labour.id)
-
-                    labour_total += amount
-
-                obj.labours.exclude(id__in=saved_labour_ids).filter(
-                    jobcardassessmentlabour__isnull=True
-                ).delete()
-                labour_total = sum(
-                    (l.amount for l in obj.labours.all()),
-                    Decimal("0")
-                )
-
-                # TOTALS + GST
-                base_total = parts_total + labour_total
-                gst_amount = base_total * Decimal("18") / Decimal("100")
-                net_total = base_total + gst_amount
-
-                obj.parts_total = parts_total
-                obj.labour_total = labour_total
-                obj.grand_total = base_total
-                obj.gst_amount = gst_amount
-                obj.net_total = net_total
-                print("PART NOS:", request.POST.getlist("part_no[]"))
-                print("LABOUR CODES:", request.POST.getlist("job_code[]"))
-                print("POST KEYS:", request.POST.keys())
-                obj.save()
-                save_vehicle_condition_photos(request, obj)
-                save_jobcard_signatures(request, obj)
-                if job_created_date:
-                    JobCard.objects.filter(pk=obj.pk).update(
-                        job_date=job_created_date
-                    )
-                    obj.job_date = job_created_date
-
-                if requested_main_status == "Closed":
-                    JobCard.objects.filter(pk=obj.pk).update(
-                        repair_status="Closed"
-                    )
-                    obj.repair_status = "Closed"
-                elif obj.repair_status == "Closed" and can_reopen_jobcard:
-                    JobCard.objects.filter(pk=obj.pk).update(
-                        repair_status="Completed"
-                    )
-                    obj.repair_status = "Completed"
-
-                insurance_company_id = request.POST.get("insurance_company")
-                policy_no = request.POST.get("policy_no", "").strip()
-
-                if claim:
-                    if insurance_company_id:
-                        claim.insurance_company_id = insurance_company_id
-
-                    claim.policy_no = policy_no
-                    claim.save()
-                    save_claim_documents(request, claim)
-                #claim.claim_stage = ClaimStageCode.ESTIMATE_CREATED
-                #claim.save()
-                if request.POST.get("send_whatsapp") == "on":
-                    send_jobcard_whatsapp(obj)
-
-                if (
-                    is_admin_or_manager_user(request.user, logged_emp)
-                    and obj.advisor
-                    and obj.advisor.user
-                    and obj.advisor.user != request.user
-                ):
-                    changed_items = []
-
-                    if old_repair_status != obj.repair_status:
-                        changed_items.append(f"status {old_repair_status} to {obj.repair_status}")
-
-                    if old_grand_total != obj.grand_total:
-                        changed_items.append(f"estimate amount {obj.grand_total}")
-
-                    if old_parts_total != obj.parts_total or old_labour_total != obj.labour_total:
-                        changed_items.append("part/labour estimate")
-
-                    if old_expected_delivery != obj.expected_delivery_datetime:
-                        changed_items.append("expected delivery")
-
-                    detail = ", ".join(changed_items) if changed_items else "details"
-                    notify_jobcard_advisor(
-                        obj,
-                        "Jobcard Updated",
-                        f"Jobcard {obj.job_no} updated by {logged_emp.name if logged_emp else request.user.username}: {detail}",
-                    )
-
-                messages.success(
-                    request,
-                    f"Job Card {obj.job_no} updated successfully"
-                )
-
-            from django.urls import reverse
-
-            return redirect(
-                f"{reverse('jobcard_edit', args=[obj.id])}?saved=1"
-            )
-
-    else:
-        form = JobCardForm(instance=job)
-
-    if is_jobcard_locked:
-        for field in form.fields.values():
-            field.disabled = True
-
-    job_progress_rows = []
-    allocation = getattr(job, "allocation", None)
-    can_close_current_jobcard = can_close_jobcard(job)
-    close_ready_status = get_jobcard_close_ready_status(job)
-    if allocation and claim and int(claim.claim_stage or 0) >= ClaimStageCode.REPAIR_IN_PROGRESS:
-        progress_by_stage = {
-            progress.stage: progress
-            for progress in allocation.progress.select_related("employee")
-        }
-        last_touched_index = -1
-
-        for index, (stage_key, stage_label) in enumerate(WorkProgress.STAGES):
-            progress = progress_by_stage.get(stage_key)
-            if progress and (progress.start_time or progress.finish_time):
-                last_touched_index = index
-
-        for index, (stage_key, stage_label) in enumerate(WorkProgress.STAGES):
-            if index > last_touched_index:
-                break
-
-            progress = progress_by_stage.get(stage_key)
-            if progress:
-                job_progress_rows.append({
-                    "label": stage_label,
-                    "start_time": progress.start_time if progress else None,
-                    "finish_time": progress.finish_time if progress else None,
-                    "start_timestamp": (
-                        int(progress.start_time.timestamp() * 1000)
-                        if progress and progress.start_time
-                        else ""
-                    ),
-                    "finish_timestamp": (
-                        int(progress.finish_time.timestamp() * 1000)
-                        if progress and progress.finish_time
-                        else ""
-                    ),
-                    "employee": progress.employee.name if progress and progress.employee else "",
-                    "remarks": progress.remarks if progress else "",
-                    "status": (
-                        "Completed" if progress and progress.finish_time
-                        else "In Progress" if progress and progress.start_time
-                        else "Pending"
-                    ),
-                })
-
-    return render(request, "jobcard/jobcardEntry.html", {
-        "form": form,
-        "claim": claim,
-        "job": job,
-        "job_created_date_value": datetime_local_value(job.job_date),
-        "can_change_advisor": can_change_advisor,
-        "can_edit_jobcard_entries": can_edit_jobcard_entries,
-        "can_reopen_jobcard": can_reopen_jobcard,
-        "can_approve_second_approval": can_approve_second_approval,
-        "second_approval_pending": second_approval_pending,
-        "additional_approval_parts": additional_approval_parts,
-        "additional_approval_labours": additional_approval_labours,
-        "additional_approval_total_count": additional_approval_total_count,
-        "additional_approval_approved_count": additional_approval_approved_count,
-        "additional_approval_rejected_count": additional_approval_rejected_count,
-        "additional_approval_pending_count": additional_approval_pending_count,
-        "is_jobcard_locked": is_jobcard_locked,
-        "logged_emp": logged_emp,
-        "insurance_companies": insurance_companies,
-        "is_cng_vehicle": is_cng_vehicle,
-        "parts": job.parts.all(),
-        "labours": job.labours.all(),
-        "job_progress_rows": job_progress_rows,
-        "can_close_jobcard": can_close_current_jobcard,
-        "close_ready_status": close_ready_status,
-        "vehicle_photo_slots": get_vehicle_condition_photo_slots(job),
-        "claim_document_slots": get_claim_document_slots(claim),
-        "PDF_SECRET_TOKEN": settings.PDF_SECRET_TOKEN,
-        **get_inventory_context(job),
-
-        # ✅ BREADCRUMB
-        "breadcrumbs": [
-
-            {
-                "title": "Jobcards",
-                "url": "",
-                "icon": "fa fa-list"
-            },
-
-            {
-                "title": "Job Card List",
-                "url": "jobList",
-                "icon": "fa fa-file"
-            },
-
-            {
-                "title": "Edit Job Card",
-                "icon": "fa fa-plus"
-            }
-        ]
-
-    })
-
-
-@require_POST
-@never_cache
-@login_required
-def jobcard_second_approval_action(request, pk):
-    job = get_object_or_404(
-        JobCard.objects.select_related("claim", "advisor", "claim__employee"),
-        pk=pk,
-    )
-    logged_emp = Employee.objects.filter(user=request.user).first()
-
-    if not can_update_second_approval(request.user, logged_emp, job):
-        messages.error(request, "You are not allowed to update 2nd Approval.")
-        return redirect("jobcard_edit", pk=job.id)
-
-    action = request.POST.get("second_approval_action")
-
-    if action == "line_decision":
-        allocation = getattr(job, "allocation", None)
-        if not allocation:
-            messages.error(request, "Work allocation not found.")
-            return redirect("jobcard_edit", pk=job.id)
-
-        part_ids = {
-            value
-            for value in request.POST.getlist("approval_part_id[]")
-            if value.isdigit()
-        }
-        labour_ids = {
-            value
-            for value in request.POST.getlist("approval_labour_id[]")
-            if value.isdigit()
-        }
-        part_status_by_id = {
-            key.removeprefix("approval_part_status_"): value
-            for key, value in request.POST.items()
-            if key.startswith("approval_part_status_")
-            and key.removeprefix("approval_part_status_").isdigit()
-            and value in ["Approved", "Rejected", "Pending"]
-        }
-        labour_status_by_id = {
-            key.removeprefix("approval_labour_status_"): value
-            for key, value in request.POST.items()
-            if key.startswith("approval_labour_status_")
-            and key.removeprefix("approval_labour_status_").isdigit()
-            and value in ["Approved", "Rejected", "Pending"]
-        }
-        has_rejected = False
-        has_pending = False
-
-        for part in allocation.parts.filter(is_additional=True, id__in=part_ids):
-            status = part_status_by_id.get(str(part.id), "Pending")
-            if status == "Rejected":
-                has_rejected = True
-            elif status == "Pending":
-                has_pending = True
-
-            part.advisor_approval_status = status
-            update_fields = ["advisor_approval_status"]
-
-            if status in ["Approved", "Rejected"]:
-                part.decision = "New" if status == "Approved" else "Reject"
-                update_fields.append("decision")
-
-            part.save(update_fields=update_fields)
-
-            if status in ["Approved", "Rejected"]:
-                JobCardAssessmentPart.objects.filter(
-                    job=job,
-                    part=part.job_part,
-                ).update(decision=part.decision)
-
-        for labour in allocation.labours.filter(is_additional=True, id__in=labour_ids):
-            status = labour_status_by_id.get(str(labour.id), "Pending")
-            if status == "Rejected":
-                has_rejected = True
-            elif status == "Pending":
-                has_pending = True
-
-            labour.advisor_approval_status = status
-            update_fields = ["advisor_approval_status"]
-
-            if status in ["Approved", "Rejected"]:
-                labour.decision = "Approved" if status == "Approved" else "Reject"
-                update_fields.append("decision")
-
-            labour.save(update_fields=update_fields)
-
-            if status in ["Approved", "Rejected"]:
-                JobCardAssessmentLabour.objects.filter(
-                    job=job,
-                    labour=labour.job_labour,
-                ).update(decision=labour.decision)
-
-        job.additional_approval_required = True
-        if has_rejected:
-            job.second_approval_status = "Rejected"
-        elif has_pending:
-            job.second_approval_status = "Pending"
-        else:
-            job.second_approval_status = "Approved"
-        job.save(update_fields=[
-            "additional_approval_required",
-            "second_approval_status",
-        ])
-
-        messages.success(request, "Line level 2nd Approval updated.")
-        return redirect("jobcard_edit", pk=job.id)
-
-    if action == "approve":
-        job.second_approval_status = "Approved"
-        job.additional_approval_required = True
-        line_status = "Approved"
-        message = "2nd Approval marked Approved."
-    elif action == "reject":
-        job.second_approval_status = "Rejected"
-        job.additional_approval_required = True
-        line_status = "Rejected"
-        message = "2nd Approval marked Rejected."
-    else:
-        messages.error(request, "Invalid 2nd Approval action.")
-        return redirect("jobcard_edit", pk=job.id)
-
-    job.save(update_fields=[
-        "additional_approval_required",
-        "second_approval_status",
-    ])
-
-    allocation = getattr(job, "allocation", None)
-    if allocation:
-        allocation.parts.filter(
-            is_additional=True,
-            advisor_approval_status="Pending",
-        ).update(advisor_approval_status=line_status)
-        allocation.labours.filter(
-            is_additional=True,
-            advisor_approval_status="Pending",
-        ).update(advisor_approval_status=line_status)
-
-    messages.success(request, message)
-    return redirect("jobcard_edit", pk=job.id)
-
-
-@never_cache
-@login_required
-def jobcard_list_api(request):
-    logged_emp = Employee.objects.filter(user=request.user).first()
-    jobs = JobCard.objects.select_related(
-        "claim",
-        "advisor",
-        "claim__vehicle",
-        "claim__vehicle__model",
-        "claim__vehicle__customer"
-    ).prefetch_related(
-        "allocation__progress",
-        "allocation__parts",
-    ).all()
-
-    repair_status = request.GET.get("repair_status", "").strip()
-    work_progress_filter = request.GET.get("work_progress", "").strip()
-    date_from = request.GET.get("date_from", "").strip()
-    date_to = request.GET.get("date_to", "").strip()
-
-    if repair_status:
-        jobs = jobs.filter(repair_status=repair_status)
-
-    if date_from:
-        jobs = jobs.filter(job_date__date__gte=date_from)
-
-    if date_to:
-        jobs = jobs.filter(job_date__date__lte=date_to)
-    if request.user.is_superuser:
-        pass  # keep all jobs
-
-    elif logged_emp and logged_emp.employee_type.upper() == "ADVISOR":
-        jobs = jobs.filter(advisor=logged_emp)
-
-    else:
-        pass  # keep all jobs
-    data = []
-
-    for job in jobs:
-        allocation = getattr(job, "allocation", None)
-        work_progress_status = get_work_progress_status(allocation)
-
-        if job.additional_approval_required and job.second_approval_status:
-            work_progress_status = (
-                f"{work_progress_status} / 2nd Approval {job.second_approval_status}"
-            )
-
-        if (
-            work_progress_filter
-            and work_progress_filter.lower() != "all"
-            and work_progress_filter not in work_progress_status
-        ):
-            continue
-
-        data.append({
-            "id": job.id,
-            "job_no": job.job_no,
-            "job_date": job.job_date,
-            "claim__claim_no": job.claim.claim_no if job.claim else "",
-            "claim__vehicle__registration_no": job.claim.vehicle.registration_no if job.claim and job.claim.vehicle else "",
-            "claim__vehicle__model__name": job.claim.vehicle.model.name if job.claim and job.claim.vehicle and job.claim.vehicle.model else "",
-            "claim__vehicle__customer__name": job.claim.vehicle.customer.name if job.claim and job.claim.vehicle and job.claim.vehicle.customer else "",
-            "advisor__name": job.advisor.name if job.advisor else "",
-            "vehicle_inward_type": job.vehicle_inward_type,
-            "gate_in_datetime": job.gate_in_datetime,
-            "repair_status": job.repair_status,
-            "work_progress_status": work_progress_status,
-            "parts_not_available_status": get_parts_not_available_status(allocation),
-            "parts_total": job.parts_total,
-            "labour_total": job.labour_total,
-            "grand_total": job.grand_total,
-            "created_at": job.created_at,
-        })
-
-    return JsonResponse(data, safe=False)
 
 
 from .models import CompanySetup
@@ -4678,237 +3323,6 @@ def delete_part_order_line_api(request, order_id):
     })
 
 
-@login_required
-@never_cache
-def jobcard_assessment_api(request, job_id):
-    job = get_object_or_404(JobCard, id=job_id)
-
-    parts = []
-    for p in job.parts.all():
-        ass = JobCardAssessmentPart.objects.filter(
-            job=job,
-            part=p
-        ).first()
-
-        parts.append({
-            "id": p.id,
-            "part_no": p.part_no,
-            "description": p.description,
-            "amount": str(p.amount),
-            "decision": ass.decision if ass else "None",
-            "revised_amount": str(ass.revised_amount) if ass else str(p.amount),
-        })
-
-    labours = []
-    for l in job.labours.all():
-        ass = JobCardAssessmentLabour.objects.filter(
-            job=job,
-            labour=l
-        ).first()
-
-        labours.append({
-            "id": l.id,
-            "job_code": l.job_code,
-            "description": l.description,
-            "amount": str(l.amount),
-            "decision": ass.decision if ass else "None",
-            "deduction_percent": str(ass.deduction_percent) if ass else "0",
-            "revised_amount": str(ass.revised_amount) if ass else str(l.amount),
-        })
-
-    return JsonResponse({
-        "parts": parts,
-        "labours": labours,
-        "job_no": job.job_no,
-        "requires_dms_job_no": job.job_no.startswith("JOB-"),
-    })
-
-
-@require_POST
-@login_required
-@never_cache
-def save_jobcard_assessment(request, job_id):
-    job = get_object_or_404(JobCard, id=job_id)
-
-    data = json.loads(request.body.decode("utf-8"))
-
-    parts = data.get("parts", [])
-    labours = data.get("labours", [])
-    dms_job_no = str(data.get("job_no") or "").strip()
-
-    if not parts and not labours:
-        return JsonResponse({
-            "status": "error",
-            "message": "Add at least one Part or Labour line before saving assessment."
-        })
-
-    if job.job_no.startswith("JOB-"):
-        if not dms_job_no:
-            return JsonResponse({
-                "status": "error",
-                "message": "DMS Jobcard No required before saving assessment."
-            })
-
-        duplicate = JobCard.objects.filter(job_no__iexact=dms_job_no).exclude(id=job.id).exists()
-        if duplicate:
-            return JsonResponse({
-                "status": "error",
-                "message": "DMS Jobcard No already exists."
-            })
-
-    with transaction.atomic():
-        if job.job_no.startswith("JOB-") and dms_job_no:
-            job.job_no = dms_job_no
-            job.save(update_fields=["job_no"])
-
-        for p in parts:
-            if p.get("is_new"):
-                part = JobCardPart.objects.create(
-                    job=job,
-                    part_no=p.get("part_no", ""),
-                    description=p.get("description", ""),
-                    qty=Decimal("1"),
-                    rate=Decimal(p.get("amount") or "0"),
-                    amount=Decimal(p.get("amount") or "0"),
-                )
-            else:
-                part_id = p.get("id")
-
-                if not part_id:
-                    continue
-
-                part = get_object_or_404(
-                    JobCardPart,
-                    id=part_id,
-                    job=job
-                )
-
-            JobCardAssessmentPart.objects.update_or_create(
-                job=job,
-                part=part,
-                defaults={
-                    "decision": p.get("decision", "New"),
-                    "revised_amount": Decimal(p.get("revised_amount") or "0"),
-                }
-            )
-        for l in labours:
-            if l.get("is_new"):
-                labour = JobCardLabour.objects.create(
-                    job=job,
-                    job_code=l.get("job_code", ""),
-                    description=l.get("description", ""),
-                    labour_hrs=Decimal("1"),
-                    rate=Decimal(l.get("amount") or "0"),
-                    amount=Decimal(l.get("amount") or "0"),
-                )
-            else:
-                labour_id = l.get("id")
-
-                if not labour_id:
-                    continue
-
-                labour = get_object_or_404(
-                    JobCardLabour,
-                    id=labour_id,
-                    job=job
-                )
-
-            JobCardAssessmentLabour.objects.update_or_create(
-                job=job,
-                labour=labour,
-                defaults={
-                    "decision": l.get("decision"),
-                    "deduction_percent": Decimal(l.get("deduction_percent") or "0"),
-                    "revised_amount": Decimal(l.get("revised_amount") or "0"),
-                }
-            )
-
-    return JsonResponse({
-        "status": "success"
-    })
-
-
-@login_required
-@never_cache
-def assessment_print(request, pk):
-    job = get_object_or_404(
-        JobCard.objects.select_related(
-            "claim",
-            "claim__vehicle",
-            "claim__vehicle__customer",
-            "claim__vehicle__model",
-            "claim__vehicle__variant",
-            "advisor",
-        ),
-        pk=pk
-    )
-
-    assessed_parts = JobCardAssessmentPart.objects.filter(
-        job=job
-    ).select_related("part").order_by("part__id")
-
-    assessed_labours = JobCardAssessmentLabour.objects.filter(
-        job=job
-    ).select_related("labour").order_by("labour__id")
-    new_panel_parts = [
-        item for item in assessed_parts
-        if item.decision in ["New", "KO"]
-    ]
-    repair_panel_parts = [
-        item for item in assessed_parts
-        if item.decision == "Repair"
-    ]
-    new_panel_rows = new_panel_parts[:11] + [None] * max(0, 11 - len(new_panel_parts))
-    repair_panel_rows = repair_panel_parts[:10] + [None] * max(0, 10 - len(repair_panel_parts))
-
-    allocation = getattr(job, "allocation", None)
-    progress_by_stage = {}
-
-    if allocation:
-        for progress in allocation.progress.select_related("employee").all():
-            progress_by_stage[progress.stage] = progress
-
-    repair_progress = progress_by_stage.get("Repair")
-    painting_progress = progress_by_stage.get("Painting")
-    fitting_progress = progress_by_stage.get("Fitting")
-
-    parts_total = sum(
-        (item.part.amount for item in assessed_parts),
-        Decimal("0")
-    )
-    parts_revised_total = sum(
-        (item.revised_amount for item in assessed_parts),
-        Decimal("0")
-    )
-    labour_total = sum(
-        (item.labour.amount for item in assessed_labours),
-        Decimal("0")
-    )
-    labour_revised_total = sum(
-        (item.revised_amount for item in assessed_labours),
-        Decimal("0")
-    )
-
-    return render(request, "jobcard/assessmentPrint.html", {
-        "job": job,
-        "claim": job.claim,
-        "assessed_parts": assessed_parts,
-        "assessed_labours": assessed_labours,
-        "allocation": allocation,
-        "new_panel_rows": new_panel_rows,
-        "repair_panel_rows": repair_panel_rows,
-        "repair_progress": repair_progress,
-        "painting_progress": painting_progress,
-        "fitting_progress": fitting_progress,
-        "parts_total": parts_total,
-        "parts_revised_total": parts_revised_total,
-        "labour_total": labour_total,
-        "labour_revised_total": labour_revised_total,
-        "grand_total": parts_total + labour_total,
-        "grand_revised_total": parts_revised_total + labour_revised_total,
-    })
-
-
 from django.http import JsonResponse, HttpResponse
 from .models import ItemData
 
@@ -4937,70 +3351,6 @@ def part_lookup(request):
 from django.http import HttpResponseForbidden
 from django.shortcuts import render
 from .models import JobCard, JobCardInventory
-
-
-@never_cache
-def jobcard_print_preview(request, pk, token=None):
-    # allow if token is correct OR user is logged in
-    if token != settings.PDF_SECRET_TOKEN and not request.user.is_authenticated:
-        return HttpResponseForbidden("Not allowed")
-
-    job = get_object_or_404(JobCard, pk=pk)
-    variant_name = ""
-    claim = job.claim
-    if (
-            claim
-            and claim.vehicle
-            and claim.vehicle.variant
-    ):
-        variant_name = claim.vehicle.variant.name or ""
-
-    is_cng_vehicle = "CNG" in variant_name.upper()
-
-    inventory = JobCardInventory.objects.filter(job=job).first()
-
-    raw_damages = inventory.damage_marks if inventory else []
-
-    damages = [
-        d for d in raw_damages
-        if d.get("x") not in [None, "", 0, "0"]
-           and d.get("y") not in [None, "", 0, "0"]
-    ]
-
-    # if your FK is jobcard, use:
-    # inventory = JobCardInventory.objects.filter(jobcard=job).first()
-
-    return render(request, "jobcard/jobcardPrint.html", {
-        "job": job,
-        "claim": job.claim,
-        "parts": job.parts.all(),
-        "labours": job.labours.all(),
-        "inventory": inventory,
-        "is_cng_vehicle": is_cng_vehicle,
-        "damages": inventory.damage_marks if inventory else [],
-        "fuel_percent": inventory.fuel_percent if inventory else 0,
-        **get_inventory_context(job),
-    })
-
-@login_required
-def estimate_print(request, pk):
-    job = get_object_or_404(
-        JobCard.objects.select_related(
-            "claim",
-            "claim__vehicle",
-            "claim__vehicle__model",
-            "claim__vehicle__customer",
-            "advisor"
-        ),
-        pk=pk
-    )
-
-    return render(request, "jobcard/estimatePrint.html", {
-        "job": job,
-        "claim": job.claim,
-        "parts": job.parts.all(),
-        "labours": job.labours.all(),
-    })
 
 
 import json
@@ -5118,6 +3468,58 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 
+def legacy_send_whatsapp_template_message(mobile, template_name="hello_world", language_code="en_US"):
+    token = getattr(settings, "WHATSAPP_ACCESS_TOKEN", "") or getattr(settings, "WHATSAPP_TOKEN", "")
+    phone_number_id = getattr(settings, "WHATSAPP_PHONE_NUMBER_ID", "")
+    graph_version = getattr(settings, "WHATSAPP_GRAPH_VERSION", "v23.0")
+
+    if not token or not phone_number_id:
+        return {
+            "success": False,
+            "status_code": 400,
+            "response": "WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID are required in .env.",
+        }
+
+    mobile = "".join(ch for ch in str(mobile or "") if ch.isdigit())
+    if len(mobile) == 10:
+        mobile = "91" + mobile
+    if len(mobile) < 11:
+        return {
+            "success": False,
+            "status_code": 400,
+            "response": "Enter valid WhatsApp mobile number with country code.",
+        }
+
+    url = f"https://graph.facebook.com/{graph_version}/{phone_number_id}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": mobile,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": language_code},
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        return {
+            "success": response.status_code in [200, 201],
+            "status_code": response.status_code,
+            "response": response.text,
+        }
+    except requests.RequestException as error:
+        return {
+            "success": False,
+            "status_code": 500,
+            "response": str(error),
+        }
+
+
 def send_jobcard_whatsapp(job):
     customer = job.claim.vehicle.customer
     mobile = customer.mobile_no
@@ -5209,48 +3611,6 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 
 
-@login_required
-def whatsapp_text_link(request, pk):
-    job = get_object_or_404(JobCard, pk=pk)
-
-    customer = job.claim.vehicle.customer
-
-    if not customer.mobile_no:
-        return redirect("jobcard_edit", pk=pk)
-
-    mobile = "91" + customer.mobile_no[-10:]
-
-    latest_log = (
-        job.communications
-        .exclude(pdf_file="")
-        .order_by("-id")
-        .first()
-    )
-
-    pdf_url = ""
-
-    if latest_log and latest_log.pdf_file:
-        pdf_url = (
-                settings.SITE_URL.rstrip("/")
-                + latest_log.pdf_file.url
-        )
-
-    message = (
-        f"Dear {customer.name},\n"
-        f"Your Job Card {job.job_no} has been created.\n"
-        f"Vehicle: {job.claim.vehicle.registration_no}\n\n"
-        f"PDF Copy:\n{pdf_url}"
-    )
-
-    whatsapp_url = (
-        "https://web.whatsapp.com/send"
-        f"?phone={mobile}"
-        f"&text={quote(message)}"
-    )
-
-    return redirect(whatsapp_url)
-
-
 from urllib.parse import urlencode, quote
 from django.urls import reverse
 
@@ -5261,7 +3621,7 @@ import time
 def generate_jobcard_pdf(job):
     url = (
             settings.SITE_URL
-            + reverse("jobcard_print", args=[job.id, settings.PDF_SECRET_TOKEN])
+            + reverse("jobcard_print_preview", args=[job.id, settings.PDF_SECRET_TOKEN])
 
             + "?"
             + urlencode({"v": int(time.time())})
@@ -5278,10 +3638,14 @@ def generate_jobcard_pdf(job):
 
         page = context.new_page()
 
-        page.goto(
+        response = page.goto(
             url,
             wait_until="networkidle"
         )
+        if not response or response.status >= 400:
+            context.close()
+            browser.close()
+            return None
 
         pdf_bytes = page.pdf(
             format="A4",
@@ -5339,6 +3703,14 @@ def vehicle_detail_api(request, pk):
         "variant": vehicle.variant_id,
         "id_color": vehicle.color,
         "id_sale_date": vehicle.sale_date,
+        "insurance_company": vehicle.insurance_company_id,
+        "insurance_company_name": vehicle.insurance_company.ins_co_name if vehicle.insurance_company else "",
+        "policy_no": vehicle.policy_no,
+        "policy_start_date": vehicle.policy_start_date,
+        "policy_end_date": vehicle.policy_end_date,
+        "last_service_km": vehicle.last_service_km,
+        "last_service_type": vehicle.last_service_type,
+        "last_service_date": vehicle.last_service_date,
         "customer": vehicle.customer_id,
         "customer_name": vehicle.customer.name if vehicle.customer else "",
     })
@@ -5377,6 +3749,19 @@ def mark_notification_read(request, pk):
     ).update(is_read=True)
 
     return JsonResponse({"status": "success"})
+
+
+@login_required
+def mark_all_notifications_read(request):
+    updated = UserNotification.objects.filter(
+        user=request.user,
+        is_read=False
+    ).update(is_read=True)
+
+    return JsonResponse({
+        "status": "success",
+        "updated": updated,
+    })
 
 
 from django.contrib import messages
@@ -5795,16 +4180,32 @@ def control_board_duration_text(start_at, end_at):
         return "Not recorded"
 
     seconds = max(int((end_at - start_at).total_seconds()), 0)
+    return control_board_duration_from_seconds(seconds)
+
+
+def control_board_duration_from_seconds(seconds):
+    seconds = max(int(seconds or 0), 0)
     days = seconds // 86400
     hours = (seconds % 86400) // 3600
     minutes = (seconds % 3600) // 60
+    remaining_seconds = seconds % 60
 
-    return f"{days}d {hours}h {minutes}m"
+    return f"{days}d {hours}h {minutes}m {remaining_seconds}s"
+
+
+def control_board_timeline_display(value):
+    if not value:
+        return ""
+
+    return timezone.localtime(value).strftime("%d-%b %I:%M:%S %p")
 
 
 def get_control_board_tat_timeline(job):
     claim = job.claim
-    allocation = getattr(job, "allocation", None)
+    try:
+        allocation = job.allocation
+    except WorkAllocation.DoesNotExist:
+        allocation = None
     first_progress = None
     last_progress = None
 
@@ -5825,11 +4226,6 @@ def get_control_board_tat_timeline(job):
     events = [
         ("Gate In", control_board_datetime_value(job.gate_in_datetime)),
         ("Claim Created", control_board_datetime_value(claim.created_at)),
-        (
-            "Advisor Assigned",
-            control_board_timeline_created_at(claim, ["ADVISOR"])
-            or control_board_timeline_created_at(claim, ["ASSIGNED"]),
-        ),
         ("Jobcard Created", control_board_datetime_value(job.created_at)),
         ("Claim Intimation", control_board_datetime_value(claim.intimation_date)),
         ("Survey Done", control_board_datetime_value(claim.survey_date)),
@@ -5844,15 +4240,28 @@ def get_control_board_tat_timeline(job):
     ]
 
     rows = []
+    now = timezone.now()
     for index in range(1, len(events)):
         start_label, start_at = events[index - 1]
         end_label, end_at = events[index]
+        if not start_at:
+            continue
+
+        is_live = end_at is None
+        effective_end_at = end_at or now
         rows.append({
-            "label": f"{start_label} → {end_label}",
+            "label": f"{start_label} → {end_label}{' Pending' if is_live else ''}",
             "start_at": start_at,
             "end_at": end_at,
-            "duration": control_board_duration_text(start_at, end_at),
+            "start_display": control_board_timeline_display(start_at),
+            "end_display": control_board_timeline_display(effective_end_at),
+            "duration": control_board_duration_text(start_at, effective_end_at),
+            "duration_seconds": max(int((effective_end_at - start_at).total_seconds()), 0),
+            "live": is_live,
+            "pending": is_live,
         })
+        if is_live:
+            break
 
     return rows
 
@@ -6305,6 +4714,383 @@ def work_allocation_list(request):
 
 @never_cache
 @login_required
+def report_placeholder(request, report_key):
+    report_title = str(report_key or "").strip("/").replace("-", " ").replace("/", " / ").title()
+    return render(request, "reports/reportPlaceholder.html", {
+        "report_title": report_title,
+        "report_key": report_key,
+        "breadcrumbs": [
+            {"title": "Reports", "url": "", "icon": "fa fa-chart-bar"},
+            {"title": report_title, "icon": "fa fa-file-alt"},
+        ],
+    })
+
+
+@never_cache
+@login_required
+def daily_in_out_report(request):
+    today = timezone.localdate()
+    branch_context = report_branch_context(request)
+    from_date = parse_date(request.GET.get("from_date") or "") or today
+    to_date = parse_date(request.GET.get("to_date") or "") or from_date
+
+    if to_date < from_date:
+        from_date, to_date = to_date, from_date
+
+    days = []
+    cursor = from_date
+    while cursor <= to_date:
+        vehicle_in = apply_report_branch_scope(
+            JobCard.objects.filter(
+                gate_in_datetime__date=cursor
+            ),
+            branch_context,
+            "claim__branch",
+        ).count()
+        vehicle_delivered = apply_report_branch_scope(
+            JobCard.objects.filter(
+                claim__delivery_datetime__date=cursor
+            ),
+            branch_context,
+            "claim__branch",
+        ).count()
+        wip = apply_report_branch_scope(
+            JobCard.objects.filter(
+                gate_in_datetime__date__lte=cursor
+            ),
+            branch_context,
+            "claim__branch",
+        ).exclude(
+            Q(claim__delivery_datetime__date__lte=cursor)
+            | Q(claim__claim_stage=ClaimStageCode.CLOSED)
+            | Q(repair_status="Closed")
+        ).count()
+
+        days.append({
+            "date": cursor,
+            "vehicle_in": vehicle_in,
+            "vehicle_delivered": vehicle_delivered,
+            "wip": wip,
+        })
+        cursor += timedelta(days=1)
+
+    total_gate_in = sum(row["vehicle_in"] for row in days)
+    total_deliveries = sum(row["vehicle_delivered"] for row in days)
+    pending_vehicles = days[-1]["wip"] if days else 0
+
+    return render(request, "reports/dailyInOutReport.html", {
+        "from_date": from_date,
+        "to_date": to_date,
+        "rows": days,
+        "total_gate_in": total_gate_in,
+        "total_deliveries": total_deliveries,
+        "pending_vehicles": pending_vehicles,
+        **branch_context,
+        "breadcrumbs": [
+            {"title": "Reports", "url": "", "icon": "fa fa-chart-bar"},
+            {"title": "Workshop Reports", "url": "", "icon": "fa fa-industry"},
+            {"title": "Daily In/Out", "icon": "fa fa-exchange-alt"},
+        ],
+    })
+
+
+@never_cache
+@login_required
+def kpi_cards_report(request):
+    today = timezone.localdate()
+    branch_context = report_branch_context(request)
+
+    jobs = apply_report_branch_scope(
+        JobCard.objects.select_related("claim"),
+        branch_context,
+        "claim__branch",
+    )
+    claims = apply_report_branch_scope(
+        Claim.objects.all(),
+        branch_context,
+    )
+
+    open_jobs = jobs.filter(
+        claim__claim_stage__lt=ClaimStageCode.CLOSED
+    ).exclude(repair_status="Closed")
+
+    total_gate_in_today = jobs.filter(
+        gate_in_datetime__date=today
+    ).count()
+    total_delivered_today = jobs.filter(
+        claim__delivery_datetime__date=today
+    ).count()
+    current_wip = open_jobs.filter(
+        gate_in_datetime__isnull=False
+    ).count()
+    overdue_vehicles = open_jobs.filter(
+        expected_delivery_datetime__date__lt=today
+    ).exclude(
+        claim__delivery_datetime__isnull=False
+    ).count()
+    open_claims = claims.filter(
+        claim_stage__lt=ClaimStageCode.CLOSED
+    )
+    survey_pending = open_claims.filter(
+        claim_stage=ClaimStageCode.INTIMATION
+    ).count()
+    insurance_approval_pending = open_claims.filter(
+        claim_stage__gte=ClaimStageCode.SURVEY,
+        claim_stage__lt=ClaimStageCode.INSURANCE_APPROVAL,
+    ).count()
+    work_allocation_pending = open_claims.filter(
+        claim_stage=ClaimStageCode.WORK_ALLOCATION
+    ).count()
+    repair_in_progress = open_claims.filter(
+        claim_stage=ClaimStageCode.REPAIR_IN_PROGRESS
+    ).count()
+    ready_for_delivery = open_jobs.filter(
+        Q(ready_for_delivery=True)
+        | Q(claim__claim_stage=ClaimStageCode.DELIVERY)
+    ).count()
+
+    cards = [
+        {
+            "title": "Total Gate In Today",
+            "value": total_gate_in_today,
+            "icon": "fa fa-sign-in-alt",
+            "tone": "primary",
+            "caption": today.strftime("%d-%b-%Y"),
+        },
+        {
+            "title": "Total Delivered Today",
+            "value": total_delivered_today,
+            "icon": "fa fa-car-side",
+            "tone": "success",
+            "caption": today.strftime("%d-%b-%Y"),
+        },
+        {
+            "title": "Current WIP",
+            "value": current_wip,
+            "icon": "fa fa-tools",
+            "tone": "info",
+            "caption": "Open vehicles in workshop",
+        },
+        {
+            "title": "Overdue Vehicles",
+            "value": overdue_vehicles,
+            "icon": "fa fa-exclamation-triangle",
+            "tone": "danger",
+            "caption": "Promise date crossed",
+        },
+        {
+            "title": "Survey Pending",
+            "value": survey_pending,
+            "icon": "fa fa-search",
+            "tone": "warning",
+            "caption": "Claim intimation done",
+        },
+        {
+            "title": "Insurance Approval Pending",
+            "value": insurance_approval_pending,
+            "icon": "fa fa-file-signature",
+            "tone": "warning",
+            "caption": "Survey done, approval pending",
+        },
+        {
+            "title": "Work Allocation Pending",
+            "value": work_allocation_pending,
+            "icon": "fa fa-clipboard-list",
+            "tone": "secondary",
+            "caption": "Waiting for floor allocation",
+        },
+        {
+            "title": "Repair In Progress",
+            "value": repair_in_progress,
+            "icon": "fa fa-tools",
+            "tone": "info",
+            "caption": "Active repair workflow",
+        },
+        {
+            "title": "Ready for Delivery",
+            "value": ready_for_delivery,
+            "icon": "fa fa-check-circle",
+            "tone": "success",
+            "caption": "Delivery action pending",
+        },
+    ]
+
+    return render(request, "reports/kpiCardsReport.html", {
+        "cards": cards,
+        "today": today,
+        **branch_context,
+        "breadcrumbs": [
+            {"title": "Reports", "url": "", "icon": "fa fa-chart-bar"},
+            {"title": "Graphical Dashboard", "url": "", "icon": "fa fa-chart-pie"},
+            {"title": "KPI Cards", "icon": "fa fa-id-card"},
+        ],
+    })
+
+
+@never_cache
+@login_required
+def surveyor_performance_report(request):
+    today = timezone.localdate()
+    branch_context = report_branch_context(request)
+    month_start = today.replace(day=1)
+    from_date = parse_date(request.GET.get("from_date") or "") or month_start
+    to_date = parse_date(request.GET.get("to_date") or "") or today
+    try:
+        target_tat = Decimal(request.GET.get("target_tat") or "30")
+    except Exception:
+        target_tat = Decimal("30")
+    if target_tat <= 0:
+        target_tat = Decimal("30")
+
+    if to_date < from_date:
+        from_date, to_date = to_date, from_date
+
+    claims = apply_report_branch_scope(
+        Claim.objects
+        .select_related("surveyor")
+        .filter(
+            surveyor__isnull=False,
+            survey_date__date__gte=from_date,
+            survey_date__date__lte=to_date,
+        ),
+        branch_context,
+    )
+
+    surveyor_stats = {}
+    survey_tat_target = Decimal("1")
+    survey_tat_buckets = {
+        "on_time": 0,
+        "delayed": 0,
+        "critical": 0,
+    }
+    for claim in claims:
+        survey_start = workflow_date_value(claim.survey_date)
+        if not survey_start:
+            continue
+
+        approval_date = workflow_date_value(claim.insurance_approval_date)
+        tat_end = approval_date or timezone.now()
+        tat_days = max((tat_end - survey_start).total_seconds() / 86400, 0)
+        surveyor_name = claim.surveyor.name if claim.surveyor else "Unknown"
+        bucket = surveyor_stats.setdefault(
+            surveyor_name,
+            {
+                "surveyor": surveyor_name,
+                "total_days": 0,
+                "survey_days": 0,
+                "approval_days": 0,
+                "liability_days": 0,
+                "survey_on_time": 0,
+                "survey_delayed": 0,
+                "survey_critical": 0,
+                "claim_count": 0,
+                "approved_count": 0,
+                "pending_count": 0,
+            }
+        )
+        bucket["total_days"] += tat_days
+        survey_base = workflow_date_value(claim.intimation_date)
+        survey_tat = max((survey_start - survey_base).total_seconds() / 86400, 0) if survey_base else 0
+        if Decimal(str(survey_tat)) > survey_tat_target + Decimal("2"):
+            survey_tat_buckets["critical"] += 1
+            bucket["survey_critical"] += 1
+        elif Decimal(str(survey_tat)) > survey_tat_target:
+            survey_tat_buckets["delayed"] += 1
+            bucket["survey_delayed"] += 1
+        else:
+            survey_tat_buckets["on_time"] += 1
+            bucket["survey_on_time"] += 1
+        approval_tat = max((tat_end - survey_start).total_seconds() / 86400, 0)
+        liability_start = workflow_date_value(claim.pre_invoice_sent_at)
+        liability_end = workflow_date_value(claim.liability_received_at)
+        liability_tat = max((liability_end - liability_start).total_seconds() / 86400, 0) if liability_start and liability_end else 0
+        bucket["survey_days"] += survey_tat
+        bucket["approval_days"] += approval_tat
+        bucket["liability_days"] += liability_tat
+        bucket["claim_count"] += 1
+        if approval_date:
+            bucket["approved_count"] += 1
+        else:
+            bucket["pending_count"] += 1
+
+    rows = []
+    for item in surveyor_stats.values():
+        avg_tat = item["total_days"] / item["claim_count"] if item["claim_count"] else 0
+        item["avg_tat"] = round(avg_tat, 1)
+        item["avg_survey_tat"] = round(item["survey_days"] / item["claim_count"], 1) if item["claim_count"] else 0
+        item["avg_approval_tat"] = round(item["approval_days"] / item["claim_count"], 1) if item["claim_count"] else 0
+        item["avg_liability_tat"] = round(item["liability_days"] / item["claim_count"], 1) if item["claim_count"] else 0
+        item["survey_on_time_percent"] = round((item["survey_on_time"] / item["claim_count"]) * 100, 1) if item["claim_count"] else 0
+        item["survey_delayed_percent"] = round((item["survey_delayed"] / item["claim_count"]) * 100, 1) if item["claim_count"] else 0
+        item["survey_critical_percent"] = round((item["survey_critical"] / item["claim_count"]) * 100, 1) if item["claim_count"] else 0
+        item["survey_delayed_start"] = item["survey_on_time_percent"]
+        item["survey_critical_start"] = item["survey_on_time_percent"] + item["survey_delayed_percent"]
+        avg_total_tat = (
+            Decimal(str(item["avg_survey_tat"]))
+            + Decimal(str(item["avg_approval_tat"]))
+            + Decimal(str(item["avg_liability_tat"]))
+        )
+        score = Decimal("100") - ((avg_total_tat / target_tat) * Decimal("100"))
+        item["score"] = max(0, min(100, int(score.quantize(Decimal("1")))))
+        rows.append(item)
+
+    rows.sort(key=lambda row: row["avg_tat"])
+    max_avg_tat = max((row["avg_tat"] for row in rows), default=0)
+    for row in rows:
+        row["bar_width"] = int((row["avg_tat"] / max_avg_tat) * 100) if max_avg_tat else 0
+        row["donut_percent"] = round((row["avg_tat"] / max_avg_tat) * 100, 1) if max_avg_tat else 0
+    axis_step = 0.5
+    axis_max = math.ceil(max_avg_tat / axis_step) * axis_step if max_avg_tat else axis_step
+    axis_ticks = []
+    tick_count = int(axis_max / axis_step)
+    for index in range(tick_count + 1):
+        value = round(index * axis_step, 1)
+        axis_ticks.append({
+            "value": value,
+            "label": f"{value:g} days",
+            "left": int((value / axis_max) * 100) if axis_max else 0,
+        })
+
+    overall_avg_tat = round(
+        sum(row["avg_tat"] * row["claim_count"] for row in rows)
+        / sum(row["claim_count"] for row in rows),
+        1
+    ) if rows else 0
+    survey_tat_total = sum(survey_tat_buckets.values())
+    survey_tat_donut = {
+        "on_time": survey_tat_buckets["on_time"],
+        "delayed": survey_tat_buckets["delayed"],
+        "critical": survey_tat_buckets["critical"],
+        "total": survey_tat_total,
+        "on_time_percent": round((survey_tat_buckets["on_time"] / survey_tat_total) * 100, 1) if survey_tat_total else 0,
+        "delayed_percent": round((survey_tat_buckets["delayed"] / survey_tat_total) * 100, 1) if survey_tat_total else 0,
+        "critical_percent": round((survey_tat_buckets["critical"] / survey_tat_total) * 100, 1) if survey_tat_total else 0,
+    }
+    survey_tat_donut["delayed_start"] = survey_tat_donut["on_time_percent"]
+    survey_tat_donut["critical_start"] = survey_tat_donut["on_time_percent"] + survey_tat_donut["delayed_percent"]
+
+    return render(request, "reports/surveyorPerformanceReport.html", {
+        "from_date": from_date,
+        "to_date": to_date,
+        "rows": rows,
+        "overall_avg_tat": overall_avg_tat,
+        "total_claims": sum(row["claim_count"] for row in rows),
+        "pending_claims": sum(row["pending_count"] for row in rows),
+        "target_tat": target_tat,
+        "axis_ticks": axis_ticks,
+        "survey_tat_target": survey_tat_target,
+        "survey_tat_donut": survey_tat_donut,
+        **branch_context,
+        "breadcrumbs": [
+            {"title": "Reports", "url": "", "icon": "fa fa-chart-bar"},
+            {"title": "Insurance Reports", "url": "", "icon": "fa fa-file-contract"},
+            {"title": "Surveyor Performance", "icon": "fa fa-chart-bar"},
+        ],
+    })
+
+
+@never_cache
+@login_required
 def bodyshop_control_menu(request):
     logged_emp = Employee.objects.filter(user=request.user).first()
 
@@ -6332,6 +5118,21 @@ def bodyshop_control_menu(request):
         .prefetch_related("progress", "parts", "parts__job_part")
         .filter(job__claim__claim_stage__lt=ClaimStageCode.CLOSED)
         .exclude(job__repair_status="Closed")
+    )
+    unallocated_jobs = (
+        JobCard.objects
+        .select_related(
+            "claim",
+            "claim__vehicle",
+            "claim__vehicle__customer",
+            "claim__vehicle__model",
+            "claim__insurance_company",
+            "claim__surveyor",
+            "advisor",
+        )
+        .filter(claim__claim_stage__lt=ClaimStageCode.CLOSED)
+        .exclude(repair_status="Closed")
+        .filter(allocation__isnull=True)
     )
 
     status_counts = {
@@ -6404,6 +5205,29 @@ def bodyshop_control_menu(request):
             name = progress.employee.name if progress.employee else "Unassigned"
             technician_workload[name] = technician_workload.get(name, 0) + 1
 
+    for job in unallocated_jobs:
+        status_counts["pending"] += 1
+
+        promise_date = get_control_board_promise_date(job)
+        if promise_date and promise_date < today:
+            delay_count += 1
+        if promise_date == today or (
+            job.claim.delivery_datetime
+            and workflow_date_value(job.claim.delivery_datetime).date() == today
+        ):
+            today_delivery_count += 1
+
+        tat_days = get_control_board_tat_days(job)
+        if tat_days != "":
+            if tat_days <= 2:
+                tat_buckets["0-2 Days"] += 1
+            elif tat_days <= 5:
+                tat_buckets["3-5 Days"] += 1
+            elif tat_days <= 10:
+                tat_buckets["6-10 Days"] += 1
+            else:
+                tat_buckets["10+ Days"] += 1
+
     insurance_approval_pending = Claim.objects.filter(
         claim_stage__gte=ClaimStageCode.SURVEY,
         claim_stage__lt=ClaimStageCode.INSURANCE_APPROVAL,
@@ -6430,7 +5254,7 @@ def bodyshop_control_menu(request):
         {
             "title": "Stage-wise Kanban Board",
             "subtitle": "Live vehicle stage board",
-            "count": allocations.count(),
+            "count": allocations.count() + unallocated_jobs.count(),
             "class": "module-primary",
             "url": reverse("bodyshop_control_board"),
         },
@@ -6552,17 +5376,39 @@ def bodyshop_control_board(request):
         )
         .order_by("-allotment_date", "-job__id")
     )
+    unallocated_jobs = (
+        JobCard.objects
+        .select_related(
+            "claim",
+            "claim__vehicle",
+            "claim__vehicle__customer",
+            "claim__vehicle__model",
+            "claim__insurance_company",
+            "claim__surveyor",
+            "advisor",
+        )
+        .filter(allocation__isnull=True)
+        .order_by("-id")
+    )
 
     if status_filter == "open":
         allocations = allocations.filter(
             job__claim__claim_stage__lt=ClaimStageCode.CLOSED
         ).exclude(job__repair_status="Closed")
+        unallocated_jobs = unallocated_jobs.filter(
+            claim__claim_stage__lt=ClaimStageCode.CLOSED
+        ).exclude(repair_status="Closed")
     elif status_filter == "completed":
         allocations = allocations.filter(job__repair_status="Completed")
+        unallocated_jobs = unallocated_jobs.filter(repair_status="Completed")
     elif status_filter == "closed":
         allocations = allocations.filter(
             Q(job__claim__claim_stage=ClaimStageCode.CLOSED)
             | Q(job__repair_status="Closed")
+        )
+        unallocated_jobs = unallocated_jobs.filter(
+            Q(claim__claim_stage=ClaimStageCode.CLOSED)
+            | Q(repair_status="Closed")
         )
 
     if search:
@@ -6573,15 +5419,25 @@ def bodyshop_control_board(request):
             | Q(job__claim__vehicle__customer__name__icontains=search)
             | Q(job__claim__vehicle__model__name__icontains=search)
         )
+        unallocated_jobs = unallocated_jobs.filter(
+            Q(job_no__icontains=search)
+            | Q(claim__claim_no__icontains=search)
+            | Q(claim__vehicle__registration_no__icontains=search)
+            | Q(claim__vehicle__customer__name__icontains=search)
+            | Q(claim__vehicle__model__name__icontains=search)
+        )
 
     if insurance_filter:
         allocations = allocations.filter(job__claim__insurance_company_id=insurance_filter)
+        unallocated_jobs = unallocated_jobs.filter(claim__insurance_company_id=insurance_filter)
 
     if advisor_filter:
         allocations = allocations.filter(job__advisor_id=advisor_filter)
+        unallocated_jobs = unallocated_jobs.filter(advisor_id=advisor_filter)
 
     if surveyor_filter:
         allocations = allocations.filter(job__claim__surveyor_id=surveyor_filter)
+        unallocated_jobs = unallocated_jobs.filter(claim__surveyor_id=surveyor_filter)
 
     rows = []
     pna_count = 0
@@ -6619,6 +5475,26 @@ def bodyshop_control_board(request):
             "status_text": status_text,
             "status_class": status_class,
             "pna_parts": pna_parts,
+        })
+
+    for job in unallocated_jobs:
+        rows.append({
+            "allocation": None,
+            "job": job,
+            "allocated_at": None,
+            "in_date": get_control_board_in_date(job),
+            "promise_date": get_control_board_promise_date(job),
+            "promise_class": get_control_board_promise_class(job),
+            "tat_days": get_control_board_tat_days(job),
+            "tat_timeline": get_control_board_tat_timeline(job),
+            "current_stage": job.claim.get_claim_stage_display(),
+            "claim_stage": job.claim.get_claim_stage_display(),
+            "progress_status": "Work Allocation Pending",
+            "board_status": "🟡 Pending",
+            "board_status_class": "status-pending",
+            "status_text": "Work Allocation Pending",
+            "status_class": "bg-warning text-dark",
+            "pna_parts": [],
         })
 
     return render(request, "floor/bodyshopControlBoard.html", {
@@ -7677,6 +6553,15 @@ def work_allocation_entry(request, job_id):
             if saved_labour
             else []
         )
+    new_paint_panel_count = sum(
+        1 for labour in assessed_labours
+        if labour.paint_panel_type == "New"
+    )
+    repair_paint_panel_count = sum(
+        1 for labour in assessed_labours
+        if labour.paint_panel_type == "Repair"
+    )
+    total_paint_panel_count = new_paint_panel_count + repair_paint_panel_count
     technicians = Employee.objects.filter(
         designation__in=['Technician', 'Denter', 'Painter']
     )
@@ -7721,6 +6606,9 @@ def work_allocation_entry(request, job_id):
             "reinspection_max_total_size_mb": REINSPECTION_MAX_TOTAL_SIZE_MB,
 
             "allocation_labours": assessed_labours,
+            "new_paint_panel_count": new_paint_panel_count,
+            "repair_paint_panel_count": repair_paint_panel_count,
+            "total_paint_panel_count": total_paint_panel_count,
 
             "stages":
                 WorkProgress.STAGES,
@@ -8056,111 +6944,6 @@ def my_work_action(request, progress_id):
     return redirect(request.POST.get("next") or "my_work_list")
 
 
-@never_cache
-@login_required
-def vehicle_condition_photo_view(request, job_id):
-    job = get_object_or_404(
-        JobCard.objects.select_related(
-            "claim",
-            "claim__vehicle",
-        ),
-        id=job_id
-    )
-
-    if request.method == "POST":
-        photo_ids = request.POST.getlist("photo_ids")
-        photos_to_delete = job.vehicle_condition_photos.filter(id__in=photo_ids)
-
-        if not photos_to_delete.exists():
-            messages.error(request, "Select at least one image to delete.")
-            return redirect("vehicle_condition_photo_view", job_id=job.id)
-
-        deleted_count = 0
-
-        for photo in photos_to_delete:
-            if photo.image:
-                photo.image.delete(save=False)
-
-            photo.delete()
-            deleted_count += 1
-
-        messages.success(request, f"{deleted_count} vehicle condition image(s) deleted successfully.")
-
-        return redirect("vehicle_condition_photo_view", job_id=job.id)
-
-    photos = job.vehicle_condition_photos.order_by("id")
-
-    return render(request, "jobcard/vehicleConditionPhotos.html", {
-        "job": job,
-        "photos": photos,
-    })
-
-
-@login_required
-def download_vehicle_condition_photos(request, job_id):
-    job = get_object_or_404(JobCard, id=job_id)
-    photo_ids = request.POST.getlist("photo_ids")
-    photos = job.vehicle_condition_photos.filter(id__in=photo_ids).order_by("id")
-
-    if not photos.exists():
-        messages.error(request, "Select at least one image to download.")
-        return redirect("vehicle_condition_photo_view", job_id=job.id)
-
-    buffer = BytesIO()
-
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for index, photo in enumerate(photos, start=1):
-            if not photo.image:
-                continue
-
-            filename = os.path.basename(photo.image.name)
-            _, ext = os.path.splitext(filename)
-            safe_caption = "".join(
-                char if char.isalnum() or char in ["-", "_"] else "_"
-                for char in photo.caption
-            )
-            zip_name = f"{index:02d}_{safe_caption}{ext or '.jpg'}"
-
-            photo.image.open("rb")
-            zip_file.writestr(zip_name, photo.image.read())
-            photo.image.close()
-
-    buffer.seek(0)
-    claim_no = job.claim.claim_no if job.claim else job.job_no
-    safe_claim_no = "".join(
-        char if char.isalnum() or char in ["-", "_"] else "_"
-        for char in claim_no
-    )
-    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
-    response["Content-Disposition"] = (
-        f'attachment; filename="vehicle_condition_{safe_claim_no}.zip"'
-    )
-
-    return response
-
-
-@login_required
-def check_open_claim(request):
-    vehicle_id = request.GET.get("vehicle_id")
-
-    claim = Claim.objects.filter(
-        vehicle_id=vehicle_id
-    ).exclude(
-        claim_stage=ClaimStageCode.CLOSED
-    ).first()
-
-    if claim:
-        return JsonResponse({
-            "exists": True,
-            "claim_no": claim.claim_no,
-            "claim_id": claim.id,
-        })
-
-    return JsonResponse({
-        "exists": False
-    })
-
-
 @login_required
 def unread_announcements(request):
     read_ids = AnnouncementRead.objects.filter(
@@ -8211,57 +6994,3 @@ from playwright.sync_api import sync_playwright
 import time
 
 
-@login_required
-def jobcard_print_pdf(request, pk, token):
-
-    if token != settings.PDF_SECRET_TOKEN:
-        return HttpResponseForbidden("Invalid token")
-
-    job = get_object_or_404(JobCard, pk=pk)
-
-    preview_url = (
-        settings.SITE_URL.rstrip("/")
-        + reverse(
-            "jobcard_print_preview",
-            args=[job.id, settings.PDF_SECRET_TOKEN]
-        )
-        + f"?v={int(time.time())}"
-    )
-
-    with sync_playwright() as p:
-
-        browser = p.chromium.launch(
-            headless=True
-        )
-
-        page = browser.new_page()
-
-        page.goto(
-            preview_url,
-            wait_until="load",
-            timeout=60000
-        )
-
-        pdf_bytes = page.pdf(
-            format="A4",
-            print_background=True,
-            margin={
-                "top": "8mm",
-                "right": "8mm",
-                "bottom": "8mm",
-                "left": "8mm",
-            }
-        )
-
-        browser.close()
-
-    response = HttpResponse(
-        pdf_bytes,
-        content_type="application/pdf"
-    )
-
-    response["Content-Disposition"] = (
-        f'attachment; filename="jobcard_{job.job_no}.pdf"'
-    )
-
-    return response

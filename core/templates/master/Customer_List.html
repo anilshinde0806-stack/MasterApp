@@ -3,77 +3,305 @@
 {% block title %}Customer Master{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h3>Customer Master</h3>
+<style>
+.customer-page {
+    padding: 10px 12px;
+}
 
-    <button class="btn btn-primary mb-3" id="addBtn">+ Add Customer</button>
+.customer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
 
-    <table id="customerTable" class="table table-striped">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Mobile</th>
-                <th>Email</th>
-                <th>Address</th>
-                <th>City</th>
-                <th>GST</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-    </table>
-</div>
+.customer-header h3 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 0;
+}
 
-<!-- MODAL -->
-<div class="modal fade" id="customerModal">
-   <div class="modal-dialog vehicle-modal-dialog">
-    <div class="modal-content">
+.customer-table-wrap {
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    padding: 8px;
+    background: #fff;
+}
 
-      <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title">Customer</h5>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
+#customerTable {
+    width: 100% !important;
+    font-size: .82rem;
+}
 
-      <div class="modal-body">
-        <form id="customerForm">
-            {% csrf_token %}
-            <input type="hidden" name="id" id="id">
+#customerTable th,
+#customerTable td {
+    padding: 6px 8px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
 
-            <div class="row">
-                <div class="col-md-6 mb-2">
-                    <input class="form-control" name="name" id="name" placeholder="Customer Name">
-                </div>
+.customer-modal .modal-dialog {
+    max-width: 1080px;
+}
 
-                <div class="col-md-6 mb-2">
-                    <input class="form-control" name="mobile_no" id="mobile_no" placeholder="Mobile">
-                    <small id="mobile_error" class="text-danger"></small>
-                </div>
+.customer-modal .modal-header {
+    padding: 12px 16px;
+}
 
-                <div class="col-md-6 mb-2">
-                    <input class="form-control" name="email" id="email" placeholder="Email">
-                </div>
-                <div class="col-md-6 mb-2">
-                    <input class="form-control" name="address" id="address" placeholder="address">
-                </div>
-                <div class="col-md-6 mb-2">
-                    <input class="form-control" name="city" id="city" placeholder="City">
-                </div>
+.customer-modal .modal-body {
+    padding: 12px 16px;
+}
 
-                <div class="col-md-6 mb-2">
-                    <input class="form-control" name="gst_no" id="gst_no" placeholder="GST No">
-                </div>
-            </div>
-        </form>
+.customer-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 12px 4px;
+    margin-bottom: 10px;
+}
 
-        <div id="formErrors" class="text-danger"></div>
-      </div>
+.customer-section-title {
+    color: #334155;
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    margin-bottom: 8px;
+}
 
-      <div class="modal-footer">
-        <button class="btn btn-success" id="saveBtn">Save</button>
-      </div>
+.customer-modal label {
+    color: #4b5563;
+    font-size: .76rem;
+    font-weight: 700;
+    margin-bottom: 3px;
+}
 
+.customer-modal .form-control,
+.customer-modal .form-select {
+    min-height: 34px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: .86rem;
+}
+
+.customer-modal textarea.form-control {
+    min-height: 58px;
+}
+
+.customer-modal .form-check {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 0;
+}
+
+.customer-modal .form-check-input {
+    margin-left: 0;
+}
+</style>
+
+<div class="container-fluid customer-page">
+    <div class="customer-header">
+        <h3>Customer Master</h3>
+        <button class="btn btn-primary btn-sm" id="addBtn">+ Add Customer</button>
     </div>
-  </div>
+
+    <div class="customer-table-wrap">
+        <table id="customerTable" class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Mobile</th>
+                    <th>WhatsApp</th>
+                    <th>Email</th>
+                    <th>City</th>
+                    <th>GST</th>
+                    <th>Company</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
 </div>
+
+<div class="modal fade customer-modal" id="customerModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">Customer Master</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <form id="customerForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="id" id="id">
+
+                    <div class="customer-section">
+                        <div class="customer-section-title">Basic Information</div>
+                        <div class="row g-2">
+                            <div class="col-md-2">
+                                <label>Customer Code</label>
+                                <input class="form-control bg-light" id="customer_code" readonly>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Customer Type</label>
+                                <select class="form-select" name="customer_type" id="customer_type">
+                                    <option value="Individual">Individual</option>
+                                    <option value="Corporate">Corporate</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Salutation</label>
+                                <select class="form-select" name="salutation" id="salutation">
+                                    <option value="">Select</option>
+                                    <option value="Mr">Mr</option>
+                                    <option value="Mrs">Mrs</option>
+                                    <option value="Ms">Ms</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label>Customer Name</label>
+                                <input class="form-control" name="name" id="name" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Gender</label>
+                                <select class="form-select" name="gender" id="gender">
+                                    <option value="">Select</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Date of Birth</label>
+                                <input type="date" class="form-control" name="date_of_birth" id="date_of_birth">
+                            </div>
+                            <div class="col-md-2">
+                                <label>Anniversary Date</label>
+                                <input type="date" class="form-control" name="anniversary_date" id="anniversary_date">
+                            </div>
+                            <div class="col-md-2">
+                                <label>PAN No</label>
+                                <input class="form-control" name="pan_no" id="pan_no" maxlength="10">
+                            </div>
+                            <div class="col-md-2">
+                                <label>Aadhaar No</label>
+                                <input class="form-control" name="aadhaar_no" id="aadhaar_no" maxlength="12">
+                            </div>
+                            <div class="col-md-2">
+                                <label>GST No</label>
+                                <input class="form-control" name="gst_no" id="gst_no" maxlength="15">
+                            </div>
+                            <div class="col-md-2">
+                                <label>GST Registered</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="gst_registered" id="gst_registered">
+                                    <span>Yes</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customer-section">
+                        <div class="customer-section-title">Contact Information</div>
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label>Mobile No</label>
+                                <input class="form-control" name="mobile_no" id="mobile_no">
+                                <small id="mobile_error" class="text-danger"></small>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Alternate Mobile No</label>
+                                <input class="form-control" name="alternate_mobile_no" id="alternate_mobile_no">
+                            </div>
+                            <div class="col-md-3">
+                                <label>WhatsApp No</label>
+                                <input class="form-control" name="whatsapp_no" id="whatsapp_no">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Preferred Contact</label>
+                                <select class="form-select" name="preferred_contact_method" id="preferred_contact_method">
+                                    <option value="Mobile">Mobile</option>
+                                    <option value="WhatsApp">WhatsApp</option>
+                                    <option value="Email">Email</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Email ID</label>
+                                <input type="email" class="form-control" name="email" id="email">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customer-section">
+                        <div class="customer-section-title">Address Information</div>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label>Address Line 1</label>
+                                <input class="form-control" name="address_line_1" id="address_line_1">
+                            </div>
+                            <div class="col-md-6">
+                                <label>Address Line 2</label>
+                                <input class="form-control" name="address_line_2" id="address_line_2">
+                            </div>
+                            <div class="col-md-6">
+                                <label>Legacy Address / Landmark</label>
+                                <textarea class="form-control" name="address" id="address"></textarea>
+                            </div>
+                            <div class="col-md-2">
+                                <label>City</label>
+                                <input class="form-control" name="city" id="city">
+                            </div>
+                            <div class="col-md-2">
+                                <label>State</label>
+                                <input class="form-control" name="state" id="state">
+                            </div>
+                            <div class="col-md-2">
+                                <label>Pincode</label>
+                                <input class="form-control" name="pin_code" id="pin_code" maxlength="6">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Country</label>
+                                <input class="form-control" name="country" id="country" value="India">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customer-section" id="corporateSection">
+                        <div class="customer-section-title">Corporate Customer Fields</div>
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label>Company Name</label>
+                                <input class="form-control" name="company_name" id="company_name">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Contact Person</label>
+                                <input class="form-control" name="contact_person" id="contact_person">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Designation</label>
+                                <input class="form-control" name="designation" id="designation">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Company GST No</label>
+                                <input class="form-control" name="company_gst_no" id="company_gst_no" maxlength="15">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                <div id="formErrors" class="text-danger"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success" id="saveBtn">Save Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -81,97 +309,117 @@
 <script>
 let table;
 
-$(document).ready(function () {
+function toggleCorporateSection() {
+    const isCorporate = $('#customer_type').val() === 'Corporate';
+    $('#corporateSection').toggle(isCorporate);
+}
 
+function setFormValues(data) {
+    for (let key in data) {
+        const input = $('#' + key);
+
+        if (!input.length) {
+            continue;
+        }
+
+        if (input.attr('type') === 'checkbox') {
+            input.prop('checked', Boolean(data[key]));
+        } else {
+            input.val(data[key] || '');
+        }
+    }
+
+    toggleCorporateSection();
+}
+
+$(document).ready(function () {
     table = $('#customerTable').DataTable({
         ajax: '/customer/data/',
+        scrollX: true,
+        pageLength: 25,
+        order: [[0, 'asc']],
         columns: [
-            { data: 'name' },
-            { data: 'mobile_no' },
-            { data: 'email' },
-            { data: 'address' },
-            { data: 'city' },
-            { data: 'gst_no' },
+            { data: 'customer_code', defaultContent: '' },
+            { data: 'customer_type', defaultContent: '' },
+            { data: 'name', defaultContent: '' },
+            { data: 'mobile_no', defaultContent: '' },
+            { data: 'whatsapp_no', defaultContent: '' },
+            { data: 'email', defaultContent: '' },
+            { data: 'city', defaultContent: '' },
+            { data: 'gst_no', defaultContent: '' },
+            { data: 'company_name', defaultContent: '' },
             {
                 data: 'id',
+                orderable: false,
                 render: function (data) {
-                    return `
-                        <button class="btn btn-sm btn-warning editBtn" data-id="${data}">Edit</button>
-                    `;
+                    return `<button class="btn btn-sm btn-warning editBtn" data-id="${data}">Edit</button>`;
                 }
             }
         ]
     });
 
+    toggleCorporateSection();
 });
 
+$('#customer_type').on('change', toggleCorporateSection);
 
-// ADD
 $('#addBtn').click(function () {
     $('#customerForm')[0].reset();
     $('#id').val('');
+    $('#customer_code').val('Auto');
+    $('#country').val('India');
+    $('#customer_type').val('Individual');
+    $('#preferred_contact_method').val('Mobile');
     $('#formErrors').html('');
+    $('#mobile_error').text('');
     $('.is-invalid').removeClass('is-invalid');
+    toggleCorporateSection();
     $('#customerModal').modal('show');
 });
 
-
-// EDIT
 $('#customerTable').on('click', '.editBtn', function () {
-
     let id = $(this).data('id');
 
     $.get(`/customer/get/${id}/`, function (data) {
-
-        for (let key in data) {
-            $('#' + key).val(data[key]);
-        }
-
+        setFormValues(data);
         $('#customerModal').modal('show');
     });
-
 });
 
-
-// SAVE
 $('#saveBtn').click(function () {
-
     $('.is-invalid').removeClass('is-invalid');
     $('#formErrors').html('');
 
     $.post('/customer/save/', $('#customerForm').serialize(), function (res) {
-
         if (res.success) {
-            showToast("Customer details successfully");
+            showToast("Customer details saved successfully");
             $('#customerModal').modal('hide');
-            table.ajax.reload();
-
-        } else {
-
-            for (let field in res.errors) {
-
-                let input = $('#' + field);
-
-                if (input.length) {
-                    input.addClass('is-invalid');
-                }
-
-                $('#formErrors').append(`<div>${res.errors[field][0]}</div>`);
-            }
+            table.ajax.reload(null, false);
+            return;
         }
 
-    });
+        for (let field in res.errors) {
+            let input = $('#' + field);
 
+            if (input.length) {
+                input.addClass('is-invalid');
+            }
+
+            $('#formErrors').append(`<div>${res.errors[field][0]}</div>`);
+        }
+    });
 });
 
-
-  // live mobile duplicate check
-  $('#mobile_no').on('blur', function () {
-
+$('#mobile_no').on('blur', function () {
     let val = $(this).val();
+    let id = $('#id').val();
 
-    $.get(`/customer/check-mobile/?mobile=${val}`, function (res) {
+    if (!val) {
+        $('#mobile_error').text('');
+        return;
+    }
 
+    $.get(`/customer/check-mobile/?mobile=${encodeURIComponent(val)}&id=${id}`, function (res) {
         if (res.exists) {
             $('#mobile_no').addClass('is-invalid');
             $('#mobile_error').text("Mobile already exists");
@@ -179,9 +427,7 @@ $('#saveBtn').click(function () {
             $('#mobile_no').removeClass('is-invalid');
             $('#mobile_error').text("");
         }
-
     });
-
 });
 </script>
 {% endblock %}

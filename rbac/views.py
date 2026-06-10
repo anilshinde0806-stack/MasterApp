@@ -6,6 +6,7 @@ from django.db import transaction
 from django.shortcuts import  redirect, get_object_or_404, render
 from django.contrib.auth.models import  User
 from django.views.decorators.http import require_POST
+from core.models import Branch
 from .models import Menu, RoleMenuPermission, UserMenuPermission
 
 
@@ -218,12 +219,17 @@ def menu_manage(request):
 @login_required
 @user_passes_test(admin_required)
 def user_access(request):
-    users = User.objects.filter(is_active=True).order_by("username")
+    selected_branch_id = request.POST.get("branch_id") or request.GET.get("branch_id") or ""
+    branches = Branch.objects.filter(is_active=True).order_by("name")
+    users = User.objects.filter(is_active=True).select_related("employee").order_by("username")
+    if selected_branch_id:
+        users = users.filter(employee__branch_id=selected_branch_id)
+
     selected_user_id = request.POST.get("user_id") or request.GET.get("user_id") or ""
     selected_user = None
 
     if selected_user_id:
-        selected_user = get_object_or_404(User, pk=selected_user_id)
+        selected_user = get_object_or_404(users, pk=selected_user_id)
 
     menus = list(Menu.objects.select_related("parent").order_by(
         "parent_id",
@@ -258,7 +264,10 @@ def user_access(request):
                 )
 
         messages.success(request, "User menu access saved successfully")
-        return redirect(f"{request.path}?user_id={selected_user.id}")
+        redirect_url = f"{request.path}?user_id={selected_user.id}"
+        if selected_branch_id:
+            redirect_url += f"&branch_id={selected_branch_id}"
+        return redirect(redirect_url)
 
     selected_ids = set()
 
@@ -284,7 +293,9 @@ def user_access(request):
             )
 
     return render(request, "rbac/user_access.html", {
+        "branches": branches,
         "users": users,
+        "selected_branch_id": selected_branch_id,
         "selected_user": selected_user,
         "selected_user_id": str(selected_user.id) if selected_user else "",
         "menu_tree": build_menu_access_tree(menus, selected_ids),

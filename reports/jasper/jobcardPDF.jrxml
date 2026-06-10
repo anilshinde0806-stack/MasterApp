@@ -1,0 +1,686 @@
+<!-- Created with Jaspersoft Studio version 10.0.0.final using JasperReports Library version 7.0.5-4355b62c664a7760655b513bdd58950cb3365f54  -->
+<jasperReport name="jobcardPDF" language="java" pageWidth="595" pageHeight="1050" columnWidth="535" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Bodyshop PostgreSQL"/>
+	<property name="ireport.domainUri"/>
+	<property name="com.jaspersoft.jrs.data.source"/>
+	<style name="Title" fontName="Times New Roman" fontSize="50.0" />
+	<style name="SubTitle" forecolor="#736343" fontName="Arial" fontSize="18.0"/>
+	<style name="Column header" forecolor="#666666" fontName="Arial" fontSize="12.0" />
+	<style name="Detail" fontName="Arial" fontSize="12.0"/>
+	<style name="Row" mode="Transparent">
+
+	</style>
+	<style name="Table_TH" mode="Opaque" backcolor="#F0F8FF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+			<topPen lineWidth="0.5" lineColor="#000000"/>
+			<leftPen lineWidth="0.5" lineColor="#000000"/>
+			<bottomPen lineWidth="0.5" lineColor="#000000"/>
+			<rightPen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="Table_CH" mode="Opaque" backcolor="#BFE1FF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+			<topPen lineWidth="0.5" lineColor="#000000"/>
+			<leftPen lineWidth="0.5" lineColor="#000000"/>
+			<bottomPen lineWidth="0.5" lineColor="#000000"/>
+			<rightPen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="Table_TD" mode="Opaque" backcolor="#FFFFFF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+			<topPen lineWidth="0.5" lineColor="#000000"/>
+			<leftPen lineWidth="0.5" lineColor="#000000"/>
+			<bottomPen lineWidth="0.5" lineColor="#000000"/>
+			<rightPen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="Table 1_TH" mode="Opaque" backcolor="#F0F8FF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+			<topPen lineWidth="0.5" lineColor="#000000"/>
+			<leftPen lineWidth="0.5" lineColor="#000000"/>
+			<bottomPen lineWidth="0.5" lineColor="#000000"/>
+			<rightPen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="Table 1_CH" mode="Opaque" backcolor="#BFE1FF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+			<topPen lineWidth="0.5" lineColor="#000000"/>
+			<leftPen lineWidth="0.5" lineColor="#000000"/>
+			<bottomPen lineWidth="0.5" lineColor="#000000"/>
+			<rightPen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="Table 1_TD" mode="Opaque" backcolor="#FFFFFF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+			<topPen lineWidth="0.5" lineColor="#000000"/>
+			<leftPen lineWidth="0.5" lineColor="#000000"/>
+			<bottomPen lineWidth="0.5" lineColor="#000000"/>
+			<rightPen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<subDataset  name="TyreInventoryDataset" >
+		<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Bodyshop PostgreSQL"/>
+		<parameter name="JOBCARD_ID" class="java.lang.Long">
+			<defaultValueExpression><![CDATA[$P{JOBCARD_ID}]]></defaultValueExpression>
+		</parameter>
+		<queryString  language="SQL"><![CDATA[SELECT
+    position,
+    make,
+    size,
+    depth,
+    wheel_cap
+FROM core_jobcardtyreinventory
+WHERE job_id = $P{JOBCARD_ID}
+ORDER BY id]]></queryString >
+		<field name="position" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="position"/>
+			<property name="com.jaspersoft.studio.field.label" value="position"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcardtyreinventory"/>
+		</field>
+		<field name="make" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="make"/>
+			<property name="com.jaspersoft.studio.field.label" value="make"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcardtyreinventory"/>
+		</field>
+		<field name="size" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="size"/>
+			<property name="com.jaspersoft.studio.field.label" value="size"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcardtyreinventory"/>
+		</field>
+		<field name="depth" class="java.math.BigDecimal">
+			<property name="com.jaspersoft.studio.field.name" value="depth"/>
+			<property name="com.jaspersoft.studio.field.label" value="depth"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcardtyreinventory"/>
+		</field>
+		<field name="wheel_cap" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="wheel_cap"/>
+			<property name="com.jaspersoft.studio.field.label" value="wheel_cap"/>
+			<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcardtyreinventory"/>
+		</field>
+	</subDataset >
+	<subDataset  name="inventory" >
+		<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+		<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Bodyshop PostgreSQL"/>
+		<parameter name="JOBCARD_ID" class="java.lang.Long">
+			<defaultValueExpression><![CDATA[$P{JOBCARD_ID}]]></defaultValueExpression>
+		</parameter>
+		<queryString  language="SQL"><![CDATA[SELECT 'Jack' AS item, CASE WHEN jack THEN 'Yes' ELSE 'No' END AS value
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Tools', CASE WHEN tool_kit THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Mud Flap', COALESCE(CAST(mud_flap_count AS VARCHAR), '0')
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Floor Mat', COALESCE(CAST(floor_mat_count AS VARCHAR), '0')
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'RH Mirror', CASE WHEN rh_mirror THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'LH Mirror', CASE WHEN lh_mirror THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Center Mirror', CASE WHEN center_mirror THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Battery', CASE WHEN battery THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Stereo', CASE WHEN stereo THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Front Wiper', CASE WHEN frt_wiper THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Rear Wiper', CASE WHEN rr_wiper THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}
+
+UNION ALL
+SELECT 'Accessories', CASE WHEN accessories THEN 'Yes' ELSE 'No' END
+FROM core_jobcardinventory WHERE job_id = $P{JOBCARD_ID}]]></queryString >
+		<field name="item" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="item"/>
+			<property name="com.jaspersoft.studio.field.label" value="item"/>
+		</field>
+		<field name="value" class="java.lang.String">
+			<property name="com.jaspersoft.studio.field.name" value="value"/>
+			<property name="com.jaspersoft.studio.field.label" value="value"/>
+		</field>
+	</subDataset >
+	<parameter name="JOBCARD_ID" class="java.lang.Long">
+		<defaultValueExpression><![CDATA[$P{JOBCARD_ID}]]></defaultValueExpression>
+	</parameter>
+	<queryString  language="SQL"><![CDATA[SELECT
+    j.id AS jobcard_id,
+    j.job_no AS jobcard_no,
+    j.job_date,
+    j.km,
+    j.jobcard_type,
+    v.registration_no,
+    m.name,
+    vv.name,
+    v.color,
+    c.name AS customer_name,
+    c.mobile_no,
+    c.email,
+    c.address,
+    cl.claim_no
+FROM core_jobcard j
+LEFT JOIN core_claim cl ON j.claim_id = cl.id
+LEFT JOIN core_vehicle v ON cl.vehicle_id = v.id
+LEFT JOIN core_customer c ON v.customer_id = c.id
+LEFT JOIN core_vehiclemodel m ON v.model_id = m.id
+LEFT JOIN core_vehiclevariant vv ON v.variant_id = vv.id
+WHERE j.id = 1]]></queryString>
+	<field name="jobcard_id" class="java.lang.Long">
+		<property name="com.jaspersoft.studio.field.name" value="jobcard_id"/>
+		<property name="com.jaspersoft.studio.field.label" value="jobcard_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="jobcard_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="jobcard_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="jobcard_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="job_date" class="java.sql.Timestamp">
+		<property name="com.jaspersoft.studio.field.name" value="job_date"/>
+		<property name="com.jaspersoft.studio.field.label" value="job_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="km" class="java.lang.Integer">
+		<property name="com.jaspersoft.studio.field.name" value="km"/>
+		<property name="com.jaspersoft.studio.field.label" value="km"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="jobcard_type" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="jobcard_type"/>
+		<property name="com.jaspersoft.studio.field.label" value="jobcard_type"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_jobcard"/>
+	</field>
+	<field name="registration_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="registration_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="registration_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehicle"/>
+	</field>
+	<field name="name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="name"/>
+		<property name="com.jaspersoft.studio.field.label" value="name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehiclemodel"/>
+	</field>
+	<field name="COLUMN_8" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="name"/>
+		<property name="com.jaspersoft.studio.field.label" value="name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehiclevariant"/>
+	</field>
+	<field name="color" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="color"/>
+		<property name="com.jaspersoft.studio.field.label" value="color"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_vehicle"/>
+	</field>
+	<field name="customer_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="customer_name"/>
+		<property name="com.jaspersoft.studio.field.label" value="customer_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="mobile_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="mobile_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="mobile_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="email" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="email"/>
+		<property name="com.jaspersoft.studio.field.label" value="email"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="address" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="address"/>
+		<property name="com.jaspersoft.studio.field.label" value="address"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_customer"/>
+	</field>
+	<field name="claim_no" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="claim_no"/>
+		<property name="com.jaspersoft.studio.field.label" value="claim_no"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="core_claim"/>
+	</field>
+	
+	
+		<element kind="staticText"  x="180" y="0" width="140" height="20" fontSize="12.0" hTextAlign="Center" vTextAlign="Middle" style="Title">
+			<text><![CDATA[Jobcard Customer  Copy]]></text>
+		</element>
+		<element kind="rectangle" uuid="a9a1dfc9-4ec4-4a27-8355-fff5a9df7573" mode="Transparent" x="0" y="20" width="149" height="29"/>
+		<element kind="textField" uuid="6bf4b266-21f0-4e4b-b7ed-fea4983bf0d7" x="2" y="25" width="70" height="17" fontSize="9.0" hTextAlign="Center">
+			<expression><![CDATA["JobCard No:"]]></expression>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+		</element>
+		<element kind="textField" uuid="0df65ab1-ef78-4b23-925e-f9acbdb6b3b8" x="74" y="25" width="75" height="18" fontSize="9.0" bold="true" hTextAlign="Left">
+			<expression><![CDATA[$F{jobcard_no}]]></expression>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+			<property name="com.jaspersoft.studio.unit.width" value="px"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+		</element>
+		<element kind="rectangle" uuid="6edb7cc5-7a9f-4910-b7a2-3d79b6881949" x="150" y="20" width="190" height="29"/>
+		<element kind="textField" uuid="3c19c38c-f456-462f-a96e-46785027b736" mode="Opaque" x="380" y="70" width="179" height="19" markup="html" bold="true" hTextAlign="Center">
+			<expression><![CDATA[$F{registration_no}]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="f0445545-2573-491d-8f6e-7a6bc5cee8c5" x="160" y="25" width="100" height="18" hTextAlign="Right">
+			<expression><![CDATA["Open Date & Time"]]></expression>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+		</element>
+		<element kind="textField" uuid="1228994d-f7df-4b81-b273-ed647db87b66" x="265" y="25" width="75" height="18" fontSize="9.0" bold="true" hTextAlign="Left">
+			<expression><![CDATA[$F{job_date}]]></expression>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+		</element>
+		<element kind="rectangle" uuid="16d86586-d93e-4aaa-a34f-ea721cfd6d6c" x="340" y="20" width="220" height="29"/>
+		<element kind="textField" uuid="fdebd082-f9b8-46a1-977d-f8c54edd1750" x="338" y="20" width="105" height="23" hTextAlign="Justified" vTextAlign="Middle">
+			<expression><![CDATA["Claim No-Type:"]]></expression>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+			<property name="com.jaspersoft.studio.unit.width" value="px"/>
+		</element>
+		<element kind="textField" uuid="7eb03ed2-843f-4905-abad-5cdfebf8b8ad" x="415" y="20" width="80" height="18" fontSize="9.0" bold="true" hTextAlign="Left" vTextAlign="Bottom">
+			<expression><![CDATA[$F{claim_no}]]></expression>
+			<property name="com.jaspersoft.studio.unit.width" value="px"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+		</element>
+		<element kind="textField" uuid="568797c9-e51f-4618-b4f1-22b24d4b28be" x="500" y="20" width="55" height="18" bold="true" hTextAlign="Left" vTextAlign="Bottom">
+			<expression><![CDATA[$F{jobcard_type}]]></expression>
+			<property name="com.jaspersoft.studio.unit.width" value="px"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+		</element>
+		<element kind="textField" uuid="801c4dfb-4e00-4467-b0d6-54dc5475ed46" x="470" y="20" width="25" height="18" bold="true" hTextAlign="Center" vTextAlign="Bottom">
+			<expression><![CDATA[" - "]]></expression>
+			<property name="com.jaspersoft.studio.unit.width" value="px"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+		</element>
+		<element kind="textField" uuid="e28b454e-69d9-4389-a798-f776e7a38582" mode="Opaque" x="0" y="50" width="279" height="21" backcolor="#E1E1E6" markup="styled" hTextAlign="Center">
+			<expression><![CDATA["Customer Details"]]></expression>
+			<box padding="1">
+				<pen lineWidth="1.0"/>
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="ebe3effb-098c-40d9-a27c-b22a68f1f29a" x="0" y="71" width="78" height="18">
+			<expression><![CDATA["Name :"]]></expression>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+			<box padding="1">
+				<pen lineStyle="Solid"/>
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="adc2566d-f5ad-49de-8c7b-d92ebc8df2e3" x="78" y="71" width="201" height="18" fontSize="9.0" bold="true" italic="true">
+			<expression><![CDATA[$F{customer_name}]]></expression>
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="26f13a08-fa35-48fd-9264-5aa6d8b827c5" mode="Opaque" x="280" y="50" width="279" height="21" backcolor="#E1E1E6" markup="styled" hTextAlign="Center">
+			<expression><![CDATA["Vehicle Details"]]></expression>
+			<box padding="1">
+				<pen lineWidth="1.0"/>
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="9b37bac9-8cae-4b99-acaf-d5857a3b00c0" x="280" y="71" width="100" height="18" fontSize="9.0" hTextAlign="Right">
+			<expression><![CDATA["Vehicle Reg No:"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="e1367290-58c9-4456-932d-22d4c2667a67" x="0" y="90" width="78" height="20">
+			<expression><![CDATA["Mobile No :"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="94b8c517-a133-4bf3-8d53-6c19e95a7aad" x="78" y="90" width="201" height="20" fontSize="9.0" bold="true">
+			<expression><![CDATA[$F{mobile_no}]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="cb1a5586-fb06-42dd-9067-2fccc978c797" x="280" y="89" width="100" height="21" fontSize="9.0" hTextAlign="Right">
+			<expression><![CDATA["Model:"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="90c72707-ee83-46c6-b224-827071aeb88e" x="380" y="89" width="179" height="20" fontSize="9.0" bold="true" hTextAlign="Center">
+			<expression><![CDATA[$F{name}]]></expression>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="ac23d7d0-7474-48d4-8195-796e97b88111" x="0" y="110" width="78" height="20" vTextAlign="Top">
+			<expression><![CDATA["Address :"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="fdb4efef-53cd-49b9-94a2-fbd224a2a2f3" x="78" y="110" width="201" height="20" fontSize="9.0" bold="true">
+			<expression><![CDATA[$F{address}]]></expression>
+			<box padding="0">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="626218e8-15d7-4bc0-ac5e-d8de0774ab73" x="280" y="110" width="100" height="21" fontSize="9.0" hTextAlign="Right">
+			<expression><![CDATA["Variant / Color:"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="69ebf25f-27d2-4f29-8e21-f11a009c3e6f" mode="Opaque" x="380" y="120" width="100" height="20" hTextAlign="Right">
+			<expression><![CDATA[$F{COLUMN_8}]]></expression>
+			<box>
+				<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="be0182d5-fa0a-491f-95d0-71908fc5de30" mode="Opaque" x="508" y="121" width="64" height="20" hTextAlign="Left">
+			<expression><![CDATA[$F{color}]]></expression>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<box padding="1">
+				<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="97a81c34-c08a-4ed5-8c74-fe4d1ab1b10f" mode="Opaque" x="480" y="120" width="25" height="20" fontSize="12.0" bold="true" hTextAlign="Center" vTextAlign="Top">
+			<expression><![CDATA["/  "]]></expression>
+			<property name="com.jaspersoft.studio.unit.width" value="px"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+			<box>
+				<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="rectangle" uuid="4bc80842-1f00-4c2f-b05a-191f420dd08b" mode="Transparent" x="381" y="110" width="179" height="21">
+			<property name="com.jaspersoft.studio.unit.x" value="px"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+		</element>
+		<element kind="textField" uuid="881b59af-9939-4e42-a038-dfda86552acc" x="0" y="130" width="78" height="20" vTextAlign="Top">
+			<expression><![CDATA["GST No :"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="dc6a369e-0fe8-42e4-9224-594624e82e7c" x="280" y="130" width="100" height="21" fontSize="9.0" hTextAlign="Right">
+			<expression><![CDATA["Chassis / Engine No:"]]></expression>
+			<box padding="1">
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="1b1d8129-8dec-4935-9a45-0207a988b136" mode="Opaque" x="0" y="150" width="560" height="17" backcolor="#E1E1E6" markup="styled" hTextAlign="Center">
+			<expression><![CDATA["Vehicle Condition & Inventory"]]></expression>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<box padding="1">
+				<pen lineWidth="1.0"/>
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+	</title>
+	<pageHeader splitType="Stretch"/>
+	<columnHeader height="318" splitType="Stretch">
+		<element kind="line" uuid="1a61a836-d137-48b1-ad67-6ff64600bf93" positionType="FixRelativeToBottom" x="0" y="15" width="555" height="1">
+			<pen lineWidth="0.5" lineColor="#999999"/>
+		</element>
+		<element kind="textField" uuid="9f073a43-0841-47dc-8cd8-3e9466a05f92" mode="Transparent" x="0" y="-8" width="226" height="21" backcolor="#E1E1E6" markup="styled" hTextAlign="Center">
+			<expression><![CDATA["Inventory Item's"]]></expression>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+			<box padding="1">
+				<pen lineWidth="1.0"/>
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="textField" uuid="d4f0c7a7-62f0-4a24-be80-a24ca4b26259" mode="Transparent" x="226" y="-8" width="333" height="21" backcolor="#E1E1E6" markup="styled" hTextAlign="Center">
+			<expression><![CDATA["Tyre Inventory Details"]]></expression>
+			<box padding="1">
+				<pen lineWidth="1.0"/>
+				<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+			</box>
+		</element>
+		<element kind="component" uuid="12069a94-4421-411f-9301-c5e0074ec1b3" x="226" y="13" width="334" height="57">
+			<component kind="table" horizontalPosition="Center" shrinkWidth="true">
+				<datasetRun uuid="98dff8c2-093d-4e26-b37d-33c6e709ac6f" subDataset="TyreInventoryDataset">
+					<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					<parameter name="JOBCARD_ID">
+						<expression><![CDATA[$P{JOBCARD_ID}]]></expression>
+					</parameter>
+				</datasetRun>
+				<column kind="single" uuid="67369439-95bb-4aeb-b956-35a740f15a04" width="61">
+					<columnHeader height="15" rowSpan="1" style="Table_CH">
+						<element kind="textField" uuid="e49e4e6d-f35c-4511-b7df-5aa134071559" x="0" y="0" width="61" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Position"]]></expression>
+							<property name="com.jaspersoft.studio.unit.height" value="pixel"/>
+						</element>
+						<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					</columnHeader>
+					<detailCell height="14" style="Table_TD">
+						<element kind="textField" uuid="a68ddf93-d394-4ae3-a0a2-54e2ce11004e" x="0" y="0" width="61" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{position}]]></expression>
+						</element>
+						<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column1"/>
+				</column>
+				<column kind="single" uuid="34ce68fe-e6cd-47b7-bf56-b96b53858eca" width="59">
+					<columnHeader height="15" rowSpan="1" style="Table_CH">
+						<element kind="textField" uuid="b14ab07a-e110-4375-b472-5c9c2b737a9e" x="0" y="0" width="59" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Make"]]></expression>
+						</element>
+					</columnHeader>
+					<detailCell height="14" style="Table_TD">
+						<element kind="textField" uuid="0a071833-20b6-4673-828a-9d3be5362c10" x="0" y="0" width="59" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{make}]]></expression>
+						</element>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column2"/>
+				</column>
+				<column kind="single" uuid="ec0e7660-5a8e-4073-bd5b-64f2cc2dc928" width="62">
+					<columnHeader height="15" rowSpan="1" style="Table_CH">
+						<element kind="textField" uuid="3039a5f1-a370-4777-a003-adbfdaf639fd" x="0" y="0" width="62" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Size"]]></expression>
+						</element>
+					</columnHeader>
+					<detailCell height="14" style="Table_TD">
+						<element kind="textField" uuid="077f57bb-32fc-43eb-a63b-f93e8a47f959" x="0" y="0" width="62" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{size}]]></expression>
+						</element>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column3"/>
+				</column>
+				<column kind="single" uuid="3925854a-6cc6-4efd-b7a5-e70595111939" width="58">
+					<columnHeader height="15" rowSpan="1" style="Table_CH">
+						<element kind="textField" uuid="53b80929-7025-45bc-bbf7-532f89485c5e" x="0" y="0" width="58" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Depth"]]></expression>
+						</element>
+					</columnHeader>
+					<detailCell height="14" style="Table_TD">
+						<element kind="textField" uuid="bd6cde32-6385-4b17-9b00-7031082cdc9b" x="0" y="0" width="58" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{depth}]]></expression>
+						</element>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column4"/>
+				</column>
+				<column kind="single" uuid="a90535fd-9ade-4d80-9bba-0ea0a74676ee" width="94">
+					<columnHeader height="15" rowSpan="1" style="Table_CH">
+						<element kind="textField" uuid="768e84d6-8bca-4795-a5f5-4ed37416a03e" x="0" y="0" width="94" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Wheel Cap"]]></expression>
+						</element>
+					</columnHeader>
+					<detailCell height="14" style="Table_TD">
+						<element kind="textField" uuid="ccb48178-50c2-49bf-9584-4d2fa4d7c8e9" x="0" y="0" width="94" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{wheel_cap}]]></expression>
+						</element>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column5"/>
+				</column>
+			</component>
+			<property name="com.jaspersoft.studio.layout" value="com.jaspersoft.studio.editor.layout.HorizontalRowLayout"/>
+			<property name="com.jaspersoft.studio.table.style.table_header" value="Table_TH"/>
+			<property name="com.jaspersoft.studio.table.style.column_header" value="Table_CH"/>
+			<property name="com.jaspersoft.studio.table.style.detail" value="Table_TD"/>
+			<property name="com.jaspersoft.studio.components.autoresize.next" value="true"/>
+			<property name="com.jaspersoft.studio.components.autoresize.proportional" value="true"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+		</element>
+		<element kind="component" uuid="8d8fe30a-9c3c-4a76-862c-905fbb10fefa" x="2" y="13" width="224" height="45">
+			<component kind="table" horizontalPosition="Center" shrinkWidth="true">
+				<datasetRun uuid="fab8da3f-ac27-451c-baa5-4f9aa084ee61" subDataset="inventory">
+					<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					<parameter name="JOBCARD_ID">
+						<expression><![CDATA[$P{JOBCARD_ID}]]></expression>
+					</parameter>
+				</datasetRun>
+				<column kind="single" uuid="eeb27e02-1f02-4c42-8fd4-7081999d89a0" width="110">
+					<columnHeader height="15" rowSpan="1" style="Table 1_CH">
+						<element kind="textField" uuid="3f5d938e-9828-488c-83a6-1f6fd32e09ab" x="0" y="0" width="110" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Inventory Item Name's"]]></expression>
+						</element>
+						<property name="com.jaspersoft.studio.layout" value="com.jaspersoft.studio.editor.layout.HorizontalRowLayout"/>
+						<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					</columnHeader>
+					<detailCell height="14" style="Table 1_TD">
+						<element kind="textField" uuid="c174a933-0919-4629-bba2-4a98db6ac13b" x="0" y="0" width="110" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{item}]]></expression>
+						</element>
+						<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column1"/>
+				</column>
+				<column kind="single" uuid="1ce0d2e1-4ca1-4d19-8598-fba0a494d613" width="114">
+					<columnHeader height="15" rowSpan="1" style="Table 1_CH">
+						<element kind="textField" uuid="c869cda4-b684-4183-8e64-6c2f9309b9bb" x="0" y="0" width="114" height="15" fontName="DejaVu Sans" bold="true" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA["Yes / No / No's"]]></expression>
+						</element>
+					</columnHeader>
+					<detailCell height="14" style="Table 1_TD">
+						<element kind="textField" uuid="1b739da1-1722-41ae-bb51-96290174c566" x="0" y="0" width="114" height="14" fontName="DejaVu Sans Condensed" hTextAlign="Center" vTextAlign="Middle">
+							<expression><![CDATA[$F{value}]]></expression>
+							<property name="com.jaspersoft.studio.unit.height" value="pixel"/>
+						</element>
+					</detailCell>
+					<property name="com.jaspersoft.studio.components.table.model.column.name" value="Column2"/>
+				</column>
+			</component>
+			<property name="com.jaspersoft.studio.layout" value="com.jaspersoft.studio.editor.layout.HorizontalRowLayout"/>
+			<property name="com.jaspersoft.studio.table.style.table_header" value="Table 1_TH"/>
+			<property name="com.jaspersoft.studio.table.style.column_header" value="Table 1_CH"/>
+			<property name="com.jaspersoft.studio.table.style.detail" value="Table 1_TD"/>
+			<property name="com.jaspersoft.studio.components.autoresize.next" value="true"/>
+			<property name="com.jaspersoft.studio.components.autoresize.proportional" value="true"/>
+			<property name="com.jaspersoft.studio.unit.y" value="px"/>
+		</element>
+	</columnHeader>
+	<detail>
+		<band height="86" splitType="Stretch"/>
+	</detail>
+	<columnFooter height="45" splitType="Stretch">
+		<element kind="line" uuid="fa45a887-615a-4d84-a2d7-8a2219671b3c" positionType="FixRelativeToBottom" x="0" y="40" width="555" height="1">
+			<pen lineWidth="0.5" lineColor="#999999"/>
+		</element>
+	</columnFooter>
+	<pageFooter height="25" splitType="Stretch">
+		<element kind="frame" uuid="183682bc-d976-4756-83e0-6625a3f98ed1" mode="Opaque" x="-21" y="1" width="597" height="24" forecolor="#D0B48E" backcolor="#F2EBDF">
+			<element kind="textField" uuid="0193f9b3-1559-491a-8580-b6988863b6a1" x="533" y="0" width="40" height="20" forecolor="#736343" fontSize="10.0" evaluationTime="Report" bold="false" vTextAlign="Middle" style="Column header">
+				<expression><![CDATA[" " + $V{PAGE_NUMBER}]]></expression>
+			</element>
+			<element kind="textField" uuid="d00b105e-494b-418b-8ac9-8b1b4824f4f0" x="453" y="0" width="80" height="20" forecolor="#736343" fontSize="10.0" bold="false" hTextAlign="Right" vTextAlign="Middle" style="Column header">
+				<expression><![CDATA["Page "+$V{PAGE_NUMBER}+" of"]]></expression>
+			</element>
+			<element kind="textField" uuid="0616f3fe-0354-456f-8911-ec30ec51a5ae" x="22" y="1" width="197" height="20" forecolor="#736343" fontSize="10.0" pattern="EEEEE dd MMMMM yyyy" bold="false" vTextAlign="Middle" style="Column header">
+				<expression><![CDATA[new java.util.Date()]]></expression>
+			</element>
+		</element>
+	</pageFooter>
+	<summary splitType="Stretch"/>
+</jasperReport>

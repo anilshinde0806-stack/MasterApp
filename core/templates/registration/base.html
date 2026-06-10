@@ -238,6 +238,20 @@
     padding: 10px 12px;
     border-bottom: 1px solid #edf0f3;
     font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.notification-read-all {
+    border: 0;
+    background: transparent;
+    color: #0d6efd;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 0;
+    display: none;
 }
 
 .notification-list {
@@ -323,14 +337,21 @@ function notificationItems(data) {
 
 function updateNotificationCounter(count) {
     const badge = document.getElementById("notificationCount");
+    const readAllButton = document.getElementById("notificationReadAll");
     if (!badge) return;
 
     if (count > 0) {
         badge.innerText = count > 99 ? "99+" : count;
         badge.style.display = "inline-block";
+        if (readAllButton) {
+            readAllButton.style.display = "inline";
+        }
     } else {
         badge.innerText = "";
         badge.style.display = "none";
+        if (readAllButton) {
+            readAllButton.style.display = "none";
+        }
     }
 }
 
@@ -404,11 +425,17 @@ function markNotificationRead(id) {
         .then(() => refreshNotifications(false));
 }
 
+function markAllNotificationsRead() {
+    return fetch("/ajax/notifications/read-all/")
+        .then(() => refreshNotifications(false));
+}
+
 document.addEventListener(
     "DOMContentLoaded",
     function() {
         const notificationToggle = document.getElementById("notificationToggle");
         const notificationPanel = document.getElementById("notificationPanel");
+        const notificationReadAll = document.getElementById("notificationReadAll");
 
         refreshNotifications(false);
 
@@ -422,6 +449,14 @@ document.addEventListener(
                 e.stopPropagation();
                 notificationPanel.classList.toggle("open");
                 refreshNotifications(false);
+            });
+        }
+
+        if (notificationReadAll) {
+            notificationReadAll.addEventListener("click", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                markAllNotificationsRead();
             });
         }
 
@@ -567,6 +602,9 @@ document.addEventListener("click", function(e) {
 
                             <div class="fw-bold">
                                 {{ company.company_name }}
+                                {% if logged_branch %}
+                                    <span class="text-muted fw-semibold"> - {{ logged_branch.name }}</span>
+                                {% endif %}
                             </div>
 
                             <small class="text-muted">
@@ -633,7 +671,12 @@ document.addEventListener("click", function(e) {
                             <div id="notificationPanel"
                                  class="notification-panel">
                                 <div class="notification-panel-header">
-                                    Notifications
+                                    <span>Notifications</span>
+                                    <button type="button"
+                                            id="notificationReadAll"
+                                            class="notification-read-all">
+                                        Read All
+                                    </button>
                                 </div>
                                 <div id="notificationList"
                                      class="notification-list">

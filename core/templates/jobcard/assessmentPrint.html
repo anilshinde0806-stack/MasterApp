@@ -74,7 +74,8 @@
 
         .paint-count-box {
             border: 1px solid #000;
-            height: 42px;
+            min-height: 82px;
+            line-height: 1.35;
             margin-bottom: 10px;
             padding: 6px;
             width: 100%;
@@ -196,7 +197,9 @@
         <td colspan="3" class="value">{% if new_panel_rows.5 %}{{ new_panel_rows.5.part.description }}{% endif %}</td>
         <td colspan="2" rowspan="16" class="remarks value">
             <div class="paint-count-box">
-                Paint Panel Count :
+                New Panel Painting : {{ new_paint_panel_count }}<br>
+                Repair Panel Painting : {{ repair_paint_panel_count }}<br>
+                Total Paint Panel Count : {{ total_paint_panel_count }}
             </div>
             Before Paint Photo Required<br>
             KO Photo Required<br>

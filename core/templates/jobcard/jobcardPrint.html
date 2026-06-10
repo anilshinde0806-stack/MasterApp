@@ -8,13 +8,14 @@
         .inventory-print-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 8px;
+    line-height: 1.05;
 }
 
 .inventory-print-table th,
 .inventory-print-table td {
     border: 1px solid #000;
-    padding: 3px 5px;
+    padding: 1px 3px;
 }
 
 .inventory-print-table th {
@@ -32,17 +33,18 @@
 }
         .damage-box {
     position: relative;
-    width: 320px;
-    height: 180px;
-    background: transparent;
-    margin: auto;
+    width: 120px;
+    height: 182px;
+    border: 1px solid #111827;
     overflow: hidden;
+    background: #fff;
+    margin: auto;
 }
 
-.damage-img {
+    .damage-img {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: fill;
     display: block;
 }
 .damage-mark {
@@ -84,13 +86,13 @@
         .print-gauge-wrapper {
 
     display: flex;
-    gap: 30px;
+    gap: 16px;
 
     align-items: center;
     justify-content: center;
 
-    margin-top: 10px;
-    margin-bottom: 15px;
+    margin-top: 2px;
+    margin-bottom: 4px;
 }
 
 .print-gauge-box {
@@ -99,21 +101,21 @@
 
 .mini-gauge {
     position: relative;
-    width: 85px;
-    height: 42px;
+    width: 62px;
+    height: 31px;
     margin: 4px auto 0;
 
-    border-top-left-radius: 85px;
-    border-top-right-radius: 85px;
+    border-top-left-radius: 62px;
+    border-top-right-radius: 62px;
 
-    border: 7px solid #dee2e6;
+    border: 5px solid #dee2e6;
     border-bottom: 0;
 }
 
 /* Gauge labels */
 .gauge-label {
     position: absolute;
-    font-size: 9px;
+    font-size: 7px;
     font-weight: bold;
     color: #444;
 }
@@ -147,26 +149,27 @@
     position: absolute;
     bottom: 0;
     left: 50%;
-    width: 3px;
-    height: 36px;
+    width: 2px;
+    height: 27px;
     background: #dc3545;
     transform-origin: bottom center;
 }
 
 .mini-center {
     position: absolute;
-    bottom: -5px;
+    bottom: -4px;
     left: 50%;
-    width: 11px;
-    height: 11px;
+    width: 8px;
+    height: 8px;
     background: #212529;
     border-radius: 50%;
     transform: translateX(-50%);
 }
-        .print-damage-box {
+.print-damage-box {
     position: relative;
     width: 300px;
     margin: 8px auto;
+    overflow: hidden;
 }
 
 .print-damage-img {
@@ -181,7 +184,7 @@
     background: red;
     border: 2px solid #fff;
     border-radius: 50%;
-    transform: translate(-35%, -50%);
+    transform: translate(-50%, -50%);
 }
 
 .print-scratch {
@@ -194,13 +197,14 @@
 }
         @page {
             size: A4;
-            margin: 8mm;
+            margin: 4mm;
         }
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 11px;
+            font-size: 8.5px;
             color: #000;
+            line-height: 1.15;
         }
 
         .page {
@@ -209,20 +213,21 @@
 
         .title {
             text-align: center;
-            font-size: 18px;
+            font-size: 13px;
             font-weight: bold;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
+            page-break-inside: avoid;
         }
 
         td, th {
             border: 1px solid #000;
-            padding: 4px;
+            padding: 2px 3px;
             vertical-align: top;
         }
 
@@ -234,6 +239,17 @@
             background: #e9ecef;
             font-weight: bold;
             text-align: center;
+            padding: 2px 3px;
+        }
+
+        .section-title {
+            background: #e9ecef;
+            border: 1px solid #000;
+            border-bottom: 0;
+            font-weight: bold;
+            text-align: center;
+            padding: 2px 3px;
+            margin-top: 2px;
         }
 
         .right {
@@ -245,12 +261,49 @@
         }
 
         .sign-box {
-            height: 55px;
+            height: 30px;
+        }
+
+        .signature-cell {
+            height: 42px;
+            text-align: center;
+            vertical-align: bottom;
+        }
+
+        .signature-img {
+            display: block;
+            max-width: 110px;
+            max-height: 30px;
+            margin: 0 auto 2px;
+            object-fit: contain;
+        }
+
+        .signature-placeholder {
+            height: 28px;
+            margin-bottom: 2px;
+        }
+
+        .signature-label {
+            font-weight: bold;
         }
 
         .no-print {
             text-align: right;
             margin-bottom: 10px;
+        }
+
+        .customer-copy {
+            font-size: 8px;
+        }
+
+        .customer-copy td,
+        .customer-copy th {
+            padding: 1px 2px;
+        }
+
+        .customer-copy .compact-note {
+            font-size: 7.5px;
+            color: #333;
         }
 
         @media print {
@@ -267,7 +320,7 @@
     <button onclick="window.print()">Print</button>
 </div>
 
-<div class="page">
+<div class="page customer-copy">
 
     <div class="title">Job Card - Customer Copy</div>
 
@@ -275,8 +328,8 @@
         <tr>
             <td><b>Job Card No:</b> {{ job.job_no }}</td>
             <td><b>Open Date/Time:</b> {{ job.created_at|date:"d/m/Y H:i" }}</td>
-            <td><b>Claim No:</b> {{ claim.claim_no }}</td>
-            <td><b>SR Type:</b> Accident</td>
+            <td><b>Claim No:</b> {{ claim.claim_no|default:"-" }}</td>
+            <td><b>SR Type:</b> {{ job.jobcard_type|default:"Accident" }}</td>
         </tr>
         <tr>
             <td><b>Gate In:</b> {{ job.gate_in_datetime|date:"d/m/Y H:i" }}</td>
@@ -294,38 +347,38 @@
 
         <tr>
             <td><b>Name</b></td>
-            <td>{{ claim.vehicle.customer.name }}</td>
+            <td>{{ customer.name|default:"-" }}</td>
             <td><b>Vehicle Reg No</b></td>
-            <td>{{ claim.vehicle.registration_no }}</td>
+            <td>{{ vehicle.registration_no|default:"-" }}</td>
         </tr>
 
         <tr>
             <td><b>Mobile</b></td>
-            <td>{{ claim.vehicle.customer.mobile_no }}</td>
+            <td>{{ customer.mobile_no|default:"-" }}</td>
             <td><b>Model</b></td>
-            <td>{{ claim.vehicle.model.name }}</td>
+            <td>{% if vehicle.model %}{{ vehicle.model.name }}{% else %}-{% endif %}</td>
         </tr>
 
         <tr>
             <td><b>Address</b></td>
             <td>
-                {{ claim.vehicle.customer.address|default:"" }}<br>
-                {{ claim.vehicle.customer.city|default:"" }}
+                {{ customer.address|default:"" }}<br>
+                {{ customer.city|default:"" }}
             </td>
             <td><b>Variant / Colour</b></td>
             <td>
-                {{ claim.vehicle.variant.name|default:"" }} /
-                {{ claim.vehicle.color|default:"" }}
+                {% if vehicle.variant %}{{ vehicle.variant.name }}{% endif %} /
+                {{ vehicle.color|default:"" }}
             </td>
         </tr>
 
         <tr>
             <td><b>GST</b></td>
-            <td>{{ claim.vehicle.customer.gst_no|default:"" }}</td>
+            <td>{{ customer.gst_no|default:"" }}</td>
             <td><b>Chassis / Engine</b></td>
             <td>
-                {{ claim.vehicle.chassis_no|default:"" }} /
-                {{ claim.vehicle.engine_no|default:"" }}
+                {{ vehicle.chassis_no|default:"" }} /
+                {{ vehicle.engine_no|default:"" }}
             </td>
         </tr>
     </table>
@@ -493,14 +546,14 @@
 
 
 
-     <div class="damage-box" id="damageBox">
-                    <img src="{% static 'images/car-top-view.png' %}"
+     <div class="damage-box compact-damage" id="damageBox">
+                    <img src="{% static 'images/sidan car.jpg' %}"
                          class="damage-img">
 
 
                     {% for mark in damage_marks %}
                         {% if mark.type == "dent" %}
-                            <span class="print-dent" style="left: calc({{ mark.x }}% + 17px); top: {{ mark.y }}%;">
+                            <span class="print-dent" style="left: {{ mark.x }}%; top: {{ mark.y }}%;">
                             </span>
                         {% endif %}
 
@@ -541,6 +594,7 @@
         </tr>
 
         {% for l in labours %}
+        {% if forloop.counter <= 4 %}
         <tr>
             <td>{{ forloop.counter }}</td>
             <td>{{ l.job_code }}</td>
@@ -549,11 +603,19 @@
             <td class="right">-</td>
             <td class="right">{{ l.amount }}</td>
         </tr>
+        {% endif %}
         {% empty %}
         <tr>
             <td colspan="6">No labour details added</td>
         </tr>
         {% endfor %}
+        {% if labours|length > 4 %}
+        <tr>
+            <td colspan="6" class="compact-note">
+                More repair advice available in Workshop Copy.
+            </td>
+        </tr>
+        {% endif %}
     </table>
 
     <table>
@@ -576,7 +638,7 @@
             <td class="section">Repair Instructions</td>
         </tr>
         <tr>
-            <td style="height:45px;">
+            <td style="height:24px;">
                 {{ job.repair_instructions|default:"" }}
             </td>
         </tr>
@@ -596,9 +658,26 @@
         </tr>
 
         <tr>
-            <td class="center"><b>Customer Signature</b></td>
-            <td class="center"><b>Customer Signature</b></td>
-            <td class="center"><b>Date</b></td>
+            <td class="signature-cell">
+                {% if job.customer_signature %}
+                    <img src="{{ job.customer_signature.url }}" class="signature-img">
+                {% else %}
+                    <div class="signature-placeholder"></div>
+                {% endif %}
+                <div class="signature-label">Customer Signature</div>
+            </td>
+            <td class="signature-cell">
+                {% if job.advisor_signature %}
+                    <img src="{{ job.advisor_signature.url }}" class="signature-img">
+                {% else %}
+                    <div class="signature-placeholder"></div>
+                {% endif %}
+                <div class="signature-label">Advisor Signature</div>
+            </td>
+            <td class="signature-cell">
+                <div class="signature-placeholder"></div>
+                <div class="signature-label">Date</div>
+            </td>
         </tr>
     </table>
 
@@ -617,11 +696,11 @@
         <tr>
             <td><b>Job Card No:</b> {{ job.job_no }}</td>
             <td><b>Open Date/Time:</b> {{ job.created_at|date:"d/m/Y H:i" }}</td>
-            <td><b>Claim No:</b> {{ claim.claim_no }}</td>
-            <td><b>SR Type:</b> Accident</td>
+            <td><b>Claim No:</b> {{ claim.claim_no|default:"-" }}</td>
+            <td><b>SR Type:</b> {{ job.jobcard_type|default:"Accident" }}</td>
         </tr>
         <tr>
-            <td><b>Vehicle Reg No:</b> {{ claim.vehicle.registration_no }}</td>
+            <td><b>Vehicle Reg No:</b> {{ vehicle.registration_no|default:"-" }}</td>
             <td><b>Current KM:</b> {{ job.km }}</td>
             <td><b>Advisor:</b> {{ job.advisor.name }}</td>
             <td><b>Expected Delivery:</b> {{ job.expected_delivery_datetime|date:"d/m/Y H:i" }}</td>
@@ -635,27 +714,27 @@
         </tr>
         <tr>
             <td><b>Name</b></td>
-            <td>{{ claim.vehicle.customer.name }}</td>
+            <td>{{ customer.name|default:"-" }}</td>
             <td><b>Model</b></td>
-            <td>{{ claim.vehicle.model.name }}</td>
+            <td>{% if vehicle.model %}{{ vehicle.model.name }}{% else %}-{% endif %}</td>
         </tr>
         <tr>
             <td><b>Mobile</b></td>
-            <td>{{ claim.vehicle.customer.mobile_no }}</td>
+            <td>{{ customer.mobile_no|default:"-" }}</td>
             <td><b>Variant / Colour</b></td>
-            <td>{{ claim.vehicle.variant.name|default:"" }} / {{ claim.vehicle.color|default:"" }}</td>
+            <td>{% if vehicle.variant %}{{ vehicle.variant.name }}{% endif %} / {{ vehicle.color|default:"" }}</td>
         </tr>
         <tr>
             <td><b>Address</b></td>
-            <td>{{ claim.vehicle.customer.address|default:"" }}</td>
+            <td>{{ customer.address|default:"" }}</td>
             <td><b>Chassis No</b></td>
-            <td>{{ claim.vehicle.chassis_no|default:"" }}</td>
+            <td>{{ vehicle.chassis_no|default:"" }}</td>
         </tr>
         <tr>
             <td><b>City</b></td>
-            <td>{{ claim.vehicle.customer.city|default:"" }}</td>
+            <td>{{ customer.city|default:"" }}</td>
             <td><b>Engine No</b></td>
-            <td>{{ claim.vehicle.engine_no|default:"" }}</td>
+            <td>{{ vehicle.engine_no|default:"" }}</td>
         </tr>
     </table>
 
@@ -775,10 +854,30 @@
 
     <table>
         <tr>
-            <td class="center sign-box">Customer Signature</td>
-            <td class="center sign-box">Service Advisor Signature</td>
-            <td class="center sign-box">Team Leader Signature</td>
-            <td class="center sign-box">Quality Inspector Signature</td>
+            <td class="signature-cell">
+                {% if job.customer_signature %}
+                    <img src="{{ job.customer_signature.url }}" class="signature-img">
+                {% else %}
+                    <div class="signature-placeholder"></div>
+                {% endif %}
+                <div class="signature-label">Customer Signature</div>
+            </td>
+            <td class="signature-cell">
+                {% if job.advisor_signature %}
+                    <img src="{{ job.advisor_signature.url }}" class="signature-img">
+                {% else %}
+                    <div class="signature-placeholder"></div>
+                {% endif %}
+                <div class="signature-label">Service Advisor Signature</div>
+            </td>
+            <td class="signature-cell">
+                <div class="signature-placeholder"></div>
+                <div class="signature-label">Team Leader Signature</div>
+            </td>
+            <td class="signature-cell">
+                <div class="signature-placeholder"></div>
+                <div class="signature-label">Quality Inspector Signature</div>
+            </td>
         </tr>
     </table>
 

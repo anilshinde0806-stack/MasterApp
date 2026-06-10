@@ -97,12 +97,7 @@ Job Card Creation
         background: transparent;
     }
 
-    .damage-img {
-        display: block;
-        max-width: 280px;
-        width: 100%;
-        height: auto;
-    }
+
     /* Gauge labels */
     .gauge-label {
         position: absolute;
@@ -179,6 +174,10 @@ Job Card Creation
         margin: 0;
         font-size: 12px;
     }
+
+    .ts-dropdown {
+        z-index: 2050 !important;
+    }
     .compact-form label {
         font-size: 11px;
         font-weight: 600;
@@ -212,15 +211,7 @@ Job Card Creation
         max-width: 420px;
     }
 
-    .damage-img {
 
-        display: block;
-
-        width: 100%;
-        height: auto;
-
-        object-fit: contain;
-    }
     .damage-mark {
 
         position: absolute;
@@ -337,20 +328,32 @@ Job Card Creation
     }
 
 
-    .damage-box {
-        position: relative;
-        width: 320px;
-        height: 180px;
-        background: transparent;
-        margin: auto;
-        overflow: hidden;
-    }
+ .damage-box {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    border: 1px solid #111827;
+    overflow: hidden;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
     .damage-img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+}
+
+    .damage-mark-layer {
+        position: absolute;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 3;
     }
 
     .damage-mark {
@@ -363,6 +366,11 @@ Job Card Creation
         transform: translate(-50%, -50%);
         box-shadow: 0 2px 6px rgba(0,0,0,.35);
         cursor: pointer;
+        pointer-events: auto;
+    }
+
+    .scratch-line {
+        pointer-events: auto;
     }
     body{
         background:#f4f6f9;
@@ -890,6 +898,7 @@ Job Card Creation
     </div>
     {% endif %}
 
+    {% if claim %}
     <!-- FULL WIDTH CLAIM DETAILS -->
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header bg-white py-2">
@@ -951,6 +960,54 @@ Job Card Creation
         </div>
     </div>
     </div>
+    {% else %}
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white py-2">
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <h6 class="mb-0">Vehicle Details</h6>
+                <button class="btn btn-sm btn-outline-primary"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#directVehicleModal">
+                    + Add Vehicle
+                </button>
+            </div>
+        </div>
+        <div class="card-body compact-form">
+            <div class="row g-2">
+                <div class="col-md-5">
+                    <label>Select Vehicle</label>
+                    <select class="form-select"
+                            name="direct_vehicle"
+                            id="directVehicleSelect"
+                            data-require-gate-in="{% if job %}0{% else %}1{% endif %}">
+                        {% if direct_vehicle %}
+                        <option value="{{ direct_vehicle.id }}" selected>
+                            {{ direct_vehicle.registration_no }} |
+                            {% if direct_vehicle.customer %}{{ direct_vehicle.customer.name }}{% endif %} |
+                            {% if direct_vehicle.model %}{{ direct_vehicle.model.name }}{% endif %}
+                        </option>
+                        {% endif %}
+                    </select>
+                    <input type="hidden" name="gate_entry_id" id="directGateEntryId">
+                </div>
+                <div class="col-md-7">
+                    <label>Vehicle Snapshot</label>
+                    <div class="form-control bg-light" id="directVehicleSnapshot">
+                        {% if direct_vehicle %}
+                        {{ direct_vehicle.registration_no }} |
+                        {% if direct_vehicle.customer %}{{ direct_vehicle.customer.name }}{% else %}-{% endif %} |
+                        {% if direct_vehicle.customer %}{{ direct_vehicle.customer.mobile_no|default:"-" }}{% else %}-{% endif %} |
+                        {% if direct_vehicle.model %}{{ direct_vehicle.model.name }}{% else %}-{% endif %}
+                        {% else %}
+                        Search by registration no, chassis no, engine no, or customer.
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="row g-3">
 
@@ -964,6 +1021,17 @@ Job Card Creation
                 </div>
 
                 <div class="card-body compact-form">
+                    {% if gate_entry %}
+                    <div class="alert alert-info py-2 mb-2">
+                        <input type="hidden" name="gate_entry_id" value="{{ gate_entry.id }}">
+                        <b>Gate In matched:</b>
+                        {{ gate_entry.registration_no }} |
+                        {{ gate_entry.gate_in_datetime|date:"d/m/Y H:i" }} |
+                        KM {{ gate_entry.current_km }} |
+                        {{ gate_entry.service_type }}
+                    </div>
+                    {% endif %}
+
                     <div class="row g-2">
 
                         <div class="col-md-3">
@@ -1017,13 +1085,35 @@ Job Card Creation
                         </div>
 
                         <div class="col-md-3">
+                            <label>Jobcard Type</label>
+                            {{ form.jobcard_type }}
+                        </div>
+
+                        <div class="col-md-3">
                             <label>Inward Type</label>
                             {{ form.vehicle_inward_type }}
                         </div>
 
                         <div class="col-md-3">
                             <label>Inward By</label>
-                            {{ form.vehicle_inward_by }}
+                            <input class="form-control"
+                                   id="vehicleInwardByText"
+                                   data-locked="{% if is_jobcard_locked %}1{% else %}0{% endif %}"
+                                   name="vehicle_inward_by"
+                                   value="{{ vehicle_inward_by_value }}"
+                                   {% if is_jobcard_locked %}readonly disabled{% endif %}>
+                            <select class="form-select d-none"
+                                    id="vehicleInwardByDriver"
+                                    data-locked="{% if is_jobcard_locked %}1{% else %}0{% endif %}"
+                                    {% if is_jobcard_locked %}disabled{% endif %}>
+                                <option value="">Select Driver</option>
+                                {% for driver in driver_options %}
+                                <option value="{{ driver.name }}"
+                                        {% if vehicle_inward_by_value == driver.name %}selected{% endif %}>
+                                    {{ driver.name }}{% if driver.branch %} - {{ driver.branch.code }}{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
                         </div>
 
                         <div class="col-md-3">
@@ -1066,49 +1156,37 @@ Job Card Creation
                 </div>
             </div>
 
-            <!-- INSTRUCTIONS -->
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-2">
-                    <h6 class="mb-0">Claim Documents</h6>
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <h6 class="mb-0">Repair Instructions</h6>
+                        <button class="btn btn-sm btn-outline-primary"
+                                type="button"
+                                onclick="addRepairInstructionRow()"
+                                {% if is_jobcard_locked %}disabled{% endif %}>
+                            + Add
+                        </button>
+                    </div>
                 </div>
 
                 <div class="card-body compact-form">
-                    {% if claim %}
-                    <div class="row g-2">
-                        {% for slot in claim_document_slots %}
-                        <div class="col-md-6">
-                            <label>{{ slot.document_type }}</label>
-                            <div class="d-flex gap-2">
-                                <input class="form-control form-control-sm"
-                                       type="file"
-                                       name="{{ slot.input_name }}"
-                                       {% if is_jobcard_locked %}disabled{% endif %}>
-                                {% if slot.document and slot.document.file %}
-                                <a class="btn btn-sm btn-outline-primary"
-                                   href="{{ slot.document.file.url }}"
-                                   target="_blank">
-                                    View
-                                </a>
-                                {% endif %}
-                            </div>
+                    <div id="repairInstructionRows" class="d-grid gap-2">
+                        {% for instruction in repair_instruction_rows %}
+                        <div class="repair-instruction-row d-flex gap-2">
+                            <input class="form-control"
+                                   name="repair_instruction[]"
+                                   value="{{ instruction }}"
+                                   placeholder="Repair instruction"
+                                   {% if is_jobcard_locked %}readonly disabled{% endif %}>
+                            <button class="btn btn-outline-danger"
+                                    type="button"
+                                    onclick="removeRepairInstructionRow(this)"
+                                    {% if is_jobcard_locked %}disabled{% endif %}>
+                                &times;
+                            </button>
                         </div>
                         {% endfor %}
                     </div>
-                    {% else %}
-                    <div class="alert alert-info py-2 mb-0">
-                        Link this jobcard with a claim to upload claim documents.
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-header bg-white py-2">
-                    <h6 class="mb-0">Repair Instructions</h6>
-                </div>
-
-                <div class="card-body compact-form">
-                    {{ form.repair_instructions }}
                 </div>
             </div>
 
@@ -1212,6 +1290,7 @@ Job Card Creation
                             <th>Hours</th>
                             <th>Rate</th>
                             <th>Amount</th>
+                            <th>Paint Panel</th>
                             <th>Action</th>
                         </tr>
                         </thead>
@@ -1227,6 +1306,14 @@ Job Card Creation
                             <td><input class="form-control hrs" name="hrs[]" value="{{ l.labour_hrs }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
                             <td><input class="form-control rate" name="lab_rate[]" value="{{ l.rate }}" {% if not can_edit_jobcard_entries %}readonly{% endif %}></td>
                             <td><input class="form-control amount" name="lab_amount[]" readonly value="{{ l.amount }}">
+                            </td>
+                            <td>
+                                <select class="form-select" name="labour_paint_panel_type[]"
+                                        {% if not can_edit_jobcard_entries %}onmousedown="return false;" onkeydown="return false;" tabindex="-1"{% endif %}>
+                                    <option value="" {% if not l.paint_panel_type %}selected{% endif %}>No Paint Panel</option>
+                                    <option value="New" {% if l.paint_panel_type == "New" %}selected{% endif %}>New Panel Painting</option>
+                                    <option value="Repair" {% if l.paint_panel_type == "Repair" %}selected{% endif %}>Repair Panel Painting</option>
+                                </select>
                             </td>
                             <td>
                                 <button class="btn btn-sm btn-outline-danger"
@@ -1589,6 +1676,9 @@ Job Card Creation
                                target="_blank">
                                 Print Job Card
                             </a>
+                                <a href="{% url 'print_jobcard_jasper' job.id %}" target="_blank" class="btn btn-primary">
+    Print Jasper PDF
+</a>
                             {% else %}
                             <button class="btn btn-dark w-100" disabled type="button">
                                 Save first to print
@@ -1693,7 +1783,8 @@ Job Card Creation
 
                     <div class="damage-box compact-damage" id="damageBox">
                         <img class="damage-img"
-                             src="{% static 'images/car-top-view.png' %}">
+                             src="{% static 'images/sidan car.jpg' %}">
+                        <div class="damage-mark-layer" id="damageMarkLayer"></div>
                     </div>
 
                     <input id="damageMarks"
@@ -1931,11 +2022,15 @@ Job Card Creation
                     <h6 class="mb-0">Customer Snapshot</h6>
                 </div>
 
-                <div class="card-body compact-form">
-                    <div><b>Name:</b> {{ claim.vehicle.customer.name }}</div>
-                    <div><b>Mobile:</b> {{ claim.vehicle.customer.mobile_no }}</div>
-                    <div><b>Vehicle:</b> {{ claim.vehicle.registration_no }}</div>
-                    <div><b>Model:</b> {{ claim.vehicle.model.name }}</div>
+            <div class="card-body compact-form">
+                    {% if display_vehicle %}
+                    <div><b>Name:</b> {% if display_vehicle.customer %}{{ display_vehicle.customer.name }}{% else %}-{% endif %}</div>
+                    <div><b>Mobile:</b> {% if display_vehicle.customer %}{{ display_vehicle.customer.mobile_no|default:"-" }}{% else %}-{% endif %}</div>
+                    <div><b>Vehicle:</b> {{ display_vehicle.registration_no }}</div>
+                    <div><b>Model:</b> {% if display_vehicle.model %}{{ display_vehicle.model.name }}{% else %}-{% endif %}</div>
+                    {% else %}
+                    <div class="text-muted">Save/select vehicle to show customer snapshot.</div>
+                    {% endif %}
                 </div>
             </div>
 
@@ -1989,8 +2084,231 @@ Job Card Creation
         </div>
     </div>
 </form>
+
+{% if direct_jobcard %}
+<div class="modal fade" id="directVehicleModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">Add Vehicle</h5>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+            </div>
+            <div class="modal-body">
+                <form id="directVehicleForm">
+                    {% csrf_token %}
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            {{ vehicle_form.registration_no.label_tag }}
+                            {{ vehicle_form.registration_no }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.chassis_no.label_tag }}
+                            {{ vehicle_form.chassis_no }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.engine_no.label_tag }}
+                            {{ vehicle_form.engine_no }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.vehicle_type.label_tag }}
+                            {{ vehicle_form.vehicle_type }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.model.label_tag }}
+                            {{ vehicle_form.model }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.variant.label_tag }}
+                            {{ vehicle_form.variant }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.color.label_tag }}
+                            {{ vehicle_form.color }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ vehicle_form.customer.label_tag }}
+                            {{ vehicle_form.customer }}
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
+                <button class="btn btn-success" id="saveDirectVehicleBtn" type="button">Save Vehicle</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
  document.addEventListener("DOMContentLoaded", function () {
+        const directVehicleEl = document.getElementById("directVehicleSelect");
+        const directVehicleSnapshot = document.getElementById("directVehicleSnapshot");
+        const directGateEntryEl = document.getElementById("directGateEntryId");
+
+        if (directVehicleEl) {
+            const requireGateIn = directVehicleEl.dataset.requireGateIn === "1";
+            const directVehicleSelect = new TomSelect(directVehicleEl, {
+                valueField: "id",
+                labelField: "text",
+                searchField: "text",
+                create: false,
+                dropdownParent: "body",
+                placeholder: "Search Registration No...",
+                load: function (query, callback) {
+                    if (!query.length) {
+                        callback([]);
+                        return;
+                    }
+
+                    fetch(`/ajax/vehicle-search/?term=${encodeURIComponent(query)}&t=${Date.now()}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            callback(data.results || []);
+                            if (!data.results || data.results.length === 0) {
+                                const modalEl = document.getElementById("directVehicleModal");
+                                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                                modal.show();
+                                setTimeout(function () {
+                                    const regInput = document.getElementById("id_registration_no");
+                                    if (regInput) {
+                                        regInput.value = query.toUpperCase();
+                                        regInput.focus();
+                                    }
+                                }, 250);
+                            }
+                        })
+                        .catch(() => callback([]));
+                },
+                onChange: function (value) {
+                    if (directGateEntryEl) {
+                        directGateEntryEl.value = "";
+                    }
+
+                    if (!value || !directVehicleSnapshot) {
+                        if (directVehicleSnapshot) {
+                            directVehicleSnapshot.textContent = "Search by registration no, chassis no, engine no, or customer.";
+                        }
+                        return;
+                    }
+
+                    fetch(`/ajax/vehicle-details/?id=${value}&t=${Date.now()}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status !== "success") {
+                                directVehicleSnapshot.textContent = "Vehicle details not found.";
+                                return;
+                            }
+                            const v = data.data;
+                            directVehicleSnapshot.textContent = `${v.registration_no || "-"} | ${v.customer_name || "-"} | ${v.mobile || "-"} | ${v.model || "-"} ${v.variant || ""}`;
+                        });
+
+                    if (requireGateIn) {
+                        fetch(`/ajax/vehicle-gate-in-status/?vehicle_id=${value}&t=${Date.now()}`)
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.status === "success") {
+                                    if (directGateEntryEl) {
+                                        directGateEntryEl.value = data.gate_entry_id || "";
+                                    }
+                                    showToast(`Gate In Entry found: ${data.gate_in_display || ""} | KM ${data.current_km || "-"}`);
+                                    return;
+                                }
+
+                                if (directGateEntryEl) {
+                                    directGateEntryEl.value = "";
+                                }
+                                showToast(data.message || "First Gate In Entry then continue.", "danger");
+                            })
+                            .catch(() => {
+                                if (directGateEntryEl) {
+                                    directGateEntryEl.value = "";
+                                }
+                                showToast("Unable to check Gate In Entry. Try again.", "danger");
+                            });
+                    }
+                }
+            });
+
+            const customerEl = document.getElementById("id_customer");
+            if (customerEl && !customerEl.tomselect) {
+                new TomSelect(customerEl, {
+                    valueField: "id",
+                    labelField: "text",
+                    searchField: "text",
+                    create: function (input, callback) {
+                        const mobile = prompt("Customer mobile no");
+                        fetch("/ajax/add-customer/", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRFToken": getCookie("csrftoken")
+                            },
+                            body: JSON.stringify({
+                                name: input,
+                                mobile: mobile || "",
+                                whatsapp_no: mobile || ""
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status === "success" || data.status === "exists") {
+                                callback({ id: data.id, text: data.text });
+                                showToast(data.status === "exists" ? "Customer already exists" : "Customer created");
+                            } else {
+                                callback();
+                                showToast(data.message || "Customer save error", "danger");
+                            }
+                        })
+                        .catch(() => {
+                            callback();
+                            showToast("Customer save error", "danger");
+                        });
+                    },
+                    load: function (query, callback) {
+                        if (!query.length) {
+                            callback([]);
+                            return;
+                        }
+                        fetch(`/ajax/customer-search/?term=${encodeURIComponent(query)}&t=${Date.now()}`)
+                            .then(res => res.json())
+                            .then(data => callback(data.results || []))
+                            .catch(() => callback([]));
+                    }
+                });
+            }
+
+            const saveDirectVehicleBtn = document.getElementById("saveDirectVehicleBtn");
+            if (saveDirectVehicleBtn) {
+                saveDirectVehicleBtn.addEventListener("click", function () {
+                    const vehicleForm = document.getElementById("directVehicleForm");
+                    const formData = new FormData(vehicleForm);
+
+                    fetch("/ajax/add-vehicle/", {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "X-CSRFToken": getCookie("csrftoken")
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "success" || data.status === "exists") {
+                            const text = data.text || document.getElementById("id_registration_no")?.value || `Vehicle ${data.id}`;
+                            directVehicleSelect.addOption({ id: data.id, text: text });
+                            directVehicleSelect.setValue(data.id);
+                            bootstrap.Modal.getInstance(document.getElementById("directVehicleModal"))?.hide();
+                            showToast(data.status === "exists" ? "Vehicle already exists, selected existing" : "Vehicle Added");
+                        } else {
+                            const errors = data.errors ? JSON.stringify(data.errors) : data.message;
+                            showToast(errors || "Vehicle save error", "danger");
+                        }
+                    })
+                    .catch(() => showToast("Vehicle save error", "danger"));
+                });
+            }
+        }
 
         const params = new URLSearchParams(window.location.search);
         const isSaved = params.get("saved") === "1";
@@ -2020,12 +2338,42 @@ Job Card Creation
     let startX = 0;
     let startY = 0;
     let moved = false;
-    function getPoint(e, box) {
-        const rect = box.getBoundingClientRect();
+
+    function clampPercent(value) {
+        return Math.max(0, Math.min(100, value));
+    }
+
+    function syncDamageLayer() {
+        const box = document.getElementById("damageBox");
+        const img = box ? box.querySelector(".damage-img") : null;
+        const layer = document.getElementById("damageMarkLayer");
+
+        if (!box || !img || !layer) return null;
+
+        const boxRect = box.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
+
+        layer.style.left = `${imgRect.left - boxRect.left}px`;
+        layer.style.top = `${imgRect.top - boxRect.top}px`;
+        layer.style.width = `${imgRect.width}px`;
+        layer.style.height = `${imgRect.height}px`;
+
+        return layer.getBoundingClientRect();
+    }
+
+    function getPoint(e) {
+        const rect = syncDamageLayer();
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+            return { x: 0, y: 0, inside: false };
+        }
+
+        const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+        const rawY = ((e.clientY - rect.top) / rect.height) * 100;
 
         return {
-            x: ((e.clientX - rect.left) / rect.width) * 100,
-            y: ((e.clientY - rect.top) / rect.height) * 100
+            x: clampPercent(rawX),
+            y: clampPercent(rawY),
+            inside: rawX >= 0 && rawX <= 100 && rawY >= 0 && rawY <= 100
         };
     }
 
@@ -2033,11 +2381,14 @@ Job Card Creation
     function renderDamageMarks() {
 
         const box = document.getElementById("damageBox");
+        const layer = document.getElementById("damageMarkLayer");
         const hidden = document.getElementById("damageMarks");
 
-        if (!box || !hidden) return;
+        if (!box || !layer || !hidden) return;
 
-        box.querySelectorAll(".damage-mark, .scratch-line")
+        syncDamageLayer();
+
+        layer.querySelectorAll(".damage-mark, .scratch-line")
             .forEach(el => el.remove());
 
         damageMarks.forEach((mark, index) => {
@@ -2066,7 +2417,7 @@ Job Card Creation
                     renderDamageMarks();
                 });
 
-                box.appendChild(dot);
+                layer.appendChild(dot);
             }
 
             // =========================
@@ -2084,8 +2435,9 @@ Job Card Creation
                 const x2 = parseFloat(mark.x2);
                 const y2 = parseFloat(mark.y2);
 
-                const dx = x2 - x1;
-                const dy = y2 - y1;
+                const layerRect = layer.getBoundingClientRect();
+                const dx = ((x2 - x1) / 100) * layerRect.width;
+                const dy = ((y2 - y1) / 100) * layerRect.height;
 
                 const length = Math.sqrt(dx * dx + dy * dy);
 
@@ -2095,7 +2447,7 @@ Job Card Creation
                 line.style.left = x1 + "%";
                 line.style.top = y1 + "%";
 
-                line.style.width = length + "%";
+                line.style.width = length + "px";
 
                 line.style.transform =
                     `rotate(${angle}deg)`;
@@ -2111,7 +2463,7 @@ Job Card Creation
                     renderDamageMarks();
                 });
 
-                box.appendChild(line);
+                layer.appendChild(line);
             }
 
         });
@@ -2134,6 +2486,12 @@ Job Card Creation
 
         renderDamageMarks();
 
+        const damageImage = box.querySelector(".damage-img");
+        if (damageImage) {
+            damageImage.addEventListener("load", renderDamageMarks);
+        }
+        window.addEventListener("resize", renderDamageMarks);
+
         box.addEventListener("contextmenu", function(e){
             e.preventDefault();   // disable right click menu
         });
@@ -2153,7 +2511,11 @@ Job Card Creation
 
             e.preventDefault();
 
-            const p = getPoint(e, box);
+            const p = getPoint(e);
+            if (!p.inside) {
+                isPointerDown = false;
+                return;
+            }
 
             startX = p.x;
             startY = p.y;
@@ -2170,7 +2532,7 @@ Job Card Creation
 
             if (!isPointerDown) return;
 
-            const p = getPoint(e, box);
+            const p = getPoint(e);
 
             const distance =
                 Math.sqrt(
@@ -2192,7 +2554,7 @@ Job Card Creation
 
             e.preventDefault();
 
-            const p = getPoint(e, box);
+            const p = getPoint(e);
 
             const distance =
                 Math.sqrt(
@@ -2756,6 +3118,7 @@ document.addEventListener("DOMContentLoaded", initEstimateBuilder);
     }
 
     const tbody = document.getElementById("labourTable");
+    const panelType = labour.paint_panel_type || "";
 
     tbody.insertAdjacentHTML("beforeend", `
         <tr>
@@ -2767,6 +3130,14 @@ document.addEventListener("DOMContentLoaded", initEstimateBuilder);
             <td><input name="hrs[]" form="jobCardForm" class="form-control hrs" value="${escapeHtmlValue(labour.hrs || "")}"></td>
             <td><input name="lab_rate[]" form="jobCardForm" class="form-control rate" value="${escapeHtmlValue(labour.rate || "")}"></td>
             <td><input name="lab_amount[]" form="jobCardForm" class="form-control amount" value="${escapeHtmlValue(labour.amount || 0)}" readonly></td>
+            <td>
+                <select class="form-select"
+                        name="labour_paint_panel_type[]" form="jobCardForm">
+                    <option value="" ${panelType === "" ? "selected" : ""}>No Paint Panel</option>
+                    <option value="New" ${panelType === "New" ? "selected" : ""}>New Panel Painting</option>
+                    <option value="Repair" ${panelType === "Repair" ? "selected" : ""}>Repair Panel Painting</option>
+                </select>
+            </td>
             <td>
                 <button type="button"
                         class="btn btn-sm btn-outline-danger"
@@ -2857,6 +3228,95 @@ document.getElementById("jobCardForm").addEventListener("submit", function () {
     console.log("part_no[]", fd.getAll("part_no[]"));
     console.log("job_code[]", fd.getAll("job_code[]"));
 });
+
+document.getElementById("jobCardForm").addEventListener("submit", function (event) {
+    const directVehicleEl = document.getElementById("directVehicleSelect");
+    if (directVehicleEl && !directVehicleEl.value) {
+        event.preventDefault();
+        showToast("Select Vehicle before creating Jobcard", "danger");
+        return;
+    }
+
+    const directGateEntryEl = document.getElementById("directGateEntryId");
+    if (
+        directVehicleEl
+        && directVehicleEl.dataset.requireGateIn === "1"
+        && directVehicleEl.value
+        && directGateEntryEl
+        && !directGateEntryEl.value
+    ) {
+        event.preventDefault();
+        showToast("First Gate In Entry then continue.", "danger");
+    }
+});
+
+function syncInwardByField() {
+    const inwardType = document.getElementById("id_vehicle_inward_type");
+    const textInput = document.getElementById("vehicleInwardByText");
+    const driverSelect = document.getElementById("vehicleInwardByDriver");
+
+    if (!inwardType || !textInput || !driverSelect) {
+        return;
+    }
+
+    const isPickup = inwardType.value === "Pickup";
+    const isLocked = textInput.dataset.locked === "1" || driverSelect.dataset.locked === "1";
+    textInput.classList.toggle("d-none", isPickup);
+    driverSelect.classList.toggle("d-none", !isPickup);
+    textInput.disabled = isLocked || isPickup;
+    driverSelect.disabled = isLocked || !isPickup;
+
+    if (isPickup) {
+        driverSelect.name = "vehicle_inward_by";
+        textInput.removeAttribute("name");
+    } else {
+        textInput.name = "vehicle_inward_by";
+        driverSelect.removeAttribute("name");
+    }
+}
+
+document.getElementById("id_vehicle_inward_type")?.addEventListener("change", syncInwardByField);
+syncInwardByField();
+
+function addRepairInstructionRow(value = "") {
+    const wrap = document.getElementById("repairInstructionRows");
+    if (!wrap) {
+        return;
+    }
+
+    const row = document.createElement("div");
+    row.className = "repair-instruction-row d-flex gap-2";
+    row.innerHTML = `
+        <input class="form-control"
+               name="repair_instruction[]"
+               value="${String(value).replaceAll('"', '&quot;')}"
+               placeholder="Repair instruction">
+        <button class="btn btn-outline-danger"
+                type="button"
+                onclick="removeRepairInstructionRow(this)">
+            &times;
+        </button>
+    `;
+    wrap.appendChild(row);
+}
+
+function removeRepairInstructionRow(button) {
+    const wrap = document.getElementById("repairInstructionRows");
+    const row = button.closest(".repair-instruction-row");
+    if (!wrap || !row) {
+        return;
+    }
+
+    if (wrap.querySelectorAll(".repair-instruction-row").length <= 1) {
+        const input = row.querySelector("input");
+        if (input) {
+            input.value = "";
+        }
+        return;
+    }
+
+    row.remove();
+}
 
 document.getElementById("jobCardForm").addEventListener("submit", function (event) {
     const mainStatus = document.getElementById("jobcardMainStatus");

@@ -1,0 +1,114 @@
+{% extends "registration/base.html" %}
+
+{% block title %}KPI Cards{% endblock %}
+
+{% block content %}
+<style>
+    .kpi-shell {
+        background: #f5f7fb;
+        min-height: calc(100vh - 120px);
+    }
+    .kpi-card {
+        border: 1px solid #d9e2ec;
+        border-radius: 8px;
+        background: #fff;
+        min-height: 132px;
+        padding: 16px;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    }
+    .kpi-card-title {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .kpi-card-value {
+        color: #0f172a;
+        font-size: 38px;
+        font-weight: 900;
+        line-height: 1.1;
+        margin-top: 12px;
+    }
+    .kpi-card-caption {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        margin-top: 8px;
+    }
+    .kpi-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 20px;
+        flex: 0 0 auto;
+    }
+    .tone-primary { background: #0d6efd; }
+    .tone-success { background: #198754; }
+    .tone-info { background: #0aa2c0; }
+    .tone-danger { background: #dc3545; }
+    .tone-warning { background: #f59f00; }
+    .tone-secondary { background: #64748b; }
+</style>
+
+<div class="container-fluid py-3 kpi-shell">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="mb-0">Body Shop KPI Cards</h4>
+            <small class="text-muted">Workshop and claim workflow dashboard cards.</small>
+        </div>
+        <div class="text-muted fw-bold">
+            {{ today|date:"d-M-Y" }}
+        </div>
+    </div>
+
+    <form method="get" class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label mb-1">Branch</label>
+                    {% if report_is_admin %}
+                    <select name="branch_id" class="form-select">
+                        <option value="">All Branches</option>
+                        {% for branch in report_branches %}
+                        <option value="{{ branch.id }}" {% if report_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                            {{ branch.code }} - {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input class="form-control" value="{{ report_branch_name }}" readonly>
+                    <input type="hidden" name="branch_id" value="{{ report_branch_id }}">
+                    {% endif %}
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" type="submit">Apply</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="row g-3">
+        {% for card in cards %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="kpi-card-title">{{ card.title }}</div>
+                    <div class="kpi-card-value">{{ card.value }}</div>
+                    <div class="kpi-card-caption">{{ card.caption }}</div>
+                </div>
+                <div class="kpi-icon tone-{{ card.tone }}">
+                    <i class="{{ card.icon }}"></i>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
