@@ -117,5 +117,6 @@ path("user-create/",user_create,name="user_create"),
 path("user-access/",user_access,name="user_access"),
 path("menu-manage/",menu_manage,name="menu_manage"),
 path("update-user-permission/",update_user_permission,name="update_user_permission"),
+path("login-activity/", views.login_activity_page, name="login_activity"),
 path("jobcard/<int:jobcard_id>/jasper-print/",jobcard_views.print_jobcard_jasper,name="print_jobcard_jasper"),
 ]

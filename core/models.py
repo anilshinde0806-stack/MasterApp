@@ -166,6 +166,25 @@ class ColumnPreference(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.screen} - {self.name}"
+
+
+class UserLoginActivity(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="login_activities")
+    login_at = models.DateTimeField(default=timezone.now, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    session_key = models.CharField(max_length=80, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ["-login_at"]
+        indexes = [
+            models.Index(fields=["user", "login_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} logged in at {self.login_at:%Y-%m-%d %H:%M:%S}"
+
+
 class Surveyor(models.Model):
         name = models.CharField(max_length=150)
 

@@ -9,6 +9,7 @@ from .models import (
     Announcement,
     Branch,
     GateInEntry,
+    UserLoginActivity,
 )
 from django.contrib import admin
 admin.site.register(ItemData)
@@ -80,3 +81,11 @@ class AnnouncementAdmin(admin.ModelAdmin):
         "title",
         "message",
     ]
+
+
+@admin.register(UserLoginActivity)
+class UserLoginActivityAdmin(admin.ModelAdmin):
+    list_display = ["user", "login_at", "ip_address", "session_key"]
+    list_filter = ["login_at"]
+    search_fields = ["user__username", "user__first_name", "user__last_name", "ip_address"]
+    readonly_fields = ["user", "login_at", "ip_address", "user_agent", "session_key"]

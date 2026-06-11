@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.sessions.models import Session
 from django.core.files.base import ContentFile
 from django.contrib.sites import requests
 from django.db import IntegrityError
@@ -33,6 +34,7 @@ from .models import (
     AnnouncementRead, Announcement, PartOrder, PartOrderHeader, WorkAllocationPart,
     WorkAllocationLabour, JobCardReInspectionPhoto, JobCardVehicleConditionPhoto,
     ClaimDocument, WorkProgressPhoto, JobCardAdditionalApprovalPhoto, Branch, GateInEntry,
+    UserLoginActivity,
 )
 from .numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
 from .whatsapp import send_advisor_assigned_whatsapp, send_whatsapp_template_message
@@ -514,6 +516,78 @@ def is_admin_user(user, employee=None):
         or user.groups.filter(name__iexact="Admin").exists()
         or "ADMIN" in role_text
     )
+
+
+def active_session_user_ids():
+    active_ids = set()
+    for session in Session.objects.filter(expire_date__gt=timezone.now()):
+        data = session.get_decoded()
+        user_id = data.get("_auth_user_id")
+        if user_id:
+            try:
+                active_ids.add(int(user_id))
+            except (TypeError, ValueError):
+                continue
+    return active_ids
+
+
+@login_required
+def login_activity_page(request):
+    logged_emp = Employee.objects.filter(user=request.user).select_related("branch").first()
+    if not is_admin_user(request.user, logged_emp):
+        messages.error(request, "Only admin users can view login activity.")
+        return redirect("dashboard")
+
+    today = timezone.localdate()
+    from_date_value = request.GET.get("from_date") or today.isoformat()
+    to_date_value = request.GET.get("to_date") or today.isoformat()
+    search_text = (request.GET.get("search") or "").strip()
+
+    from_date = parse_date(from_date_value) or today
+    to_date = parse_date(to_date_value) or from_date
+    if to_date < from_date:
+        from_date, to_date = to_date, from_date
+
+    activities = (
+        UserLoginActivity.objects
+        .select_related("user", "user__employee", "user__employee__branch")
+        .filter(login_at__date__gte=from_date, login_at__date__lte=to_date)
+    )
+
+    if search_text:
+        activities = activities.filter(
+            Q(user__username__icontains=search_text)
+            | Q(user__first_name__icontains=search_text)
+            | Q(user__last_name__icontains=search_text)
+            | Q(user__employee__name__icontains=search_text)
+            | Q(user__employee__mobile_no__icontains=search_text)
+        )
+
+    active_user_ids = active_session_user_ids()
+    activity_rows = []
+    for activity in activities[:500]:
+        employee = getattr(activity.user, "employee", None)
+        activity_rows.append({
+            "activity": activity,
+            "employee": employee,
+            "branch": employee.branch if employee and employee.branch_id else None,
+            "is_active_now": activity.user_id in active_user_ids,
+        })
+
+    summary = {
+        "total_logins": activities.count(),
+        "unique_users": activities.values("user_id").distinct().count(),
+        "active_now": len(active_user_ids),
+    }
+
+    return render(request, "admin/login_activity.html", {
+        "activity_rows": activity_rows,
+        "summary": summary,
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+        "search_text": search_text,
+        "max_rows": 500,
+    })
 
 
 def branch_scoped_queryset_for_user(queryset, user, branch_field="branch"):
