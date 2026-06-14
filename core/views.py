@@ -2,7 +2,7 @@ import math
 import os
 import zipfile
 import base64
-from datetime import datetime, timedelta, time as datetime_time
+from datetime import date, datetime, timedelta, time as datetime_time
 from io import BytesIO
 
 from django.contrib import messages
@@ -34,9 +34,10 @@ from .models import (
     AnnouncementRead, Announcement, PartOrder, PartOrderHeader, WorkAllocationPart,
     WorkAllocationLabour, JobCardReInspectionPhoto, JobCardVehicleConditionPhoto,
     ClaimDocument, WorkProgressPhoto, JobCardAdditionalApprovalPhoto, Branch, GateInEntry,
-    UserLoginActivity,
+    UserLoginActivity, Claim, JobCard, Employee,
 )
 from .numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
+from .validators import VEHICLE_NUMBER_ERROR, is_valid_vehicle_number, normalize_vehicle_number
 from .whatsapp import send_advisor_assigned_whatsapp, send_whatsapp_template_message
 
 
@@ -516,6 +517,35 @@ def is_admin_user(user, employee=None):
         or user.groups.filter(name__iexact="Admin").exists()
         or "ADMIN" in role_text
     )
+
+
+def dashboard_stage_rows(stage_counts):
+    stage_labels = dict(Claim.CLAIM_STAGES)
+    stage_order = [value for value, _label in Claim.CLAIM_STAGES]
+
+    rows = []
+    for item in stage_counts:
+        current_stage = item["claim_stage"]
+        try:
+            stage_index = stage_order.index(current_stage)
+        except ValueError:
+            stage_index = -1
+
+        next_stage = (
+            stage_order[stage_index + 1]
+            if stage_index >= 0 and stage_index + 1 < len(stage_order)
+            else current_stage
+        )
+
+        rows.append({
+            "claim_stage": current_stage,
+            "current_stage_label": stage_labels.get(current_stage, "Unknown"),
+            "pending_stage": next_stage,
+            "pending_stage_label": stage_labels.get(next_stage, "Unknown"),
+            "total": item["total"],
+        })
+
+    return rows
 
 
 def active_session_user_ids():
@@ -1435,6 +1465,7 @@ def dashboard(request):
             .annotate(total=Count("id"))
             .order_by("claim_stage")
         )
+        stage_counts = dashboard_stage_rows(stage_counts)
 
         advisor_counts = (
             claims
@@ -1651,6 +1682,25 @@ from django.views.decorators.http import require_POST
 def vehicle_update_api(request, pk):
     try:
         vehicle = get_object_or_404(Vehicle, pk=pk)
+        registration_no = normalize_vehicle_number(
+            request.POST.get("registration_no", vehicle.registration_no)
+        )
+
+        if not is_valid_vehicle_number(registration_no):
+            return JsonResponse({
+                "status": "error",
+                "errors": {
+                    "registration_no": [VEHICLE_NUMBER_ERROR]
+                }
+            }, status=400)
+
+        if Vehicle.objects.filter(registration_no__iexact=registration_no).exclude(pk=vehicle.pk).exists():
+            return JsonResponse({
+                "status": "error",
+                "errors": {
+                    "registration_no": ["Registration number already exists"]
+                }
+            }, status=400)
 
         customer_id = request.POST.get("customer")
         model_id = request.POST.get("model")
@@ -1668,10 +1718,7 @@ def vehicle_update_api(request, pk):
 
         vehicle.insurance_company_id = insurance_company_id or None
 
-        vehicle.registration_no = request.POST.get(
-            "registration_no",
-            vehicle.registration_no
-        )
+        vehicle.registration_no = registration_no
 
         vehicle.chassis_no = request.POST.get(
             "chassis_no",
@@ -4864,6 +4911,154 @@ def daily_in_out_report(request):
             {"title": "Reports", "url": "", "icon": "fa fa-chart-bar"},
             {"title": "Workshop Reports", "url": "", "icon": "fa fa-industry"},
             {"title": "Daily In/Out", "icon": "fa fa-exchange-alt"},
+        ],
+    })
+
+
+def current_financial_year_start(today=None):
+    today = today or timezone.localdate()
+    return today.year if today.month >= 4 else today.year - 1
+
+
+def month_on_month_tat_rows(jobs, fy_start, target_days):
+    month_order = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+    month_names = {
+        1: "January",
+        2: "February",
+        3: "March",
+        4: "April",
+        5: "May",
+        6: "June",
+        7: "July",
+        8: "August",
+        9: "September",
+        10: "October",
+        11: "November",
+        12: "December",
+    }
+    month_totals = {month: {"days": 0.0, "count": 0} for month in month_order}
+
+    for job in jobs:
+        claim = job.claim
+        end_at = claim.delivery_datetime if claim else None
+        start_at = job.gate_in_datetime or job.job_date or job.created_at
+        if not start_at or not end_at:
+            continue
+
+        if timezone.is_naive(start_at):
+            start_at = timezone.make_aware(start_at)
+        if timezone.is_naive(end_at):
+            end_at = timezone.make_aware(end_at)
+
+        seconds = (end_at - start_at).total_seconds()
+        if seconds < 0:
+            continue
+
+        delivered_month = timezone.localtime(end_at).month
+        month_totals[delivered_month]["days"] += seconds / 86400
+        month_totals[delivered_month]["count"] += 1
+
+    avg_values = [
+        month_totals[month]["days"] / month_totals[month]["count"]
+        for month in month_order
+        if month_totals[month]["count"]
+    ]
+    chart_max = max(14, math.ceil(max(avg_values + [target_days]) + 1))
+    target_percent = min(100, max(0, (target_days / chart_max) * 100))
+
+    rows = []
+    for month in month_order:
+        count = month_totals[month]["count"]
+        avg_days = month_totals[month]["days"] / count if count else None
+        rows.append({
+            "month": month,
+            "label": month_names[month],
+            "year": fy_start if month >= 4 else fy_start + 1,
+            "count": count,
+            "avg_days": avg_days,
+            "display": f"{avg_days:.2f}" if avg_days is not None else "#N/A",
+            "height_percent": (avg_days / chart_max) * 100 if avg_days is not None else 0,
+            "color_class": "tat-bar-good" if avg_days is not None and avg_days <= target_days else "tat-bar-delay",
+            "status": "Below Target" if avg_days is not None and avg_days <= target_days else "Above Target",
+            "is_na": avg_days is None,
+        })
+
+    total_count = sum(row["count"] for row in rows)
+    overall_avg = (
+        sum(month_totals[month]["days"] for month in month_order) / total_count
+        if total_count
+        else None
+    )
+
+    return rows, chart_max, target_percent, total_count, overall_avg
+
+
+@never_cache
+@login_required
+def tat_summary_report(request):
+    branch_context = report_branch_context(request)
+    default_fy = current_financial_year_start()
+
+    try:
+        fy_start = int(request.GET.get("fy") or default_fy)
+    except (TypeError, ValueError):
+        fy_start = default_fy
+
+    try:
+        target_days = float(request.GET.get("target_days") or 7)
+    except (TypeError, ValueError):
+        target_days = 7
+
+    target_days = max(1, min(target_days, 60))
+    start_date = date(fy_start, 4, 1)
+    end_date = date(fy_start + 1, 3, 31)
+
+    jobs = apply_report_branch_scope(
+        JobCard.objects.select_related("claim", "claim__branch").filter(
+            claim__delivery_datetime__date__gte=start_date,
+            claim__delivery_datetime__date__lte=end_date,
+        ),
+        branch_context,
+        "claim__branch",
+    )
+
+    month_rows, chart_max, target_percent, total_count, overall_avg = month_on_month_tat_rows(
+        jobs,
+        fy_start,
+        target_days,
+    )
+    y_axis_ticks = []
+    for tick_index in range(8):
+        value = chart_max - ((chart_max / 7) * tick_index)
+        y_axis_ticks.append({
+            "bottom": max(0, min(100, (value / chart_max) * 100)),
+            "label": f"{value:.0f}",
+        })
+    months_with_data = [row for row in month_rows if not row["is_na"]]
+    below_target_count = sum(1 for row in months_with_data if row["avg_days"] <= target_days)
+    above_target_count = sum(1 for row in months_with_data if row["avg_days"] > target_days)
+    fy_options = list(range(default_fy + 1, default_fy - 5, -1))
+
+    return render(request, "reports/tatSummaryReport.html", {
+        "fy_start": fy_start,
+        "fy_end": fy_start + 1,
+        "fy_options": fy_options,
+        "target_days": target_days,
+        "target_days_display": f"{target_days:g}",
+        "target_percent": target_percent,
+        "chart_max": chart_max,
+        "y_axis_ticks": y_axis_ticks,
+        "month_rows": month_rows,
+        "total_count": total_count,
+        "overall_avg": overall_avg,
+        "overall_avg_display": f"{overall_avg:.2f}" if overall_avg is not None else "#N/A",
+        "below_target_count": below_target_count,
+        "above_target_count": above_target_count,
+        **branch_context,
+        "breadcrumbs": [
+            {"title": "Reports", "url": "", "icon": "fa fa-chart-bar"},
+            {"title": "TAT Reports", "url": "", "icon": "fa fa-clock"},
+            {"title": "TAT Summary", "icon": "fa fa-chart-column"},
         ],
     })
 

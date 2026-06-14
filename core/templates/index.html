@@ -127,21 +127,7 @@ Dashboard
                 {% for s in stage_counts %}
                 {% if s.claim_stage != 14 %}
                 <span>
-                    {% if s.claim_stage == 1 %}Claim Created
-                    {% elif s.claim_stage == 2 %}Advisor Assigned
-                    {% elif s.claim_stage == 3 %}Estimate Created
-                    {% elif s.claim_stage == 4 %}Claim Intimation
-                    {% elif s.claim_stage == 5 %}Survey Done
-                    {% elif s.claim_stage == 6 %}Insurance Approval
-                    {% elif s.claim_stage == 7 %}Work Allocation
-                    {% elif s.claim_stage == 8 %}Repair In Progress
-                    {% elif s.claim_stage == 9 %}Work Completed
-                    {% elif s.claim_stage == 10 %}Re Inspection
-                    {% elif s.claim_stage == 11 %}Liability
-                    {% elif s.claim_stage == 12 %}Invoiced
-                    {% elif s.claim_stage == 13 %}Delivery
-                    {% else %}Unknown
-                    {% endif %}
+                    {{ s.current_stage_label }}
                     <b>{{ s.total }}</b>
                 </span>
                 {% endif %}
@@ -185,7 +171,8 @@ Stage Wise Pending Claims
 <thead>
 
 <tr>
-<th>Stage</th>
+<th>Pending Stage</th>
+<th>Current Completed Stage</th>
 <th>Total</th>
 </tr>
 
@@ -199,56 +186,11 @@ Stage Wise Pending Claims
 <tr>
 
 <td>
+    {{ s.pending_stage_label }}
+</td>
 
-
-{% if s.claim_stage == 1 %}
-    Claim Created
-
-{% elif s.claim_stage == 2 %}
-    Advisor Assigned
-
-{% elif s.claim_stage == 3 %}
-    Estimate Created
-
-{% elif s.claim_stage == 4 %}
-    Claim Intimation
-
-{% elif s.claim_stage == 5 %}
-    Survey Done
-
-{% elif s.claim_stage == 6 %}
-    Insurance Approval
-
-{% elif s.claim_stage == 7 %}
-    Work Allocation
-
-{% elif s.claim_stage == 8 %}
-    Repair In Progress
-
-{% elif s.claim_stage == 9 %}
-    Work Completed
-
-{% elif s.claim_stage == 10 %}
-    Re Inspection
-
-{% elif s.claim_stage == 11 %}
-    Liability
-
-{% elif s.claim_stage == 12 %}
-    Invoiced
-
-{% elif s.claim_stage == 13 %}
-    Delivery
-
-{% elif s.claim_stage == 14 %}
-    Closed
-
-{% else %}
-    Unknown
-
-{% endif %}
-
-
+<td>
+    {{ s.current_stage_label }}
 </td>
 
 <td>

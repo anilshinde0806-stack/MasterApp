@@ -55,6 +55,7 @@ ALLOWED_HOSTS = [
     "localhost",
     "192.168.29.251",
     "10.211.98.91",
+    "172.20.120.91",
     "scion-splurge-book.ngrok-free.dev",
     ".ngrok-free.dev",
 ]

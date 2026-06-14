@@ -1,0 +1,384 @@
+{% extends "registration/base.html" %}
+
+{% block title %}TAT Summary Report{% endblock %}
+
+{% block content %}
+<style>
+    .tat-shell {
+        background: #f5f7fb;
+        min-height: calc(100vh - 120px);
+    }
+    .tat-filter-card,
+    .tat-panel,
+    .tat-kpi {
+        border: 1px solid #d9e2ec;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    }
+    .tat-kpi {
+        padding: 12px 14px;
+        min-height: 86px;
+    }
+    .tat-kpi span {
+        display: block;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .tat-kpi b {
+        display: block;
+        color: #0f172a;
+        font-size: 28px;
+        line-height: 1.15;
+        margin-top: 6px;
+    }
+    .tat-chart-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 12px 16px 0;
+    }
+    .tat-clock {
+        width: 72px;
+        height: 72px;
+        border: 6px solid #ef5b70;
+        border-radius: 50%;
+        position: relative;
+        flex: 0 0 auto;
+        background: radial-gradient(circle at 50% 50%, #f8fbff 0 48%, #dcecff 49% 100%);
+    }
+    .tat-clock:before,
+    .tat-clock:after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 5px;
+        border-radius: 8px;
+        background: #3976b7;
+        transform-origin: bottom center;
+    }
+    .tat-clock:before {
+        height: 27px;
+        transform: translate(-50%, -100%) rotate(0deg);
+    }
+    .tat-clock:after {
+        height: 23px;
+        transform: translate(-50%, -100%) rotate(90deg);
+    }
+    .tat-title-band {
+        background: #59ce73;
+        color: #fff;
+        font-size: 30px;
+        font-weight: 900;
+        line-height: 1.1;
+        padding: 9px 20px;
+        box-shadow: 4px 6px 8px rgba(0, 0, 0, .25);
+        text-align: center;
+        min-width: min(680px, 76vw);
+    }
+    .tat-chart-wrap {
+        padding: 16px 22px 20px;
+    }
+    .tat-chart-layout {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) 32px;
+        gap: 10px;
+        align-items: stretch;
+    }
+    .tat-y-label {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        color: #111827;
+        font-size: 18px;
+        font-weight: 900;
+        text-align: center;
+        align-self: center;
+    }
+    .tat-chart {
+        --target-bottom: 50%;
+        position: relative;
+        height: 270px;
+        border-bottom: 2px solid #8b8b8b;
+        background:
+            linear-gradient(to top, rgba(148, 163, 184, .18) 1px, transparent 1px) 0 0 / 100% 20%;
+        display: grid;
+        grid-template-columns: repeat(12, minmax(42px, 1fr));
+        align-items: end;
+        gap: 12px;
+        padding: 8px 8px 0;
+        overflow: visible;
+    }
+    .tat-target-line {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        bottom: var(--target-bottom);
+        height: 10px;
+        border-radius: 999px;
+        background: #ffc400;
+        z-index: 4;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+    }
+    .tat-target-box {
+        position: absolute;
+        right: 12px;
+        bottom: calc(var(--target-bottom) + 12px);
+        z-index: 5;
+        min-width: 166px;
+        padding: 6px 10px;
+        border: 3px solid #111827;
+        background: linear-gradient(#65a5ef, #c9e1ff);
+        color: #fff;
+        text-align: center;
+        font-weight: 900;
+        font-size: 17px;
+        box-shadow: inset 0 0 10px rgba(255, 255, 255, .45), 2px 3px 5px rgba(0, 0, 0, .25);
+    }
+    .tat-target-box span {
+        display: block;
+        font-size: 19px;
+        margin-top: 2px;
+    }
+    .tat-month-slot {
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: end;
+        justify-content: center;
+        min-width: 0;
+    }
+    .tat-bar {
+        width: 30px;
+        min-height: 3px;
+        border: 1px solid rgba(15, 23, 42, .35);
+        box-shadow: inset 5px 0 8px rgba(255, 255, 255, .45), inset -5px 0 7px rgba(0, 0, 0, .20), 2px 0 5px rgba(0, 0, 0, .18);
+        z-index: 3;
+    }
+    .tat-bar-delay {
+        background: linear-gradient(90deg, #ff2525 0%, #ff0505 48%, #b30000 100%);
+    }
+    .tat-bar-good {
+        background: linear-gradient(90deg, #08d282 0%, #08ba70 48%, #057947 100%);
+    }
+    .tat-bar-value,
+    .tat-na-label {
+        position: absolute;
+        bottom: calc(var(--bar-height, 0%) + 9px);
+        color: #000;
+        font-size: 18px;
+        font-weight: 500;
+        white-space: nowrap;
+        z-index: 6;
+    }
+    .tat-na-label {
+        bottom: 12px;
+        font-size: 17px;
+    }
+    .tat-month-label {
+        position: absolute;
+        top: calc(100% + 12px);
+        left: 50%;
+        transform: translateX(-50%) rotate(-50deg);
+        transform-origin: center top;
+        color: #000;
+        font-size: 17px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .tat-y-axis {
+        position: relative;
+        border-left: 2px solid #777;
+        height: 270px;
+        color: #000;
+        font-size: 16px;
+        font-weight: 500;
+    }
+    .tat-y-axis span {
+        position: absolute;
+        left: 8px;
+        transform: translateY(50%);
+    }
+    .tat-y-axis span:before {
+        content: "";
+        position: absolute;
+        left: -10px;
+        top: 50%;
+        width: 8px;
+        border-top: 2px solid #777;
+    }
+    .tat-table th {
+        background: #e8f1fb;
+        white-space: nowrap;
+    }
+    @media (max-width: 992px) {
+        .tat-title-band {
+            font-size: 22px;
+            min-width: 0;
+        }
+        .tat-chart-layout {
+            grid-template-columns: 26px minmax(720px, 1fr) 32px;
+        }
+        .tat-chart-scroll {
+            overflow-x: auto;
+            padding-bottom: 70px;
+        }
+        .tat-clock {
+            width: 58px;
+            height: 58px;
+        }
+    }
+</style>
+
+<div class="container-fluid py-3 tat-shell">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="mb-0">TAT Summary Report</h4>
+            <small class="text-muted">Month on month BodyShop turnaround time in days.</small>
+        </div>
+        <div class="text-muted fw-bold">
+            FY {{ fy_start }}-{{ fy_end|stringformat:"s"|slice:"2:" }}
+        </div>
+    </div>
+
+    <form method="get" class="tat-filter-card mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label mb-1">Branch</label>
+                    {% if report_is_admin %}
+                    <select name="branch_id" class="form-select">
+                        <option value="">All Branches</option>
+                        {% for branch in report_branches %}
+                        <option value="{{ branch.id }}" {% if report_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                            {{ branch.code }} - {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input class="form-control" value="{{ report_branch_name }}" readonly>
+                    <input type="hidden" name="branch_id" value="{{ report_branch_id }}">
+                    {% endif %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">Financial Year</label>
+                    <select name="fy" class="form-select">
+                        {% for fy in fy_options %}
+                        <option value="{{ fy }}" {% if fy == fy_start %}selected{% endif %}>
+                            {{ fy }}-{{ fy|add:1|stringformat:"s"|slice:"2:" }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-1">TAT Target Days</label>
+                    <input type="number" min="1" max="60" step="0.5" name="target_days" class="form-control" value="{{ target_days_display }}">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" type="submit">Apply</button>
+                </div>
+                <div class="col-md-2">
+                    <a class="btn btn-outline-secondary w-100" href="{% url 'tat_summary_report' %}">Reset</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="tat-kpi">
+                <span>Delivered Jobcards</span>
+                <b>{{ total_count }}</b>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="tat-kpi">
+                <span>Average TAT</span>
+                <b>{{ overall_avg_display }}</b>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="tat-kpi">
+                <span>Months Below Target</span>
+                <b class="text-success">{{ below_target_count }}</b>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="tat-kpi">
+                <span>Months Above Target</span>
+                <b class="text-danger">{{ above_target_count }}</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="tat-panel mb-3">
+        <div class="tat-chart-header">
+            <div class="tat-clock" aria-hidden="true"></div>
+            <div class="tat-title-band">Month On Month BodyShop TAT ( In Day's )</div>
+        </div>
+        <div class="tat-chart-wrap">
+            <div class="tat-chart-scroll">
+                <div class="tat-chart-layout">
+                    <div class="tat-y-label">TAT In Day's</div>
+                    <div class="tat-chart" style="--target-bottom: {{ target_percent|floatformat:2 }}%;">
+                        <div class="tat-target-line"></div>
+                        <div class="tat-target-box">TAT Target Below<span>{{ target_days_display }}</span></div>
+                        {% for row in month_rows %}
+                        <div class="tat-month-slot" style="--bar-height: {{ row.height_percent|floatformat:2 }}%;">
+                            {% if row.is_na %}
+                            <div class="tat-na-label">#N/A</div>
+                            {% else %}
+                            <div class="tat-bar-value">{{ row.display }}</div>
+                            <div class="tat-bar {{ row.color_class }}" style="height: {{ row.height_percent|floatformat:2 }}%;"></div>
+                            {% endif %}
+                            <div class="tat-month-label">{{ row.label }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="tat-y-axis">
+                        {% for tick in y_axis_ticks %}
+                        <span style="bottom: {{ tick.bottom|floatformat:2 }}%;">{{ tick.label }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tat-panel">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0 tat-table">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th class="text-end">Delivered Jobcards</th>
+                        <th class="text-end">Average TAT Days</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in month_rows %}
+                    <tr>
+                        <td>{{ row.label }} {{ row.year }}</td>
+                        <td class="text-end">{{ row.count }}</td>
+                        <td class="text-end">{{ row.display }}</td>
+                        <td>
+                            {% if row.is_na %}
+                            <span class="badge bg-secondary">No Data</span>
+                            {% elif row.avg_days <= target_days %}
+                            <span class="badge bg-success">Below Target</span>
+                            {% else %}
+                            <span class="badge bg-danger">Above Target</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

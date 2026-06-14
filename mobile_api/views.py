@@ -41,6 +41,7 @@ from core.models import (
 )
 from core.numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
 from core.views import notify_reception_gate_in, notify_reception_gate_in_changed
+from core.validators import VEHICLE_NUMBER_ERROR, is_valid_vehicle_number, normalize_vehicle_number
 from core.whatsapp import send_advisor_assigned_whatsapp
 from rbac.models import Menu, RoleMenuPermission, UserMenuPermission
 
@@ -889,7 +890,7 @@ class MobileGateInEntryView(APIView):
                 "entry": mobile_gate_in_payload(entry),
             })
 
-        registration_no = clean_text(data.get("registrationNo")).upper()
+        registration_no = normalize_vehicle_number(data.get("registrationNo"))
         service_type = clean_text(data.get("serviceType"))
         current_km = int_or_zero(data.get("currentKm"))
         remarks = clean_text(data.get("remarks"))
@@ -1275,6 +1276,14 @@ class MobileClaimVehicleCheckView(APIView):
             .order_by("-id")
             .first()
         )
+        if claim_id:
+            open_jobcard = (
+                JobCard.objects.filter(claim__vehicle=vehicle)
+                .exclude(claim_id=claim_id)
+                .exclude(repair_status="Closed")
+                .order_by("-id")
+                .first()
+            )
         if open_jobcard:
             return Response({
                 "exists": True,
@@ -1462,6 +1471,12 @@ class MobileClaimSaveView(APIView):
                 and derived_stage < ClaimStageCode.INTIMATION
             ):
                 derived_stage = old_claim_stage
+            elif (
+                claim.employee_id
+                and JobCard.objects.filter(claim=claim).exists()
+                and derived_stage < ClaimStageCode.INTIMATION
+            ):
+                derived_stage = ClaimStageCode.INTIMATION
             claim.claim_stage = derived_stage
             claim.status = "Closed" if claim.claim_stage == ClaimStageCode.CLOSED else "Open"
             claim.save()
@@ -2322,6 +2337,8 @@ class MobileVehicleCreateView(APIView):
 
         if not registration_no:
             errors["registrationNo"] = "Vehicle Registration No required."
+        elif not is_valid_vehicle_number(registration_no):
+            errors["registrationNo"] = VEHICLE_NUMBER_ERROR
         elif Vehicle.objects.filter(registration_no__iexact=registration_no).exists():
             errors["registrationNo"] = "Vehicle Registration No already exists."
 
@@ -2402,7 +2419,7 @@ class MobileVehicleSaveView(APIView):
         if pk and not vehicle:
             return Response({"detail": "Vehicle not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        registration_no = clean_text(data.get("registrationNo")).upper()
+        registration_no = normalize_vehicle_number(data.get("registrationNo"))
         customer_name = clean_text(data.get("customerName"))
         customer_mobile = clean_text(data.get("customerMobile"))
         customer_id = data.get("customerId")
@@ -2425,6 +2442,8 @@ class MobileVehicleSaveView(APIView):
 
         if not registration_no:
             errors["registrationNo"] = "Vehicle Registration No required."
+        elif not is_valid_vehicle_number(registration_no):
+            errors["registrationNo"] = VEHICLE_NUMBER_ERROR
         elif registration_qs.exists():
             errors["registrationNo"] = "Vehicle Registration No already exists."
 

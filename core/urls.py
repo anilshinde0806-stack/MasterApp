@@ -1,7 +1,5 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
-
-import rbac
 from rbac.views import menu_manage, update_user_permission, user_access, user_create
 from .views import dashboard, register_view
 from . import claim_view, jobcard_views, views
@@ -98,6 +96,7 @@ path("bodyshop-control/", views.bodyshop_control_menu, name="bodyshop_control_me
 path("bodyshop-control-board/", views.bodyshop_control_board, name="bodyshop_control_board"),
 path("reports/workshop/daily-in-out/", views.daily_in_out_report, name="daily_in_out_report"),
 path("reports/dashboard/kpi-cards/", views.kpi_cards_report, name="kpi_cards_report"),
+path("reports/tat/summary/", views.tat_summary_report, name="tat_summary_report"),
 path("reports/insurance/surveyor-performance/", views.surveyor_performance_report, name="surveyor_performance_report"),
 path("reports/<path:report_key>/", views.report_placeholder, name="report_placeholder"),
 path("workshop-resource/", views.workshop_resource_view, name="workshop_resource"),

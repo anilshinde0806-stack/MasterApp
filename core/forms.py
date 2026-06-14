@@ -8,6 +8,7 @@ from django import forms
 from django.db.models import Q
 from .models import Surveyor
 from .models import Employee
+from .validators import VEHICLE_NUMBER_ERROR, is_valid_vehicle_number, normalize_vehicle_number
 
 
 def logged_employee_for_user(user):
@@ -100,7 +101,10 @@ class VehicleForm(forms.ModelForm):
         }
 
     def clean_registration_no(self):
-        reg = self.cleaned_data.get('registration_no')
+        reg = normalize_vehicle_number(self.cleaned_data.get('registration_no'))
+
+        if not is_valid_vehicle_number(reg):
+            raise forms.ValidationError(VEHICLE_NUMBER_ERROR)
 
         qs = Vehicle.objects.filter(registration_no__iexact=reg)
 
