@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from django.core.validators import RegexValidator
@@ -1196,7 +1197,10 @@ class JobCardPart(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
 
     def save(self, *args, **kwargs):
-        self.amount = self.qty * self.rate
+        qty = Decimal(self.qty or 0)
+        rate = Decimal(self.rate or 0)
+
+        self.total = qty * rate
         super().save(*args, **kwargs)
 
 class PartOrderHeader(models.Model):
