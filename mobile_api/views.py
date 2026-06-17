@@ -1270,31 +1270,7 @@ class MobileClaimVehicleCheckView(APIView):
                 "message": f"Open claim already exists for {registration_no}: {open_claim.claim_no}",
             })
 
-        open_jobcard = (
-            JobCard.objects.filter(claim__vehicle=vehicle)
-            .exclude(repair_status="Closed")
-            .order_by("-id")
-            .first()
-        )
-        if claim_id:
-            open_jobcard = (
-                JobCard.objects.filter(claim__vehicle=vehicle)
-                .exclude(claim_id=claim_id)
-                .exclude(repair_status="Closed")
-                .order_by("-id")
-                .first()
-            )
-        if open_jobcard:
-            return Response({
-                "exists": True,
-                "vehicle_found": True,
-                "type": "jobcard",
-                "jobcard_id": open_jobcard.id,
-                "job_no": open_jobcard.job_no,
-                "claim_no": open_jobcard.claim.claim_no if open_jobcard.claim_id else "",
-                "message": f"Open jobcard already exists for {registration_no}: {open_jobcard.job_no}",
-            })
-
+        
         return Response({"exists": False, "vehicle_found": True})
 
 
