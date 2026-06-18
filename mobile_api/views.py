@@ -1270,6 +1270,22 @@ class MobileClaimVehicleCheckView(APIView):
                 "message": f"Open claim already exists for {registration_no}: {open_claim.claim_no}",
             })
 
+        open_jobcards = JobCard.objects.filter(
+            Q(claim__vehicle=vehicle) | Q(vehicle=vehicle)
+        ).exclude(repair_status__iexact="Closed")
+        if claim_id:
+            open_jobcards = open_jobcards.exclude(claim_id=claim_id)
+        open_jobcard = open_jobcards.order_by("-id").first()
+        if open_jobcard:
+            return Response({
+                "exists": True,
+                "vehicle_found": True,
+                "type": "jobcard",
+                "jobcard_id": open_jobcard.id,
+                "job_no": open_jobcard.job_no,
+                "message": f"Open jobcard already exists for {registration_no}: {open_jobcard.job_no}",
+            })
+
         
         return Response({"exists": False, "vehicle_found": True})
 
@@ -1298,8 +1314,10 @@ class MobileClaimSaveView(APIView):
             if not vehicle:
                 errors["registrationNo"] = "Vehicle not found in Master data. Create vehicle first."
 
-        claim = Claim.objects.filter(pk=pk).first() if pk else None
-        if pk and not claim:
+        posted_claim_id = clean_text(data.get("id") or data.get("claimId") or data.get("claim_id"))
+        claim_lookup_id = pk or posted_claim_id
+        claim = Claim.objects.filter(pk=claim_lookup_id).first() if claim_lookup_id else None
+        if claim_lookup_id and not claim:
             return Response(
                 {"detail": "Claim not found."},
                 status=status.HTTP_404_NOT_FOUND,
@@ -1318,8 +1336,8 @@ class MobileClaimSaveView(APIView):
                 )
 
             open_jobcard = (
-                JobCard.objects.filter(claim__vehicle=vehicle)
-                .exclude(repair_status="Closed")
+                JobCard.objects.filter(Q(claim__vehicle=vehicle) | Q(vehicle=vehicle))
+                .exclude(repair_status__iexact="Closed")
                 .order_by("-id")
                 .first()
             )
