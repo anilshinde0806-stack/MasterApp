@@ -1118,7 +1118,7 @@ def jobcard_list_api(request):
             "gate_in_datetime": job.gate_in_datetime,
             "repair_status": job.repair_status,
             "work_progress_status": work_progress_status,
-            "parts_not_available_status": get_parts_not_available_status(allocation),
+            "parts_not_available_status": get_parts_not_available_status(job),
             "parts_total": job.parts_total,
             "labour_total": job.labour_total,
             "grand_total": job.grand_total,

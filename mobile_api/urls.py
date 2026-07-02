@@ -35,6 +35,9 @@ from .views import (
     MobileVehicleSaveView,
     MobileVehicleVariantCreateView,
     MobileVehicleSearchView,
+    MobileWorkAllocationView,
+    MobileRepairProgressView,
+
 )
 
 urlpatterns = [
@@ -77,4 +80,6 @@ urlpatterns = [
     path("jobcards/<int:pk>/signatures/", MobileJobcardSignatureSaveView.as_view(), name="mobile_jobcard_signatures"),
     path("jobcards/<int:pk>/actions/", MobileJobcardActionLinksView.as_view(), name="mobile_jobcard_actions"),
     path("jobcards/<int:pk>/vehicle-condition-photos/", MobileJobcardVehiclePhotoUploadView.as_view(), name="mobile_jobcard_vehicle_condition_photo_upload"),
+    path("jobcards/<int:pk>/allocation/",MobileWorkAllocationView.as_view(), name="MobileWorkAllocationView"),
+    path("jobcards/<int:pk>/repair-progress/",MobileRepairProgressView.as_view(), name="MobileRepairProgressView"),
 ]

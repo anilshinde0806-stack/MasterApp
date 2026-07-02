@@ -4,18 +4,19 @@ from urllib.parse import quote
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.urls import NoReverseMatch, reverse
-from django.db.models import Count, Sum
 from django.db import transaction
 from django.db.models import Q
 from django.utils.dateparse import parse_date, parse_datetime
-from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from decimal import Decimal, InvalidOperation
+from django.db.models import Count, Sum
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 
 from core.models import (
     Claim,
@@ -35,9 +36,11 @@ from core.models import (
     Vehicle,
     VehicleModel,
     VehicleVariant,
+    WorkAllocation,
     WorkProgress,
     WorkProgressPhoto,
     UserNotification,
+
 )
 from core.numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
 from core.views import notify_reception_gate_in, notify_reception_gate_in_changed
@@ -221,6 +224,17 @@ def mobile_jobcard_payload(job):
     stage_lookup = dict(Claim.CLAIM_STAGES)
     inventory = getattr(job, "inventory", None)
     allocation = getattr(job, "allocation", None)
+    progress_list = (
+        list(allocation.progress.order_by("id"))
+        if allocation
+        else []
+    )
+
+    current_progress = (
+        progress_list[-1]
+        if progress_list
+        else None
+    )
     work_completed = (
         job.repair_status in ["Completed", "Closed"]
         or (claim and int(claim.claim_stage or 0) >= ClaimStageCode.WORK_COMPLETED)
@@ -234,6 +248,7 @@ def mobile_jobcard_payload(job):
         "ri_done": bool(ri_done),
         "part_entry_complete": bool(allocation and allocation.part_entry_complete),
     }
+
 
     return {
         "id": job.id,
@@ -258,6 +273,32 @@ def mobile_jobcard_payload(job):
         "part_order_date": job.part_order_date.isoformat() if job.part_order_date else "",
         "part_order_no": job.part_order_no or "",
         "repair_status": job.repair_status or "",
+        # -----------------------------
+        # Workshop Workflow
+        # -----------------------------
+
+        "has_allocation": allocation is not None,
+
+        "work_started": len(progress_list) > 0,
+
+        "progress_count": len(progress_list),
+        "priority": job.priority if hasattr(job, "priority") else "Normal",
+        "estimated_time": getattr(job, "estimated_time", "") or "",
+        "current_stage": (
+            current_progress.stage
+            if current_progress
+            else "Pending Allocation"
+            if allocation is None
+            else "Work Not Started"
+        ),
+
+        "current_stage_label": (
+            current_progress.get_stage_display()
+            if current_progress
+            else "Pending Allocation"
+            if allocation is None
+            else "Work Not Started"
+        ),
         "estimated_delivery": job.estimated_delivery.isoformat(sep=" ", timespec="minutes") if job.estimated_delivery else "",
         "actual_delivery": job.actual_delivery.isoformat(sep=" ", timespec="minutes") if job.actual_delivery else "",
         "repair_instructions": job.repair_instructions or "",
@@ -365,7 +406,26 @@ def mobile_jobcard_payload(job):
         ],
     }
 
+def mobile_stage_list():
+    return [
+        {
+            "value": value,
+            "label": label,
+        }
+        for value, label in WorkProgress.STAGES
+    ]
 
+
+def mobile_employee_list():
+    return [
+        {
+            "id": emp.id,
+            "name": emp.name,
+        }
+        for emp in Employee.objects.filter(
+            is_active=True
+        ).order_by("name")
+    ]
 def mobile_jobcard_action_payload(request, job):
     pdf_path = reverse("jobcard_print", args=[job.id, settings.PDF_SECRET_TOKEN])
     preview_path = reverse("jobcard_print_preview", args=[job.id, settings.PDF_SECRET_TOKEN])
@@ -1025,7 +1085,33 @@ class MobileDashboardView(APIView):
 
         month_claims = claims.filter(created_at__date__gte=month_start)
         month_jobcards = jobcards.filter(created_at__date__gte=month_start)
+        vehicles_inside = jobcards.exclude(
+            repair_status="Closed"
+        ).count()
 
+        delivery_today = jobcards.filter(
+            expected_delivery_datetime__date=today
+        ).count()
+
+        qc_pending = jobcards.filter(
+            qc_done=False,
+            repair_status="Open",
+        ).count()
+
+        ready_delivery = jobcards.filter(
+            ready_for_delivery=True,
+            repair_status="Open",
+        ).count()
+
+        washing_pending = jobcards.filter(
+            washing_done=False,
+            repair_status="Open",
+        ).count()
+
+        reinspection_pending = jobcards.filter(
+            reinspection_done=False,
+            repair_status="Open",
+        ).count()
         stage_lookup = dict(Claim.CLAIM_STAGES)
         stage_counts = [
             {
@@ -1060,23 +1146,53 @@ class MobileDashboardView(APIView):
 
         return Response(
             {
-                "summary": {
-                    "total_claims": claims.count(),
-                    "pending_claims": claims.exclude(
-                        claim_stage=ClaimStageCode.CLOSED
-                    ).count(),
-                    "closed_claims": claims.filter(
-                        claim_stage=ClaimStageCode.CLOSED
-                    ).count(),
-                    "total_jobcards": jobcards.count(),
-                    "open_jobcards": jobcards.filter(repair_status="Open").count(),
-                    "closed_jobcards": jobcards.filter(repair_status="Closed").count(),
-                    "month_claims": month_claims.count(),
-                    "month_jobcards": month_jobcards.count(),
-                    "estimate_value": float(
-                        jobcards.aggregate(total=Sum("grand_total")).get("total") or 0
-                    ),
-                },
+                "summary":{
+
+    "total_claims": claims.count(),
+
+    "pending_claims":
+        claims.exclude(
+            claim_stage=ClaimStageCode.CLOSED
+        ).count(),
+
+    "closed_claims":
+        claims.filter(
+            claim_stage=ClaimStageCode.CLOSED
+        ).count(),
+
+    "total_jobcards":
+        jobcards.count(),
+
+    "open_jobcards":
+        jobcards.filter(
+            repair_status="Open"
+        ).count(),
+
+    "closed_jobcards":
+        jobcards.filter(
+            repair_status="Closed"
+        ).count(),
+
+    "month_claims":
+        month_claims.count(),
+
+    "month_jobcards":
+        month_jobcards.count(),
+
+    "estimate_value":
+        float(
+            jobcards.aggregate(
+                total=Sum("grand_total")
+            )["total"] or 0
+        ),
+
+    "vehicles_inside": vehicles_inside,
+"delivery_today": delivery_today,
+"qc_pending": qc_pending,
+"ready_delivery": ready_delivery,
+"washing_pending": washing_pending,
+"reinspection_pending": reinspection_pending,
+},
                 "stage_counts": stage_counts,
                 "recent_jobs": recent_jobs,
             }
@@ -1101,11 +1217,40 @@ class MobileMyWorkListView(APIView):
         status_filter = clean_text(request.GET.get("status")) or "new"
 
         base_progress = mobile_my_work_queryset(employee, from_date, to_date)
+        print("=" * 80)
+        print("Logged User :", request.user.username)
+        print("Employee :", employee.id, employee.name)
+
+        print("Status :", status_filter)
+
+        print("Base Progress :", base_progress.count())
+
+        for p in base_progress:
+            print(
+                p.id,
+                p.stage,
+                p.employee_id,
+                p.employee.name if p.employee else None,
+                p.start_time,
+                p.finish_time,
+            )
+
+        print("=" * 80)
         rows = mobile_apply_my_work_status(base_progress, status_filter).order_by(
             "start_time",
             "allocation__job__job_no",
             "id",
         )
+        print("Rows :", rows.count())
+
+        for r in rows:
+            print(
+                r.id,
+                r.stage,
+                r.employee.name,
+                r.start_time,
+                r.finish_time,
+            )
 
         return Response({
             "filters": {
@@ -1499,32 +1644,75 @@ class MobileJobcardListView(APIView):
 
     def get(self, request):
         _, jobcards = dashboard_querysets_for_user(request.user)
-        repair_status = request.GET.get("repair_status") or "Open"
 
-        if repair_status and repair_status.lower() != "all":
-            jobcards = jobcards.filter(repair_status=repair_status)
+        queue = (request.GET.get("queue") or "").strip().lower()
+        repair_status = (request.GET.get("repair_status") or "").strip()
+        search = (request.GET.get("q") or "").strip()
 
-        rows = []
-        for job in (
-            jobcards.select_related("claim", "claim__vehicle", "advisor")
-            .order_by("-id")[:100]
-        ):
-            vehicle = job.claim.vehicle if job.claim_id and job.claim else None
-            rows.append(
-                {
-                    "id": job.id,
-                    "job_no": job.job_no,
-                    "claim_no": job.claim.claim_no if job.claim_id else "",
-                    "registration_no": vehicle.registration_no if vehicle else "",
-                    "model": str(vehicle.model) if vehicle and vehicle.model_id else "",
-                    "advisor": job.advisor.name if job.advisor_id else "",
-                    "repair_status": job.repair_status,
-                    "created_at": job.created_at.isoformat() if job.created_at else "",
-                    "grand_total": float(job.grand_total or 0),
-                }
+        # ---------------------------------------
+        # Queue Filters
+        # ---------------------------------------
+
+        if queue == "allocation":
+            jobcards = jobcards.filter(
+                repair_status="Pending Allocation"
             )
 
-        return Response({"jobcards": rows})
+        elif queue == "repair":
+            jobcards = jobcards.filter(
+                repair_status="Work In Progress"
+            )
+
+        elif queue == "qc":
+            jobcards = jobcards.filter(
+                qc_done=False,
+                repair_status="Completed",
+            )
+
+        elif queue == "delivery":
+            jobcards = jobcards.filter(
+                ready_for_delivery=True,
+            )
+
+        # ---------------------------------------
+        # Normal Status Filter
+        # ---------------------------------------
+
+        elif repair_status and repair_status.lower() != "all":
+            jobcards = jobcards.filter(
+                repair_status=repair_status
+            )
+
+        # ---------------------------------------
+        # Search
+        # ---------------------------------------
+
+        if search:
+            jobcards = jobcards.filter(
+                Q(job_no__icontains=search)
+                | Q(claim__claim_no__icontains=search)
+                | Q(claim__vehicle__registration_no__icontains=search)
+                | Q(claim__vehicle__customer__name__icontains=search)
+            )
+
+        return Response(
+            {
+                "jobcards": [
+                    mobile_jobcard_payload(job)
+                    for job in (
+                        jobcards
+                        .select_related(
+                            "claim",
+                            "claim__vehicle",
+                            "claim__vehicle__customer",
+                            "advisor",
+                            "branch",
+                        )
+                        .order_by("-id")[:100]
+                    )
+                ]
+            }
+        )
 
 
 class MobileJobcardDetailView(APIView):
@@ -2498,4 +2686,355 @@ class MobileVehicleSaveView(APIView):
                 "vehicle": mobile_vehicle_payload(vehicle),
             },
             status=status.HTTP_201_CREATED if not pk else status.HTTP_200_OK,
+        )
+class MobileWorkAllocationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+
+        _, jobcards = dashboard_querysets_for_user(request.user)
+
+        job = (
+            jobcards
+            .select_related(
+                "claim",
+                "claim__vehicle",
+                "claim__vehicle__customer",
+                "advisor",
+            )
+            .prefetch_related(
+                "allocation__progress",
+                "allocation__progress__employee",
+            )
+            .filter(pk=pk)
+            .first()
+        )
+        employees = [
+            {
+                "id": emp.id,
+                "name": emp.name,
+            }
+            for emp in Employee.objects.filter(is_active=True).order_by("name")
+        ]
+        stages = [
+            {
+                "value": value,
+                "label": label,
+            }
+            for value, label in WorkProgress.STAGES
+        ]
+        progress = []
+        allocation = getattr(job, "allocation", None)
+        if allocation:
+
+            for item in allocation.progress.select_related("employee").order_by("id"):
+
+                if item.finish_time:
+                    status = "Completed"
+                elif item.start_time:
+                    status = "Started"
+                else:
+                    status = "Pending"
+
+                progress.append({
+                    "id": item.id,
+                    "stage": item.stage,
+                    "stage_label": item.get_stage_display(),
+                    "employee": item.employee.name if item.employee else "",
+                    "employee_id": item.employee_id,
+                    "remarks": item.remarks,
+                    "status": status,
+                    "started_at": (
+                        item.start_time.strftime("%d-%m-%Y %H:%M")
+                        if item.start_time else ""
+                    ),
+                    "completed_at": (
+                        item.finish_time.strftime("%d-%m-%Y %H:%M")
+                        if item.finish_time else ""
+                    ),
+                })
+        print("=" * 80)
+        print("STAGES")
+        print(stages)
+        print("=" * 80)
+        return Response(
+            {
+                "jobcard": mobile_jobcard_payload(job),
+                "employees": mobile_employee_list(),
+                "stages": mobile_stage_list(),
+                "progress": progress,
+            }
+        )
+
+    def post(self, request, pk):
+
+        job = JobCard.objects.filter(pk=pk).first()
+
+        if not job:
+            return Response(
+                {"detail": "Job Card not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        stage = (request.data.get("stage") or "").strip()
+        employee_id = request.data.get("employee")
+        remarks = (request.data.get("remarks") or "").strip()
+
+        if not stage:
+            return Response(
+                {"detail": "Select Progress Stage."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if stage not in dict(WorkProgress.STAGES):
+            return Response(
+                {"detail": "Invalid Progress Stage."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not employee_id:
+            return Response(
+                {"detail": "Select Technician."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        employee = Employee.objects.filter(
+            pk=employee_id,
+            is_active=True,
+        ).first()
+
+        if not employee:
+            return Response(
+                {"detail": "Technician not found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        allocation, created = WorkAllocation.objects.get_or_create(
+            job=job,
+        )
+
+        # Prevent duplicate stage allocation only
+        if allocation.progress.filter(stage=stage).exists():
+            return Response(
+                {
+                    "detail": "This repair stage is already allocated."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        progress = WorkProgress.objects.create(
+            allocation=allocation,
+            stage=stage,
+            employee=employee,
+            remarks=remarks,
+        )
+
+        # Update job status after first allocation
+        if getattr(job, "repair_status", None) != "Allocated":
+            job.repair_status = "Allocated"
+            job.save(update_fields=["repair_status"])
+
+        return Response(
+            {
+                "message": "Repair stage allocated successfully.",
+                "progress": {
+                    "id": progress.id,
+                    "stage": progress.stage,
+                    "stage_label": progress.get_stage_display(),
+                    "employee": employee.name,
+                    "employee_id": employee.id,
+                    "remarks": progress.remarks,
+                    "status": "Pending",
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MobileRepairProgressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    STAGE_ORDER = [
+        "Dismantling",
+        "Mechanical",
+        "Body Repair/Denting",
+        "Paint Preperation",
+        "Painting",
+        "Assembly",
+        "Fitting",
+        "Polishing",
+    ]
+
+    def get(self, request, pk):
+
+        _, jobcards = dashboard_querysets_for_user(request.user)
+
+        job = (
+            jobcards
+            .select_related(
+                "claim",
+                "claim__vehicle",
+                "claim__vehicle__customer",
+                "advisor",
+            )
+            .prefetch_related(
+                "allocation__progress__employee",
+            )
+            .filter(pk=pk)
+            .first()
+        )
+
+        if not job:
+            return Response(
+                {"detail": "Job Card not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        allocation = getattr(job, "allocation", None)
+
+        progress = []
+
+        if allocation:
+
+            for item in allocation.progress.all().order_by("id"):
+
+                if item.finish_time:
+                    status_name = "Completed"
+                elif item.start_time:
+                    status_name = "Started"
+                else:
+                    status_name = "Pending"
+
+                progress.append(
+                    {
+                        "id": item.id,
+                        "stage": item.stage,
+                        "stage_label": item.get_stage_display(),
+                        "employee": item.employee.name if item.employee else "",
+                        "employee_id": item.employee_id,
+                        "remarks": item.remarks,
+                        "status": status_name,
+                        "started_at": (
+                            item.start_time.strftime("%d-%m-%Y %H:%M")
+                            if item.start_time else ""
+                        ),
+                        "completed_at": (
+                            item.finish_time.strftime("%d-%m-%Y %H:%M")
+                            if item.finish_time else ""
+                        ),
+                    }
+                )
+
+        response_data = {
+            "jobcard": mobile_jobcard_payload(job),
+            "employees": mobile_employee_list(),
+            "stages": mobile_stage_list(),
+            "progress": progress,
+        }
+
+        print("=" * 50)
+        print(response_data)
+        print("=" * 50)
+
+        return Response(response_data)
+    def post(self, request, pk):
+
+        action = (request.data.get("action") or "").strip().lower()
+        progress_id = request.data.get("progress_id")
+        remarks = (request.data.get("remarks") or "").strip()
+
+        if not progress_id:
+            return Response(
+                {"detail": "Progress ID required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        progress = (
+            WorkProgress.objects
+            .select_related("allocation", "allocation__job")
+            .filter(pk=progress_id)
+            .first()
+        )
+
+        if not progress:
+            return Response(
+                {"detail": "Repair stage not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        job = progress.allocation.job
+
+        if action == "start":
+
+            if progress.start_time:
+                return Response(
+                    {
+                        "detail": "Stage already started."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            progress.start_time = timezone.now()
+
+            if remarks:
+                progress.remarks = remarks
+
+            progress.save()
+
+            if job.repair_status != "In Progress":
+                job.repair_status = "In Progress"
+                job.save(update_fields=["repair_status"])
+
+            return Response(
+                {
+                    "message": "Repair stage started successfully.",
+                    "progress_id": progress.id,
+                }
+            )
+
+        elif action == "complete":
+
+            if not progress.start_time:
+                return Response(
+                    {
+                        "detail": "Start the stage first."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if progress.finish_time:
+                return Response(
+                    {
+                        "detail": "Stage already completed."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            progress.finish_time = timezone.now()
+
+            if remarks:
+                progress.remarks = remarks
+
+            progress.save()
+
+            remaining = progress.allocation.progress.filter(
+                finish_time__isnull=True,
+            ).exists()
+
+            if not remaining:
+                job.repair_status = "Repair Completed"
+                job.save(update_fields=["repair_status"])
+
+            return Response(
+                {
+                    "message": "Repair stage completed successfully.",
+                    "progress_id": progress.id,
+                }
+            )
+
+        return Response(
+            {
+                "detail": "Invalid action."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
         )

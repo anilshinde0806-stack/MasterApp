@@ -55,13 +55,17 @@ ALLOWED_HOSTS = [
     "localhost",
     "192.168.29.251",
     "10.211.98.91",
+    "10.180.210.180",
     "172.20.120.91",
+    "10.0.2.2",
+    "10.158.188.93",
     "scion-splurge-book.ngrok-free.dev",
     ".ngrok-free.dev",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://192.168.29.251:8000",
     "http://10.211.98.91:8000",
+    "http://10.180.210.180:8000",
     "https://scion-splurge-book.ngrok-free.dev",
     "https://*.ngrok-free.dev",
 ]

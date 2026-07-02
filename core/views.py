@@ -4,7 +4,7 @@ import zipfile
 import base64
 from datetime import date, datetime, timedelta, time as datetime_time
 from io import BytesIO
-
+from django.db.models import F
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
@@ -13,7 +13,7 @@ from django.contrib.sessions.models import Session
 from django.core.files.base import ContentFile
 from django.contrib.sites import requests
 from django.db import IntegrityError
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import get_template
@@ -4141,20 +4141,29 @@ def sync_jobcard_main_status(job):
     return status
 
 
-def get_parts_not_available_status(allocation):
-    if not allocation:
-        return "No PNA"
+from core.models import PartOrder
 
-    pna_count = sum(
-        1
-        for part in allocation.parts.all()
-        if part.decision in ["New", "KO"] and not part.pick_from_store
-    )
 
-    if pna_count:
-        return f"{pna_count} Parts Not Available"
+from core.models import PartOrder
 
-    return "No PNA"
+def get_parts_not_available_status(job):
+    allocation = getattr(job, "allocation", None)
+
+    if allocation:
+        pna_count = allocation.parts.filter(
+            decision__in=["New", "KO"],
+            pick_from_store=False
+        ).count()
+
+        if pna_count:
+            return f"{pna_count} Parts Not Available Or Parts Not Issued"
+
+    pending_count = PartOrder.objects.filter(
+        job_id=job,
+        status="Pending"
+    ).count()
+
+    return f"{pending_count} Parts Not Available Or Parts Not Issued" if pending_count else "No PNA"
 
 
 def get_control_board_allocated_at(allocation):
