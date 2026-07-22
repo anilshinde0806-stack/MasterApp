@@ -4,6 +4,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
 
 # Compiled extensions
 *.so
@@ -16,10 +17,11 @@ venv/
 env/
 
 # ---------------------------
-# PyCharm
+# PyCharm / VS Code
 # ---------------------------
 .idea/
 *.iml
+.vscode/
 
 # ---------------------------
 # Django
@@ -27,27 +29,18 @@ env/
 *.log
 local_settings.py
 
-# SQLite (ignore only if used)
+# SQLite
 db.sqlite3
 db.sqlite3-journal
 
 # Media uploads
 media/
 
-# Static collectstatic files
+# Collectstatic output
 staticfiles/
 
-# ---------------------------
 # Environment Variables
-# ---------------------------
 .env
-
-# ---------------------------
-# OS Files
-# ---------------------------
-Thumbs.db
-Desktop.ini
-.DS_Store
 
 # ---------------------------
 # Python Packaging
@@ -57,25 +50,29 @@ dist/
 *.egg-info/
 
 # ---------------------------
-# Test / Cache
+# Cache / Testing
 # ---------------------------
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
 # ---------------------------
-# VS Code (if used)
+# OS Files
 # ---------------------------
-
+Thumbs.db
+Desktop.ini
+.DS_Store
 
 # ---------------------------
-# PostgreSQL local files
+# PostgreSQL
 # ---------------------------
 *.pgsql
 .pgpass
 
 # ---------------------------
-# Node (if future React/mobile)
+# Node
 # ---------------------------
 node_modules/
 
@@ -85,3 +82,29 @@ node_modules/
 *.bak
 *.tmp
 *.swp
+
+# =====================================================
+# Flutter
+# =====================================================
+
+bodyshopflutter/.dart_tool/
+bodyshopflutter/build/
+bodyshopflutter/.flutter-plugins
+bodyshopflutter/.flutter-plugins-dependencies
+bodyshopflutter/.packages
+
+# Keep .metadata if you want to preserve Flutter version.
+# Uncomment the next line if you prefer to ignore it.
+# bodyshopflutter/.metadata
+
+# Android
+bodyshopflutter/android/.gradle/
+bodyshopflutter/android/local.properties
+
+# iOS
+bodyshopflutter/ios/Pods/
+
+# Generated files
+*.apk
+*.aab
+*.ipa

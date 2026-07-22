@@ -39,6 +39,14 @@ from .models import (
 from .numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
 from .validators import VEHICLE_NUMBER_ERROR, is_valid_vehicle_number, normalize_vehicle_number
 from .whatsapp import send_advisor_assigned_whatsapp, send_whatsapp_template_message
+from apps.claims.services.repair_workflow_service import (
+    RepairWorkflowBlocked,
+    RepairWorkflowService,
+)
+from apps.claims.services.dashboard_financial_service import DashboardFinancialService
+from apps.claims.repositories.dashboard_repository import DashboardLookupRepository
+from apps.claims.services.dashboard_metrics_service import DashboardMetricsService
+from apps.claims.services.advisor_dashboard_service import AdvisorDashboardReadService
 
 
 REINSPECTION_MAX_PHOTOS_PER_JOBCARD = getattr(settings, "REINSPECTION_MAX_PHOTOS_PER_JOBCARD", 25)
@@ -885,6 +893,30 @@ def notify_floor_incharge_work_allocation_pending(claim):
             url,
         )
 
+    if not job or not hasattr(job, "allocation"):
+        return
+
+    notified_user_ids = set()
+    for progress in job.allocation.progress.select_related("employee__user"):
+        employee = progress.employee
+        if not employee or not employee.user_id or employee.user_id in notified_user_ids:
+            continue
+        if not is_repair_resource(employee):
+            continue
+        notified_user_ids.add(employee.user_id)
+        message = (
+            f"Insurance approval is complete. You can start "
+            f"{progress.get_stage_display()} for Jobcard {job.job_no} "
+            f"({registration_no})."
+        )
+        notification, _ = UserNotification.objects.get_or_create(
+            user=employee.user,
+            title="Repair Work Ready to Start",
+            message=message,
+            is_read=False,
+            defaults={"url": "/my-work/"},
+        )
+
 
 def notify_progress_employee_assigned(progress):
     if not progress or not progress.employee_id or not progress.employee.user_id:
@@ -1240,7 +1272,6 @@ def gate_in_entry_cancel(request, pk):
 
 # Create your views here.
 @login_required
-@login_required
 def dashboard(request):
     from datetime import date
     from django.utils.dateparse import parse_date
@@ -1249,7 +1280,10 @@ def dashboard(request):
         user=request.user
     ).first()
 
-    if is_reception_employee(logged_emp):
+    if (
+        is_reception_employee(logged_emp)
+        and (logged_emp.employee_type or "").upper() != "ADVISOR"
+    ):
         branch = logged_emp.branch if logged_emp and logged_emp.branch_id else None
 
         gate_entries = GateInEntry.objects.select_related(
@@ -1373,7 +1407,7 @@ def dashboard(request):
     today = date.today()
     default_from_date = today.replace(day=1)
     dashboard_is_admin = is_admin_user(request.user, logged_emp)
-    dashboard_branches = Branch.objects.filter(is_active=True).order_by("name")
+    dashboard_branches = DashboardLookupRepository.active_branches()
     dashboard_branch_id = request.GET.get("branch_id") or ""
     dashboard_selected_branch = (
         dashboard_branches.filter(pk=dashboard_branch_id).first()
@@ -1391,11 +1425,9 @@ def dashboard(request):
         jobcards = jobcards.filter(claim__branch=dashboard_selected_branch)
 
     if from_date:
-        claims = claims.filter(created_at__date__gte=from_date)
         jobcards = jobcards.filter(created_at__date__gte=from_date)
 
     if to_date:
-        claims = claims.filter(created_at__date__lte=to_date)
         jobcards = jobcards.filter(created_at__date__lte=to_date)
 
     if advisor_id:
@@ -1411,22 +1443,17 @@ def dashboard(request):
             claims = claims.filter(status=main_status)
             jobcards = jobcards.filter(repair_status=main_status)
 
-    advisor_options = Employee.objects.filter(
-        is_active=True
-    ).filter(
-        Q(employee_type__iexact="Advisor")
-        | Q(designation__iexact="Advisor")
+    claims_for_metrics = claims
+    claims = claims.filter(
+        created_at__date__gte=from_date,
+        created_at__date__lte=to_date,
     )
-    if (
-        logged_emp
-        and logged_emp.employee_type == "MANAGER"
-        and logged_emp.branch_id
-        and not is_admin_user(request.user, logged_emp)
-    ):
-        advisor_options = advisor_options.filter(branch=logged_emp.branch)
-    elif dashboard_selected_branch:
-        advisor_options = advisor_options.filter(branch=dashboard_selected_branch)
-    advisor_options = advisor_options.order_by("name")
+
+    advisor_options = DashboardLookupRepository.advisor_options(
+        employee=logged_emp,
+        selected_branch=dashboard_selected_branch,
+        is_admin=is_admin_user(request.user, logged_emp),
+    )
 
     # MANAGER REPORT DEFAULTS
     total_claims = 0
@@ -1435,60 +1462,40 @@ def dashboard(request):
     work_allocation_pending = 0
     repair_in_progress = 0
     total_estimate_value = 0
+    dashboard_financial = DashboardFinancialService(
+        claims=claims_for_metrics,
+        start_date=from_date,
+        end_date=to_date,
+    ).get()
 
     stage_counts = []
     advisor_counts = []
     recent_jobs = []
+    advisor_dashboard = None
 
     if show_manager_dashboard:
-        total_claims = claims.count()
+        metrics = DashboardMetricsService(
+            claims=claims_for_metrics,
+            period_claims=claims,
+            jobcards=jobcards,
+            start_date=from_date,
+            end_date=to_date,
+        ).get()
+        total_claims = metrics["total_claims"]
+        pending_claims = metrics["pending_claims"]
+        closed_claims = metrics["closed_claims"]
+        work_allocation_pending = metrics["work_allocation_pending"]
+        repair_in_progress = metrics["repair_in_progress"]
+        stage_counts = dashboard_stage_rows(metrics["stage_counts"])
+        advisor_counts = metrics["advisor_counts"]
+        total_estimate_value = metrics["total_estimate_value"]
+        recent_jobs = DashboardLookupRepository.recent_jobs(jobcards)
 
-        pending_claims = claims.exclude(
-            claim_stage=ClaimStageCode.CLOSED
-        ).count()
-
-        closed_claims = claims.filter(
-            claim_stage=ClaimStageCode.CLOSED
-        ).count()
-
-        work_allocation_pending = claims.filter(
-            claim_stage=ClaimStageCode.WORK_ALLOCATION
-        ).count()
-
-        repair_in_progress = claims.filter(
-            claim_stage=ClaimStageCode.REPAIR_IN_PROGRESS
-        ).count()
-
-        stage_counts = (
-            claims
-            .values("claim_stage")
-            .annotate(total=Count("id"))
-            .order_by("claim_stage")
-        )
-        stage_counts = dashboard_stage_rows(stage_counts)
-
-        advisor_counts = (
-            claims
-            .values("employee__name", "employee__branch__code", "employee__branch__name")
-            .annotate(total=Count("id"))
-            .order_by("-total")[:10]
-        )
-
-        recent_jobs = (
-            jobcards
-            .select_related(
-                "claim",
-                "claim__vehicle",
-                "advisor"
-            )
-            .order_by("-id")[:10]
-        )
-
-        total_estimate_value = (
-                jobcards
-                .aggregate(total=Sum("grand_total"))
-                .get("total") or 0
-        )
+    if logged_emp and (logged_emp.employee_type or "").upper() == "ADVISOR":
+        advisor_dashboard = AdvisorDashboardReadService(
+            claims=claims,
+            jobcards=jobcards,
+        ).get()
 
     return render(request, "index.html", {
         "logged_emp": logged_emp,
@@ -1507,6 +1514,13 @@ def dashboard(request):
         "advisor_counts": advisor_counts,
         "recent_jobs": recent_jobs,
         "total_estimate_value": total_estimate_value,
+        "dashboard_financial": dashboard_financial,
+        "advisor_dashboard": advisor_dashboard,
+        "dashboard_greeting": (
+            "Good Morning" if timezone.localtime().hour < 12
+            else "Good Afternoon" if timezone.localtime().hour < 17
+            else "Good Evening"
+        ),
         "advisor_options": advisor_options,
         "filter_from_date": from_date.strftime("%Y-%m-%d"),
         "filter_to_date": to_date.strftime("%Y-%m-%d"),
@@ -1818,7 +1832,7 @@ def check_registration(request):
 @login_required
 def add_model_ajax(request):
     if request.method == "POST":
-        data = json.loads(request.body)
+        data = json
         name = data.get("name").strip()
 
         if VehicleModel.objects.filter(name__iexact=name).exists():
@@ -1839,7 +1853,7 @@ def add_model_ajax(request):
 @login_required
 def add_variant_ajax(request):
     if request.method == "POST":
-        data = json.loads(request.body)
+        data = json
 
         model_id = data.get('model_id')
         name = data.get('name').strip()
@@ -1899,7 +1913,7 @@ def customer_search(request):
 
 @login_required
 def add_customer(request):
-    data = json.loads(request.body)
+    data = json
 
     name = data.get("name", "").strip()
     mobile = data.get("mobile", "").strip()
@@ -2123,7 +2137,7 @@ def save_column_pref(request):
             })
 
         try:
-            data = json.loads(request.body)
+            data = json
 
             screen = data.get("screen")
             state = data.get("state")
@@ -2308,7 +2322,7 @@ def add_vehicle(request):
             "message": "Invalid request"
         })
 
-    data = json.loads(request.body)
+    data = json
 
     registration_no = data.get("registration_no", "").strip().upper()
     chassis_no = data.get("chassis_no", "").strip()
@@ -3386,7 +3400,7 @@ def part_order_header_lines_api(request, header_id):
 @never_cache
 def update_part_order_line_api(request, order_id):
     order = get_object_or_404(PartOrder, id=order_id)
-    data = json.loads(request.body.decode("utf-8"))
+    data = json
 
     for field in [
         "order_no",
@@ -4765,8 +4779,10 @@ def work_allocation_list(request):
         "advisor",
         "allocation",
     ).filter(
-        claim__claim_stage__gte=ClaimStageCode.WORK_ALLOCATION,
-        claim__claim_stage__lt=ClaimStageCode.CLOSED,
+        claim__isnull=False,
+    ).filter(
+        Q(claim__claim_stage__gte=ClaimStageCode.WORK_ALLOCATION)
+        | Q(allocation__isnull=False)
     ).prefetch_related(
         "allocation__progress"
     ).order_by("-id")
@@ -5817,6 +5833,12 @@ def work_allocation_entry(request, job_id):
         JobCard,
         id=job_id
     )
+
+    try:
+        RepairWorkflowService.ensure_allocation_allowed(job)
+    except RepairWorkflowBlocked as exc:
+        messages.error(request, str(exc))
+        return redirect("jobList")
 
     allocation, created = (
         WorkAllocation
@@ -7206,11 +7228,31 @@ def my_work_action(request, progress_id):
     action = request.POST.get("action") or ""
 
     if action == "start":
+        try:
+            RepairWorkflowService.ensure_start_allowed(
+                progress.allocation.job
+            )
+        except RepairWorkflowBlocked as exc:
+            messages.error(request, str(exc))
+            return redirect(request.POST.get("next") or "my_work_list")
         if start_work_progress(progress):
+            RepairWorkflowService.mark_repair_started(
+                progress.allocation.job
+            )
             notify_work_progress_change(progress, "started")
         messages.success(request, "Work progress started.")
     elif action == "finish":
+        try:
+            RepairWorkflowService.ensure_start_allowed(
+                progress.allocation.job
+            )
+        except RepairWorkflowBlocked as exc:
+            messages.error(request, str(exc))
+            return redirect(request.POST.get("next") or "my_work_list")
         if finish_work_progress(progress):
+            RepairWorkflowService.mark_repair_started(
+                progress.allocation.job
+            )
             notify_work_progress_change(progress, "finished")
         messages.success(request, "Work progress finished.")
 

@@ -2055,3 +2055,84 @@ class AnnouncementRead(models.Model):
 
         class Meta:
             unique_together = ("announcement", "user")
+
+
+def _base_queryset(self, employee):
+
+    if employee.employee_type == "ADMIN":
+        return WorkProgress.objects.select_related(
+            "allocation",
+            "allocation__job",
+            "employee",
+        )
+
+    elif employee.employee_type == "MANAGER":
+        return WorkProgress.objects.select_related(
+            "allocation",
+            "allocation__job",
+            "employee",
+        ).filter(
+            allocation__job__branch=employee.branch
+        )
+
+    elif employee.employee_type == "Advisor":
+        return WorkProgress.objects.select_related(
+            "allocation",
+            "allocation__job",
+            "employee",
+        ).filter(
+            allocation__job__advisor=employee
+        )
+
+    else:
+        return WorkProgress.objects.select_related(
+            "allocation",
+            "allocation__job",
+            "employee",
+        ).filter(
+            employee=employee
+        )
+
+
+
+def _work_queryset(self, employee):
+
+        queryset = (
+            WorkProgress.objects
+            .select_related(
+                "allocation",
+                "allocation__job",
+                "allocation__job__vehicle",
+                "allocation__job__vehicle__customer",
+                "allocation__job__advisor",
+                "employee",
+            )
+        )
+
+        role = employee.employee_type
+
+        if role == "ADMIN":
+            return queryset
+
+        if role == "MANAGER":
+            return queryset.filter(
+                allocation__job__branch=employee.branch
+            )
+
+        if role == "Advisor":
+            return queryset.filter(
+                allocation__job__advisor=employee
+            )
+
+        return queryset.filter(
+            employee=employee
+        )
+class EmployeeType(models.TextChoices):
+    ADMIN = "ADMIN", "Administrator"
+    MANAGER = "MANAGER", "Body Shop Manager"
+    ADVISOR = "ADVISOR", "Service Advisor"
+    SURVEYOR = "SURVEYOR", "Surveyor"
+    TECHNICIAN = "TECHNICIAN", "Technician"
+    PAINTER = "PAINTER", "Painter"
+    DENTER = "DENTER", "Denter"
+    QC = "QC", "Quality Inspector"

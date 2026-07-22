@@ -3,9 +3,13 @@
 This module keeps claim screens and claim APIs out of core.views. Shared
 workflow helpers still live in core.views until the next cleanup pass.
 """
+from requests import get
 
 from .views import *  # noqa: F401,F403
 from .forms import advisor_queryset_for_user
+from apps.claims.repositories.claim_queries import ClaimQueryService
+from apps.claims.services.claim_helpers import desktop_claim_list_payload
+from apps.claims.services.claim_upsert_service import ClaimUpsertService
 
 
 def protect_entry_page_response(view_func):
@@ -351,91 +355,19 @@ def claim_data(request):
 @never_cache
 @login_required
 def claim_list_api(request):
-    logged_emp = Employee.objects.filter(user=request.user).first()
-
-    claims = branch_scoped_queryset_for_user(Claim.objects.all(), request.user)
-
-    if (
-        not is_admin_user(request.user, logged_emp)
-        and logged_emp
-        and logged_emp.employee_type.upper() == "ADVISOR"
-    ):
-        claims = claims.filter(employee=logged_emp)
-
-    from_date = request.GET.get("from_date")
-    to_date = request.GET.get("to_date")
-    claim_status = request.GET.get("claim_status", "open").strip().lower()
-
-    if claim_status == "closed":
-        claims = claims.filter(claim_stage=ClaimStageCode.CLOSED)
-    elif claim_status != "all":
-        claims = claims.exclude(claim_stage=ClaimStageCode.CLOSED)
-
-    if from_date:
-        claims = claims.filter(created_at__date__gte=from_date)
-
-    if to_date:
-        claims = claims.filter(created_at__date__lte=to_date)
-
-    if request.GET.get("advisor_blank") == "1":
-        claims = claims.filter(employee__isnull=True)
-
-    if request.GET.get("advisor_assigned") == "1":
-        claims = claims.filter(employee__isnull=False)
-
-    claims = claims.select_related(
-        "vehicle",
-        "vehicle__model",
-        "vehicle__customer",
-        "surveyor",
-        "insurance_company",
-        "employee",
-        "jobcard"
+    claims = ClaimQueryService.filtered(
+        request.user,
+        branch_id=request.GET.get("branch"),
+        from_date=request.GET.get("from_date"),
+        to_date=request.GET.get("to_date"),
+        status=request.GET.get("claim_status", "open"),
+        advisor_blank=request.GET.get("advisor_blank") == "1",
+        advisor_assigned=request.GET.get("advisor_assigned") == "1",
     )
-
-    data = []
-
-    for claim in claims:
-        job = JobCard.objects.filter(claim=claim).first()
-
-        data.append({
-            "id": claim.id,
-            "claim_no": claim.claim_no,
-
-            "employee__name": claim.employee.name if claim.employee else "",
-
-            "vehicle__registration_no": claim.vehicle.registration_no if claim.vehicle else "",
-            "vehicle__model__name": claim.vehicle.model.name if claim.vehicle and claim.vehicle.model else "",
-            "vehicle__customer__name": claim.vehicle.customer.name if claim.vehicle and claim.vehicle.customer else "",
-            "vehicle__customer__mobile_no": claim.vehicle.customer.mobile_no if claim.vehicle and claim.vehicle.customer else "",
-            "insurance_company__ins_co_name": claim.insurance_company.ins_co_name if claim.insurance_company else "",
-
-            "surveyor__name": claim.surveyor.name if claim.surveyor else "",
-            "surveyor__mobile_no": claim.surveyor.mobile_no if claim.surveyor else "",
-
-            "policy_no": claim.policy_no,
-            "ic_claim_no": claim.ic_claim_no,
-            "claim_type": claim.claim_type,
-
-            "accident_date": claim.accident_date,
-            "intimation_date": claim.intimation_date,
-            "survey_date": claim.survey_date,
-            "survey_status": claim.survey_status,
-
-            "claim_stage": claim.claim_stage,
-            "claim_stage_name": claim.get_claim_stage_display(),
-            "status": claim.status,
-
-            "estimated_amount": claim.estimated_amount,
-            "approved_amount": claim.approved_amount,
-            "remarks": claim.remarks,
-            "created_at": claim.created_at,
-
-            "has_jobcard": True if job else False,
-            "jobcard_id": job.id if job else None,
-        })
-
-    return JsonResponse(data, safe=False)
+    return JsonResponse(
+        [desktop_claim_list_payload(claim) for claim in claims],
+        safe=False,
+    )
 
 
 
@@ -619,96 +551,17 @@ def claim_edit(request, pk=None):
                 return redirect("claim_edit", pk=obj.id if obj.id else pk)
 
             # =====================================
-            # AUTO ASSIGN ADVISOR
-            # =====================================
-
-            if logged_emp and logged_emp.employee_type == "Advisor":
-                obj.employee = logged_emp
-
-            # =====================================
-            # AUTO CLAIM NO
-            # =====================================
-
-            if not obj.branch_id:
-                if obj.employee_id and obj.employee.branch_id:
-                    obj.branch = obj.employee.branch
-                else:
-                    obj.branch = branch_for_user(request.user)
-
-            if not obj.claim_no:
-                obj.claim_no = next_claim_no(branch_for_claim(obj))
-
-            # =====================================
-            # STAGE LOGIC
-            # =====================================
-            has_liability_document = bool(
-                obj.liability_document
-                or (
-                    claim
-                    and claim.liability_document
-                    and not request.FILES.get("liability_document")
-                )
-            )
-
-            if (
-                    obj.liability_received_at
-                    and obj.liability_do_amount
-                    and obj.liability_do_amount > 0
-                    and has_liability_document
-            ):
-                if claim and claim.claim_stage >= ClaimStageCode.INVOICED:
-                    obj.claim_stage = claim.claim_stage
-                else:
-                    obj.claim_stage = ClaimStageCode.INVOICED
-            elif (
-                    obj.insurance_approval_date
-                    and obj.assessment_file
-            ):
-                obj.claim_stage = ClaimStageCode.INSURANCE_APPROVAL
-            elif (
-                    obj.survey_date
-                    and obj.surveyor
-            ):
-                obj.claim_stage = ClaimStageCode.SURVEY
-            elif (
-                    obj.intimation_date
-                    and obj.insurance_company
-                    and obj.policy_no
-            ):
-
-                obj.claim_stage = ClaimStageCode.INTIMATION
-
-            elif claim and claim.claim_stage >= ClaimStageCode.ESTIMATE_CREATED:
-
-                obj.claim_stage = claim.claim_stage
-
-            elif obj.employee:
-
-                obj.claim_stage = ClaimStageCode.ADVISOR_ASSIGNED
-
-            else:
-
-                obj.claim_stage = ClaimStageCode.CLAIM_CREATED
-
-            delivery_complete = (
-                obj.delivery_datetime
-                and obj.delivered_by
-                and obj.delivered_to
-                and (
-                    obj.delivered_to != "Drop By Driver"
-                    or obj.delivery_driver_name
-                )
-            )
-
-            if delivery_complete:
-                obj.claim_stage = ClaimStageCode.CLOSED
-                obj.status = "Closed"
-
-            # =====================================
-            # SAVE
+            # SHARED CREATE / UPDATE POLICY
             # =====================================
 
             is_new = obj.pk is None
+
+            # Shared create/update rules used by both desktop and Flutter.
+            ClaimUpsertService.prepare(
+                obj,
+                user=request.user,
+                previous_stage=old_stage,
+            )
 
             obj.save()
             jobcard = JobCard.objects.filter(claim=obj).first()
@@ -820,11 +673,11 @@ def claim_edit(request, pk=None):
                 notify_title = "New Claim Assigned"
                 notify_message = f"Claim {obj.claim_no} assigned to you"
                 whatsapp_result = send_advisor_assigned_whatsapp(obj)
-                if not whatsapp_result.get("success"):
+                if not get("success"):
                     messages.warning(
                         request,
                         "Claim saved, but WhatsApp advisor message was not sent: "
-                        + str(whatsapp_result.get("response", ""))[:180]
+                        + str(get("response", ""))[:180]
                     )
                 else:
                     messages.success(request, "WhatsApp advisor message sent to customer.")

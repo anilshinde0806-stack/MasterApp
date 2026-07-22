@@ -1,0 +1,36 @@
+<div class="card border-0 shadow-sm mb-3 text-white overflow-hidden"
+     style="background: linear-gradient(135deg, #1557b0, #263b80);">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="opacity-75 mb-1">{{ dashboard_greeting }}</div>
+                <h3 class="mb-1">{{ logged_emp.name }}</h3>
+                <div class="opacity-75">
+                    {{ logged_emp.designation|default:"Advisor" }}
+                    {% if logged_emp.branch %} · {{ logged_emp.branch.name }}{% endif %}
+                </div>
+            </div>
+            {% if advisor_dashboard.pending_actions.categories %}
+            <div class="d-flex flex-wrap gap-2 flex-grow-1 justify-content-center px-lg-3">
+                {% for action in advisor_dashboard.pending_actions.categories %}
+                <a href="{{ action.desktop_url }}"
+                   class="text-decoration-none text-white border border-light border-opacity-25 rounded-3 px-3 py-2"
+                   style="background: rgba(255,255,255,.12); min-width: 135px;">
+                    <div class="d-flex justify-content-between align-items-center gap-3">
+                        <small class="text-white-50">{{ action.title }}</small>
+                        <strong>{{ action.count }}</strong>
+                    </div>
+                    <small class="text-white">Open queue →</small>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="text-md-end">
+                <span class="badge bg-light text-primary px-3 py-2 mb-2">Advisor Dashboard</span>
+                <div class="small opacity-75">
+                    {{ filter_from_date }} to {{ filter_to_date }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

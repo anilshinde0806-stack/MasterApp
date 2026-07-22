@@ -1,0 +1,1 @@
+"""Job-card application module."""

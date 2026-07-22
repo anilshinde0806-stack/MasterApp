@@ -1,0 +1,8 @@
+class Actions:
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    APPROVE = "APPROVE"
+    CANCEL = "CANCEL"
+    REOPEN = "REOPEN"
+    CLOSE = "CLOSE"

@@ -1,33 +1,28 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
-
-from .views import (
-    MobileClaimListView,
+from .dashboardviews.branch import MobileBranchListView
+from .dashboardviews.dashboard import NewMobileDashboardView
+from apps.claims.api.views import (
+    ClaimSaveView,
     MobileClaimDetailView,
-    MobileClaimEntryOptionsView,
-    MobileClaimSaveView,
-    MobileClaimVehicleCheckView,
-    MobileCustomerListView,
-    MobileCustomerSaveView,
-    MobileCustomerSearchView,
-    MobileDashboardView,
-    MobileGateInEntryView,
-    MobileJobcardDetailView,
-    MobileJobcardActionLinksView,
-    MobileJobcardListView,
-    MobileJobcardSaveView,
-    MobileJobcardSignatureSaveView,
-    MobileJobcardVehiclePhotoUploadView,
+    MobileClaimListView,
+)
+from apps.accounts.api.views import (
     MobileLoginView,
     MobileMeView,
     MobileMenuView,
+    MobileProfilePhotoUploadView,
+)
+from apps.notifications.api.views import (
     MobileNotificationListView,
     MobileNotificationReadView,
-    MobileMyWorkActionView,
-    MobileMyWorkListView,
-    MobileNextClaimNoView,
-    MobileNextJobNoView,
-    MobileProfilePhotoUploadView,
+)
+from apps.customers.api.views import (
+    MobileCustomerListView,
+    MobileCustomerSaveView,
+    MobileCustomerSearchView,
+)
+from apps.vehicles.api.views import (
     MobileVehicleCreateView,
     MobileVehicleDetailView,
     MobileVehicleListView,
@@ -35,10 +30,35 @@ from .views import (
     MobileVehicleSaveView,
     MobileVehicleVariantCreateView,
     MobileVehicleSearchView,
-    MobileWorkAllocationView,
-    MobileRepairProgressView,
-
 )
+from apps.jobcards.api.views import (
+    MobileJobcardActionLinksView,
+    MobileJobcardDetailView,
+    MobileJobcardListView,
+    MobileJobcardSaveView,
+    MobileJobcardSignatureSaveView,
+    MobileJobcardVehiclePhotoUploadView,
+    MobileNextJobNoView,
+)
+from apps.workshop.api.views import (
+    MobileMyWorkActionView,
+    MobileMyWorkDetailView,
+    MobileMyWorkListView,
+    MobileMyWorkUpdateView,
+    MobileRepairProgressView,
+    MobileWorkAllocationView,
+    RepairProgressPhotoDeleteAPIView,
+    RepairProgressPhotoListAPIView,
+    RepairProgressPhotoUploadAPIView,
+)
+from .views import (
+    MobileClaimEntryOptionsView,
+    MobileClaimVehicleCheckView,
+    MobileDashboardView,
+    MobileGateInEntryView,
+    MobileNextClaimNoView,
+)
+
 
 urlpatterns = [
     path("login/", MobileLoginView.as_view(), name="mobile_login"),
@@ -52,13 +72,13 @@ urlpatterns = [
     path("gate-in/", MobileGateInEntryView.as_view(), name="mobile_gate_in"),
     path("gate-in/<int:pk>/", MobileGateInEntryView.as_view(), name="mobile_gate_in_update"),
     path("my-work/", MobileMyWorkListView.as_view(), name="mobile_my_work"),
-    path("my-work/<int:progress_id>/action/", MobileMyWorkActionView.as_view(), name="mobile_my_work_action"),
+    path("my-work/<int:progress_id>/action/",MobileMyWorkActionView.as_view(),name="mobile_my_work_action",),
     path("claims/", MobileClaimListView.as_view(), name="mobile_claims"),
     path("claims/<int:pk>/", MobileClaimDetailView.as_view(), name="mobile_claim_detail"),
     path("claims/next-no/", MobileNextClaimNoView.as_view(), name="mobile_claim_next_no"),
     path("claims/check-vehicle/", MobileClaimVehicleCheckView.as_view(), name="mobile_claim_check_vehicle"),
-    path("claims/save/", MobileClaimSaveView.as_view(), name="mobile_claim_save"),
-    path("claims/<int:pk>/save/", MobileClaimSaveView.as_view(), name="mobile_claim_update"),
+    path("claims/save/", ClaimSaveView.as_view(), name="mobile_claim_save"),
+    path("claims/<int:pk>/save/", ClaimSaveView.as_view(), name="mobile_claim_update"),
     path("claim-entry-options/", MobileClaimEntryOptionsView.as_view(), name="mobile_claim_entry_options"),
     path("customers/", MobileCustomerListView.as_view(), name="mobile_customers"),
     path("customers/search/", MobileCustomerSearchView.as_view(), name="mobile_customer_search"),
@@ -82,4 +102,33 @@ urlpatterns = [
     path("jobcards/<int:pk>/vehicle-condition-photos/", MobileJobcardVehiclePhotoUploadView.as_view(), name="mobile_jobcard_vehicle_condition_photo_upload"),
     path("jobcards/<int:pk>/allocation/",MobileWorkAllocationView.as_view(), name="MobileWorkAllocationView"),
     path("jobcards/<int:pk>/repair-progress/",MobileRepairProgressView.as_view(), name="MobileRepairProgressView"),
+    path("jobcards/<int:job_id>/repair-progress/photos/",RepairProgressPhotoListAPIView.as_view(),name="repair-progress-photos",),
+# Upload Photo
+    path("jobcards/<int:job_id>/repair-progress/photos/upload/",RepairProgressPhotoUploadAPIView.as_view(),name="repair-progress-photo-upload",),
+path(
+    "jobcards/<int:job_id>/repair-progress/photos/<int:photo_id>/",
+    RepairProgressPhotoDeleteAPIView.as_view(),
+    name="repair-progress-photo-delete",
+),
+path(
+    "my-work/<int:progress_id>/",
+    MobileMyWorkDetailView.as_view(),name="mobile-my-work-detail",
+),
+path(
+        "my-work/<int:progress_id>/update/",
+        MobileMyWorkUpdateView.as_view(),
+        name="mobile-my-work-update",
+    ),
+
+    path(
+        "newdashboard/",
+        NewMobileDashboardView.as_view(),
+        name="mobile-dashboard",
+    ),
+path(
+        "branches/",
+        MobileBranchListView.as_view(),
+        name="mobile-branches",
+    ),
+
 ]

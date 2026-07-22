@@ -1,0 +1,3 @@
+"""
+Shared application exceptions.
+"""

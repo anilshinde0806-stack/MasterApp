@@ -1,0 +1,2 @@
+"""Body Shop use cases."""
+

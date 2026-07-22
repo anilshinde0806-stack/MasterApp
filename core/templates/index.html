@@ -8,7 +8,11 @@ Dashboard
 
 <div class="container-fluid py-3">
 
-{% if dashboard_branch %}
+{% if advisor_dashboard %}
+{% include "dashboard/advisor_dashboard_header.html" %}
+{% endif %}
+
+{% if dashboard_branch and not advisor_dashboard %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
     <div>
         <h4 class="mb-0">Dashboard</h4>
@@ -85,6 +89,11 @@ Dashboard
 
             <div class="col-md-2">
                 <label class="form-label">Advisor</label>
+                {% if advisor_dashboard %}
+                <select class="form-select" disabled aria-label="Advisor fixed for this login">
+                    <option selected>{{ logged_emp.name }}</option>
+                </select>
+                {% else %}
                 <select class="form-select" name="advisor">
                     <option value="">All</option>
                     {% for advisor in advisor_options %}
@@ -94,6 +103,7 @@ Dashboard
                     </option>
                     {% endfor %}
                 </select>
+                {% endif %}
             </div>
 
             <div class="col-md-2">
@@ -110,6 +120,53 @@ Dashboard
 <!-- ===================================== -->
 
 {% if show_manager_dashboard %}
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong>Financial Overview</strong>
+        <small class="text-muted">Selected branch and date period</small>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Estimate</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.estimate|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Surveyor Approved</small>
+                <h5 class="mb-0 text-success">₹ {{ dashboard_financial.approved|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Liability / DO</small>
+                <h5 class="mb-0 text-success">₹ {{ dashboard_financial.liability|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Invoice</small>
+                <h5 class="mb-0 text-primary">₹ {{ dashboard_financial.invoice|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Recorded Collection</small>
+                <h5 class="mb-0 text-success">₹ {{ dashboard_financial.collection|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Outstanding</small>
+                <h5 class="mb-0 text-danger">₹ {{ dashboard_financial.outstanding|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Invoice Parts</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.parts|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Invoice Labour</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.labour|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Average Invoice</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.average_job_value|floatformat:2 }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="row g-3 mb-3">
 
@@ -292,7 +349,11 @@ Advisor Workload
 <!-- ADVISOR DASHBOARD -->
 <!-- ===================================== -->
 
-{% if logged_emp.employee_type == "Advisor" %}
+{% if advisor_dashboard %}
+{% include "dashboard/advisor_dashboard.html" %}
+{% endif %}
+
+{% if False %}
 
 <div class="row g-3">
 

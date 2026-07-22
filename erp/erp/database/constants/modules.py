@@ -1,0 +1,8 @@
+class Modules:
+    CLAIM = "CLAIM"
+    JOBCARD = "JOBCARD"
+    ESTIMATE = "ESTIMATE"
+    INVOICE = "INVOICE"
+    INVENTORY = "INVENTORY"
+    QC = "QC"
+    DELIVERY = "DELIVERY"

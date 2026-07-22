@@ -1185,10 +1185,27 @@ def jobcard_assessment_api(request, job_id):
 def save_jobcard_assessment(request, job_id):
     job = get_object_or_404(JobCard, id=job_id)
 
-    data = json.loads(request.body.decode("utf-8"))
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({
+            "status": "error",
+            "message": "Invalid assessment data. Please refresh and try again.",
+        }, status=400)
+
+    if not isinstance(data, dict):
+        return JsonResponse({
+            "status": "error",
+            "message": "Assessment data must be a JSON object.",
+        }, status=400)
 
     parts = data.get("parts", [])
     labours = data.get("labours", [])
+    if not isinstance(parts, list) or not isinstance(labours, list):
+        return JsonResponse({
+            "status": "error",
+            "message": "Assessment Parts and Labour must be lists.",
+        }, status=400)
     dms_job_no = str(data.get("job_no") or "").strip()
 
     if not parts and not labours:
