@@ -112,3 +112,6 @@ bodyshopflutter/ios/Pods/
 core.json
 rbac.json
 *.json.bak
+# Database exports
+core.json
+rbac.json
