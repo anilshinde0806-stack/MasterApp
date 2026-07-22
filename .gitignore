@@ -108,3 +108,7 @@ bodyshopflutter/ios/Pods/
 *.apk
 *.aab
 *.ipa
+# Database exports
+core.json
+rbac.json
+*.json.bak
