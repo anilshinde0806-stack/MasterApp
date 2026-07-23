@@ -70,7 +70,7 @@ docs/screenshots/dashboard.png
 docs/screenshots/claim-management.png
 ```
 
-![Claim Management](docs/screenshots/claim-management.png)
+![Claim Management](docs/screenshots/claim_list.png)
 
 ------------------------------------------------------------------------
 
