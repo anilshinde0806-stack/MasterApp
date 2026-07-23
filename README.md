@@ -33,7 +33,18 @@ final delivery.
 -   Flutter Mobile Application
 
 ------------------------------------------------------------------------
+## 📚 Documentation
 
+### Architecture
+
+- [System Architecture](docs/architecture/system-architecture.md)
+- [Insurance Claim Workflow](docs/architecture/claim-workflow.md)
+- [Job Card Workflow](docs/architecture/jobcard-workflow.md)
+- [RBAC Permission Flow](docs/architecture/rbac-flow.md)
+
+### API Documentation
+
+- [REST API Reference](docs/api/api-reference.md)
 ## 📸 Application Screenshots
 
 > Save all screenshots inside `docs/screenshots/` using the filenames
