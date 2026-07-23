@@ -32,64 +32,19 @@ final delivery.
 -   REST API
 -   Flutter Mobile Application
 
-  -----------------------------------------------------------------------
-  \## 📚 Documentation
-
-  \### Architecture
-
-  \- [System Architecture](docs/architecture/system-architecture.md) -
-  [Insurance Claim Workflow](docs/architecture/claim-workflow.md) - [Job
-  Card Workflow](docs/architecture/jobcard-workflow.md) - [RBAC
-  Permission Flow](docs/architecture/rbac-flow.md)
-
-  \### API Documentation
-
-  \- [REST API Reference](docs/api/api-reference.md)
-  -----------------------------------------------------------------------
-
-# 🏗️ System Architecture
-
-The following diagrams provide a high-level overview of the MasterApp
-architecture and workflows.
-
-## 1. System Architecture
-
-![System Architecture](docs/architecture/images/system-architecture.png)
-
 ------------------------------------------------------------------------
+## 📚 Documentation
 
-## 2. Insurance Claim Workflow
+### Architecture
 
-![Insurance Claim
-Workflow](docs/architecture/images/insurance-claim-workflow.png)
+- [System Architecture](docs/architecture/system-architecture.md)
+- [Insurance Claim Workflow](docs/architecture/claim-workflow.md)
+- [Job Card Workflow](docs/architecture/jobcard-workflow.md)
+- [RBAC Permission Flow](docs/architecture/rbac-flow.md)
 
-------------------------------------------------------------------------
+### API Documentation
 
-## 3. Job Card Workflow
-
-![Job Card Workflow](docs/architecture/images/jobcard-workflow.png)
-
-------------------------------------------------------------------------
-
-## 4. Role-Based Access Control (RBAC)
-
-![RBAC Flow](docs/architecture/images/rbac-flow.png)
-
-------------------------------------------------------------------------
-
-## 5. Flutter + Django Integration
-
-![Flutter Django
-Integration](docs/architecture/images/flutter-django-integration.png)
-
-------------------------------------------------------------------------
-
-## 6. Database ER Diagram
-
-![Database ER Diagram](docs/architecture/images/database-er-diagram.png)
-
-------------------------------------------------------------------------
-
+- [REST API Reference](docs/api/api-reference.md)
 ## 📸 Application Screenshots
 
 > Save all screenshots inside `docs/screenshots/` using the filenames
