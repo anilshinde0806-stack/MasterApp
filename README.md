@@ -167,7 +167,14 @@ docs/screenshots/repair-progress.png
 ```
 
 ![Repair Progress](docs/screenshots/repair-progress.png)
+------------------------------------------------------------------------
+### 🛠 Parts Requisition & Full Filled Process
 
+``` text
+docs/screenshots/repair-progress.png
+```
+
+![Repair Progress](docs/screenshots/part-process.png)
 ------------------------------------------------------------------------
 
 ### 📈 Body Shop Control Board
