@@ -174,7 +174,7 @@ docs/screenshots/repair-progress.png
 docs/screenshots/part-process.png
 ```
 
-![Repair Progress](docs/screenshots/part-process.png)
+![Part Process](docs/screenshots/part-process.png)
 ------------------------------------------------------------------------
 
 ### 📈 Body Shop Control Board
