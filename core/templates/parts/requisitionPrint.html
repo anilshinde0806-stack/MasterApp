@@ -1,0 +1,25 @@
+{% load static %}
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Part Requisition {{ requisition.requisition_no }}</title>
+<style>
+@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#eef1f4;font-family:Arial,sans-serif;color:#111}.toolbar{padding:10px;text-align:right;background:#fff}.sheet{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:16mm}.header{display:flex;justify-content:space-between;border-bottom:3px solid #164b68;padding-bottom:12px}.title{font-size:25px;font-weight:800;color:#164b68}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 30px;margin:20px 0}.label{font-size:11px;text-transform:uppercase;color:#687786}.value{font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse;margin-top:15px}th,td{border:1px solid #cbd5df;padding:8px;font-size:12px}th{background:#eaf1f5;text-align:left}.right{text-align:right}.footer{margin-top:45px;display:flex;justify-content:space-between}.sign{width:42%;border-top:1px solid #333;padding-top:7px;text-align:center}@media print{body{background:#fff}.toolbar{display:none}.sheet{margin:0;padding:12mm}}
+</style></head><body>
+<div class="toolbar"><button onclick="window.print()">Print</button></div>
+<div class="sheet">
+  <div class="header"><div><div class="title">PART REQUISITION</div><div>Workshop Parts Requirement</div></div><div class="right"><strong>{{ requisition.requisition_no }}</strong><br>{{ requisition.requested_at|date:"d-m-Y H:i" }}</div></div>
+  <div class="meta">
+    <div><div class="label">Job Card</div><div class="value">{{ job.job_no }}</div></div>
+    <div><div class="label">Vehicle</div><div class="value">{{ vehicle.registration_no|default:"-" }}</div></div>
+    <div><div class="label">Customer</div><div class="value">{{ vehicle.customer.name|default:"-" }}</div></div>
+    <div><div class="label">Model</div><div class="value">{{ vehicle.model.name|default:"-" }}</div></div>
+    <div><div class="label">Priority</div><div class="value">{{ requisition.priority }}</div></div>
+    <div><div class="label">Needed By</div><div class="value">{{ requisition.needed_by|date:"d-m-Y"|default:"Not specified" }}</div></div>
+  </div>
+  <table><thead><tr><th style="width:35px">Sr</th><th>Part No</th><th>Description</th><th>Unit</th><th class="right">Requested</th><th class="right">Fulfilled</th><th class="right">Pending</th></tr></thead><tbody>
+    {% for line in lines %}<tr><td>{{ forloop.counter }}</td><td>{{ line.part.item_code }}</td><td>{{ line.part.item_name }}</td><td>{{ line.part.unit }}</td><td class="right">{{ line.requested_qty }}</td><td class="right">{{ line.fulfilled_qty }}</td><td class="right">{{ line.pending_qty }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% if requisition.remarks %}<p><strong>Remarks:</strong> {{ requisition.remarks }}</p>{% endif %}
+  <div class="footer"><div class="sign">Requested By<br>{{ requisition.requested_by.get_full_name|default:requisition.requested_by.username }}</div><div class="sign">Parts Department</div></div>
+</div>
+<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),300));</script>
+</body></html>

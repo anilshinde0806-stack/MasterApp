@@ -1,163 +1,167 @@
 {% extends "registration/auth_base.html" %}
 
-{% block title %}New Parts Order{% endblock %}
+{% block title %}Create Parts Order{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+<style>
+    .order-shell { max-width: 1320px; margin: 0 auto; }
+    .order-heading { background: linear-gradient(120deg, #132a46, #1f5f78); color: white; border-radius: 18px; }
+    .order-card { border: 0; border-radius: 15px; box-shadow: 0 5px 18px rgba(25,42,70,.08); }
+    .section-number { width: 30px; height: 30px; display:inline-grid; place-items:center; border-radius:50%; background:#e1eef7; color:#18506e; font-weight:700; }
+    .line-number { width: 28px; color:#8090a0; text-align:center; }
+    .parts-table th { font-size:.72rem; text-transform:uppercase; color:#64748b; white-space:nowrap; }
+    .sticky-actions { position: sticky; bottom: 0; z-index: 5; background: rgba(248,250,252,.94); backdrop-filter: blur(8px); border-top:1px solid #e6ebef; }
+</style>
+
+<div class="container-fluid py-3 px-lg-4">
+<div class="order-shell">
+    <div class="order-heading p-4 mb-3 d-flex justify-content-between align-items-center gap-3">
         <div>
-            <h4 class="mb-0">New Parts Order</h4>
-            <small class="text-muted">Create order against a jobcard or advance vehicle registration.</small>
+            <div class="small text-uppercase opacity-75">Parts purchasing</div>
+            <h3 class="mb-1">Create New Order</h3>
+            <div class="opacity-75">Link the vehicle, enter supplier details and add all required parts.</div>
         </div>
-        <a class="btn btn-outline-secondary btn-sm" href="{% url 'part_order_list' %}">Back</a>
+        <a class="btn btn-light btn-sm px-3" href="{% url 'part_order_list' %}">Back to Tracking</a>
     </div>
 
     <form method="post" id="partOrderCreateForm">
         {% csrf_token %}
-
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white py-2">
-                <h6 class="mb-0">Order Header</h6>
-            </div>
-            <div class="card-body compact-form">
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <label>Job Card</label>
+        <div class="card order-card mb-3">
+            <div class="card-body p-4">
+                <h6 class="mb-3"><span class="section-number me-2">1</span> Order Against</h6>
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <label class="form-label">Job Card</label>
                         <select class="form-select" name="job_id" id="jobSelect">
-                            <option value="">Select jobcard</option>
+                            <option value="">Choose a job card</option>
                             {% for job in jobs %}
-                            <option value="{{ job.id }}">
-                                {{ job.job_no }}{% if job.claim and job.claim.vehicle %} | {{ job.claim.vehicle.registration_no }}{% endif %}
+                            <option value="{{ job.id }}" {% if prefill.job_id == job.id|stringformat:"s" %}selected{% endif %}>
+                                {{ job.job_no }}{% if job.claim and job.claim.vehicle %} — {{ job.claim.vehicle.registration_no }} — {{ job.claim.vehicle.customer.name }}{% endif %}
                             </option>
                             {% endfor %}
                         </select>
+                        <div class="form-text">Use this for parts required against an active repair job.</div>
                     </div>
-                    <div class="col-md-6">
-                        <label>Vehicle Registration No</label>
+                    <div class="col-lg-6">
+                        <label class="form-label">Advance Order by Vehicle</label>
                         <select class="form-select" name="vehicle_id" id="vehicleSelect">
-                            <option value="">Select vehicle for advance order</option>
+                            <option value="">Choose a vehicle</option>
                             {% for vehicle in vehicles %}
-                            <option value="{{ vehicle.id }}">
-                                {{ vehicle.registration_no }} | {{ vehicle.customer.name }}
-                            </option>
+                            <option value="{{ vehicle.id }}">{{ vehicle.registration_no }} — {{ vehicle.customer.name }}</option>
                             {% endfor %}
                         </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label>Order No</label>
-                        <input class="form-control" name="order_no">
-                    </div>
-                    <div class="col-md-3">
-                        <label>Order Date</label>
-                        <input class="form-control" name="order_date" type="date">
-                    </div>
-                    <div class="col-md-3">
-                        <label>Expected Date</label>
-                        <input class="form-control" name="expected_date" type="date">
-                    </div>
-                    <div class="col-md-3">
-                        <label>Supplier</label>
-                        <input class="form-control" name="supplier">
-                    </div>
-                    <div class="col-12">
-                        <label>Remarks</label>
-                        <textarea class="form-control" name="remarks" rows="2"></textarea>
+                        <div class="form-text">Use this only when a job card has not been opened yet.</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Part Lines</h6>
-                <button class="btn btn-sm btn-outline-primary" type="button" onclick="addPartOrderLine()">Add Line</button>
+        <div class="card order-card mb-3">
+            <div class="card-body p-4">
+                <h6 class="mb-3"><span class="section-number me-2">2</span> Purchase Details</h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Order Number</label>
+                        <input class="form-control" name="order_no" placeholder="Auto-generated if blank">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Order Date</label>
+                        <input class="form-control" name="order_date" type="date" value="{{ today|date:'Y-m-d' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Delivery</label>
+                        <input class="form-control" name="expected_date" type="date">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Supplier</label>
+                        <input class="form-control" name="supplier" value="{{ prefill.supplier }}" placeholder="Supplier / vendor name">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Order Notes</label>
+                        <textarea class="form-control" name="remarks" rows="2" placeholder="Delivery instructions, contact details or internal notes"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card order-card mb-3">
+            <div class="card-header bg-white border-0 p-4 pb-2 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><span class="section-number me-2">3</span> Parts Required</h6>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="addPartOrderLine()">+ Add Part</button>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm table-bordered align-middle mb-0" id="partOrderLineTable">
-                    <thead class="table-light">
-                    <tr>
-                        <th style="width:170px">Part No</th>
-                        <th>Part Description</th>
-                        <th style="width:120px">Qty</th>
-                        <th style="width:70px">Action</th>
-                    </tr>
-                    </thead>
+                <table class="table parts-table align-middle mb-0" id="partOrderLineTable">
+                    <thead class="table-light"><tr><th>#</th><th style="min-width:180px">Part No</th><th style="min-width:320px">Description</th><th style="width:130px">Quantity</th><th style="width:85px"></th></tr></thead>
                     <tbody>
                     <tr>
-                        <td><input class="form-control form-control-sm part-no" name="part_no[]" required></td>
-                        <td><input class="form-control form-control-sm part-desc" name="part_desc[]" required></td>
-                        <td><input class="form-control form-control-sm text-end part-qty" name="qty[]" type="number" min="0.01" step="0.01" required></td>
-                        <td><button class="btn btn-sm btn-outline-danger" type="button" onclick="removePartOrderLine(this)">Delete</button></td>
+                        <td class="line-number">1</td>
+                        <td><input class="form-control form-control-sm part-no" name="part_no[]" required placeholder="Enter part no" value="{{ prefill.part_no }}"></td>
+                        <td><input class="form-control form-control-sm part-desc" name="part_desc[]" required placeholder="Part description" value="{{ prefill.part_desc }}"></td>
+                        <td><input class="form-control form-control-sm text-end part-qty" name="qty[]" type="number" min="0.01" step="0.01" value="{{ prefill.qty|default:'1' }}" required></td>
+                        <td><button class="btn btn-sm btn-link text-danger text-decoration-none" type="button" onclick="removePartOrderLine(this)">Remove</button></td>
                     </tr>
                     </tbody>
+                    <tfoot><tr><td colspan="5" class="text-end small text-muted px-4 py-3"><span id="lineCount">1</span> line · Total quantity <strong id="totalQty">1.00</strong></td></tr></tfoot>
                 </table>
             </div>
         </div>
 
-        <div class="text-end mt-3">
-            <button class="btn btn-outline-primary px-4"
-                    name="print_after_save"
-                    value="1"
-                    type="submit">
-                Save & Print
-            </button>
-            <button class="btn btn-success px-4" type="submit">Save Parts Order</button>
+        <div class="sticky-actions py-3 d-flex justify-content-between align-items-center">
+            <span class="small text-muted">The order starts as Pending and can be updated from Tracking.</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary px-4" name="print_after_save" value="1" type="submit">Save & Print</button>
+                <button class="btn btn-success px-4" type="submit">Create Order</button>
+            </div>
         </div>
     </form>
 </div>
+</div>
 
 <script>
-function addPartOrderLine() {
-    const tbody = document.querySelector("#partOrderLineTable tbody");
-    tbody.insertAdjacentHTML("beforeend", `
-        <tr>
-            <td><input class="form-control form-control-sm part-no" name="part_no[]" required></td>
-            <td><input class="form-control form-control-sm part-desc" name="part_desc[]" required></td>
-            <td><input class="form-control form-control-sm text-end part-qty" name="qty[]" type="number" min="0.01" step="0.01" required></td>
-            <td><button class="btn btn-sm btn-outline-danger" type="button" onclick="removePartOrderLine(this)">Delete</button></td>
-        </tr>
-    `);
+function updateLineSummary() {
+    const rows = document.querySelectorAll("#partOrderLineTable tbody tr");
+    let total = 0;
+    rows.forEach((row, index) => {
+        row.querySelector(".line-number").textContent = index + 1;
+        total += Number(row.querySelector(".part-qty").value || 0);
+    });
+    document.getElementById("lineCount").textContent = rows.length;
+    document.getElementById("totalQty").textContent = total.toFixed(2);
 }
-
+function addPartOrderLine() {
+    document.querySelector("#partOrderLineTable tbody").insertAdjacentHTML("beforeend", `
+        <tr><td class="line-number"></td>
+        <td><input class="form-control form-control-sm part-no" name="part_no[]" required placeholder="Enter part no"></td>
+        <td><input class="form-control form-control-sm part-desc" name="part_desc[]" required placeholder="Part description"></td>
+        <td><input class="form-control form-control-sm text-end part-qty" name="qty[]" type="number" min="0.01" step="0.01" value="1" required></td>
+        <td><button class="btn btn-sm btn-link text-danger text-decoration-none" type="button" onclick="removePartOrderLine(this)">Remove</button></td></tr>`);
+    updateLineSummary();
+}
 function removePartOrderLine(button) {
     const tbody = document.querySelector("#partOrderLineTable tbody");
-    if (tbody.rows.length === 1) return;
-    button.closest("tr").remove();
+    if (tbody.rows.length === 1) { tbody.rows[0].querySelectorAll("input").forEach(input => input.value = input.classList.contains("part-qty") ? "1" : ""); }
+    else button.closest("tr").remove();
+    updateLineSummary();
 }
-
-document.getElementById("jobSelect").addEventListener("change", function () {
-    if (this.value) {
-        document.getElementById("vehicleSelect").value = "";
-    }
+document.getElementById("jobSelect").addEventListener("change", function () { if (this.value) document.getElementById("vehicleSelect").value = ""; });
+document.getElementById("vehicleSelect").addEventListener("change", function () { if (this.value) document.getElementById("jobSelect").value = ""; });
+document.getElementById("partOrderLineTable").addEventListener("input", updateLineSummary);
+document.getElementById("partOrderLineTable").addEventListener("focusout", function (event) {
+    if (!event.target.classList.contains("part-no") || !event.target.value.trim()) return;
+    const row = event.target.closest("tr");
+    if (row.querySelector(".part-desc").value.trim()) return;
+    fetch("{% url 'part_lookup' %}?item_code=" + encodeURIComponent(event.target.value.trim()))
+        .then(response => response.json()).then(data => {
+            if (data.status === "success") row.querySelector(".part-desc").value = data.description;
+        });
 });
-
-document.getElementById("vehicleSelect").addEventListener("change", function () {
-    if (this.value) {
-        document.getElementById("jobSelect").value = "";
-    }
-});
-
 document.getElementById("partOrderCreateForm").addEventListener("submit", function (event) {
-    const jobSelected = document.getElementById("jobSelect").value;
-    const vehicleSelected = document.getElementById("vehicleSelect").value;
-
-    if (!jobSelected && !vehicleSelected) {
-        event.preventDefault();
-        alert("Select Job Card or Vehicle Registration No.");
-        return;
+    if (!document.getElementById("jobSelect").value && !document.getElementById("vehicleSelect").value) {
+        event.preventDefault(); alert("Select a job card or an advance-order vehicle."); return;
     }
-
-    const validLine = Array.from(document.querySelectorAll("#partOrderLineTable tbody tr")).some(row => {
-        const partNo = row.querySelector(".part-no").value.trim();
-        const desc = row.querySelector(".part-desc").value.trim();
-        const qty = Number(row.querySelector(".part-qty").value || 0);
-        return partNo && desc && qty > 0;
-    });
-
-    if (!validLine) {
-        event.preventDefault();
-        alert("Enter at least one valid part line.");
-    }
+    const valid = Array.from(document.querySelectorAll("#partOrderLineTable tbody tr")).some(row =>
+        row.querySelector(".part-no").value.trim() && row.querySelector(".part-desc").value.trim() && Number(row.querySelector(".part-qty").value) > 0);
+    if (!valid) { event.preventDefault(); alert("Add at least one valid part line."); }
 });
 </script>
 {% endblock %}

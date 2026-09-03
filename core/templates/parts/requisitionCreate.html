@@ -1,0 +1,353 @@
+{% extends "registration/auth_base.html" %}
+{% block title %}New Part Requisition{% endblock %}
+{% block content %}
+<div class="container-fluid py-4" style="max-width:1250px">
+  <div class="d-flex justify-content-between mb-3"><div><h3 class="mb-1">New Part Requisition</h3><div class="text-muted">Request parts from inventory against a job card.</div></div><a class="btn btn-outline-secondary align-self-center" href="{% url 'part_requisition_list' %}">Back</a></div>
+  <form method="post" id="reqForm">{% csrf_token %}
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-4"><div class="row g-3">
+      <div class="col-lg-6"><label class="form-label">Job Card *</label><select class="form-select" name="job_id" required><option value="">Select job card</option>{% for job in jobs %}<option value="{{ job.id }}">{{ job.job_no }}{% if job.claim.vehicle %} — {{ job.claim.vehicle.registration_no }} — {{ job.claim.vehicle.customer.name }}{% endif %}</option>{% endfor %}</select></div>
+      <div class="col-md-3">
+        <label class="form-label">Needed By</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="fa-regular fa-calendar"></i></span>
+          <input class="form-control" type="text" id="neededByDisplay" placeholder="DD-MM-YYYY" inputmode="numeric" maxlength="10">
+          <input type="hidden" name="needed_by" id="neededByValue">
+          <button class="btn btn-outline-secondary" type="button" id="neededByPickerButton" title="Choose date"><i class="fa-solid fa-calendar-days"></i></button>
+          <input type="date" id="neededByPicker" class="position-absolute opacity-0 pe-none" tabindex="-1">
+        </div>
+        <div class="form-text">Format: DD-MM-YYYY</div>
+      </div>
+      <div class="col-md-3"><label class="form-label">Priority</label><select class="form-select" name="priority">{% for value,label in priorities %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-12"><label class="form-label">Remarks</label><textarea class="form-control" name="remarks" rows="2"></textarea></div>
+    </div></div></div>
+    <div class="card border-0 shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center py-3"><div><strong>Requested Parts</strong><br><small class="text-muted">Type a part number and leave the field to fetch master details.</small></div><button type="button" class="btn btn-sm btn-outline-primary" onclick="addLine()">+ Add Part</button></div><div class="table-responsive"><table class="table align-middle mb-0" id="lineTable"><thead class="table-light"><tr><th style="min-width:170px">Part No</th><th style="min-width:270px">Description</th><th style="width:85px">Unit</th><th style="width:115px" class="text-end">Rate</th><th style="width:115px" class="text-end">Stock</th><th style="width:120px">Quantity</th><th style="min-width:180px">Remarks</th><th style="width:70px"></th></tr></thead><tbody></tbody></table></div></div>
+    <div class="text-end mt-3"><button class="btn btn-success px-4">Submit Requisition</button></div>
+  </form>
+</div>
+<template id="lineTemplate"><tr>
+  <td><input type="hidden" name="part_id[]" class="part-id"><input class="form-control part-no" autocomplete="off" required placeholder="Type at least 3 characters"><div class="small lookup-message mt-1"></div></td>
+  <td><input class="form-control part-description" readonly tabindex="-1"></td>
+  <td><input class="form-control part-unit" readonly tabindex="-1"></td>
+  <td><input class="form-control text-end part-rate" readonly tabindex="-1"></td>
+  <td><input class="form-control text-end part-stock" readonly tabindex="-1"></td>
+  <td><input class="form-control text-end" name="quantity[]" type="number" min=".01" step=".01" value="1" required></td>
+  <td><input class="form-control" name="line_remarks[]"></td>
+  <td><button type="button" class="btn btn-sm btn-link text-danger" onclick="this.closest('tr').remove()">Remove</button></td>
+</tr></template>
+
+<div class="modal fade" id="quickPartModal" tabindex="-1">
+  <div class="modal-dialog"><form class="modal-content" id="quickPartForm">
+    <div class="modal-header"><div><h5 class="modal-title">Add Part to Master</h5><small class="text-muted">This part number was not found.</small></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="alert alert-danger d-none" id="quickPartError"></div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">Part Number *</label><input class="form-control" id="quickPartNo" required readonly></div>
+        <div class="col-md-6"><label class="form-label">Unit</label><select class="form-select" id="quickPartUnit">{% for value,label in unit_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-12"><label class="form-label">Description *</label><input class="form-control" id="quickPartDescription" required></div>
+        <div class="col-md-6"><label class="form-label">Category / Model</label><input class="form-control" id="quickPartCategory"></div>
+        <div class="col-md-6"><label class="form-label">Manufacturer</label><input class="form-control" id="quickPartManufacturer"></div>
+        <div class="col-md-6"><label class="form-label">Rate</label><input class="form-control text-end" id="quickPartRate" type="number" min="0" step=".01" value="0"></div>
+        <div class="col-md-6"><label class="form-label">GST %</label><input class="form-control text-end" id="quickPartGst" type="number" min="0" max="100" step=".01" value="0"></div>
+        <div class="col-md-8"><label class="form-label">Preferred Supplier</label><input class="form-control" id="quickPartSupplier"></div>
+        <div class="col-md-4"><label class="form-label">Reorder Level</label><input class="form-control text-end" id="quickPartReorder" type="number" min="0" step=".01" value="0"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" id="quickPartSave">Add & Use Part</button></div>
+  </form></div>
+</div>
+
+<div class="modal fade" id="stockAlertModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><div><h5 class="modal-title text-warning">Stock Attention Required</h5><small class="text-muted" id="stockAlertPart"></small></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="row g-2 text-center mb-3">
+        <div class="col-4"><div class="border rounded p-2"><small class="text-muted d-block">In Stock</small><strong id="alertStock">0</strong></div></div>
+        <div class="col-4"><div class="border rounded p-2"><small class="text-muted d-block">Pending Requests</small><strong id="alertPending">0</strong></div></div>
+        <div class="col-4"><div class="border rounded p-2"><small class="text-muted d-block">Already Ordered</small><strong id="alertOrdered">0</strong></div></div>
+      </div>
+      <div class="alert alert-warning mb-0" id="stockAlertMessage"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Continue Requisition</button>
+      <button type="button" class="btn btn-primary" id="createOrderFromAlert">Create Parts Order</button>
+    </div>
+  </div></div>
+</div>
+
+<script>
+let activeLookupRow = null;
+let quickPartModal = null;
+let stockAlertModal = null;
+let alertPartData = null;
+const searchTimers = new WeakMap();
+let activeSearchInput = null;
+const suggestionPanel = document.createElement("div");
+suggestionPanel.className = "list-group position-fixed shadow d-none";
+suggestionPanel.style.cssText = "z-index:2000;max-height:300px;overflow:auto;min-width:360px;max-width:min(620px,calc(100vw - 24px));";
+document.body.appendChild(suggestionPanel);
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  })[char]);
+}
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  return parts.length === 2 ? parts.pop().split(";").shift() : "";
+}
+function clearPartRow(row) {
+  row.querySelector(".part-id").value = "";
+  row.querySelector(".part-description").value = "";
+  row.querySelector(".part-unit").value = "";
+  row.querySelector(".part-rate").value = "";
+  row.querySelector(".part-stock").value = "";
+}
+function fillPartRow(row, part) {
+  row.querySelector(".part-id").value = part.id;
+  row.querySelector(".part-no").value = part.part_no;
+  row.querySelector(".part-description").value = part.description;
+  row.querySelector(".part-unit").value = part.unit;
+  row.querySelector(".part-rate").value = Number(part.rate || 0).toFixed(2);
+  row.querySelector(".part-stock").value = `${part.current_stock} ${part.unit}`;
+  const message = row.querySelector(".lookup-message");
+  const pending = Number(part.pending_requisition_qty || 0);
+  const ordered = Number(part.on_order_qty || 0);
+  message.className = "small lookup-message mt-1 " + (pending > 0 || ordered > 0 ? "text-warning" : "text-success");
+  message.textContent = `Stock ${part.current_stock} ${part.unit} · Pending req ${pending} · On order ${ordered}`;
+}
+function showStockAlert(row, part) {
+  alertPartData = {row, part};
+  document.getElementById("stockAlertPart").textContent = `${part.part_no} — ${part.description}`;
+  document.getElementById("alertStock").textContent = `${part.current_stock} ${part.unit}`;
+  document.getElementById("alertPending").textContent = `${part.pending_requisition_qty || 0} ${part.unit}`;
+  document.getElementById("alertOrdered").textContent = `${part.on_order_qty || 0} ${part.unit}`;
+  const hasOrder = Number(part.on_order_qty || 0) > 0;
+  document.getElementById("stockAlertMessage").textContent = hasOrder
+    ? "Available stock cannot cover current demand, but a purchase order is already open. Review existing order quantity before creating another order."
+    : "Available stock cannot cover current demand. Continue this requisition to record demand, or create a purchase order now.";
+  document.getElementById("createOrderFromAlert").textContent = hasOrder ? "Create Another Order" : "Create Parts Order";
+  stockAlertModal.show();
+}
+function lookupPart(input) {
+  const row = input.closest("tr");
+  const partNo = input.value.trim().toUpperCase();
+  input.value = partNo;
+  clearPartRow(row);
+  if (!partNo) return;
+  const message = row.querySelector(".lookup-message");
+  message.className = "small lookup-message mt-1 text-muted";
+  message.textContent = "Searching...";
+  fetch("{% url 'part_lookup' %}?item_code=" + encodeURIComponent(partNo))
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "success") {
+        const partData = {
+          id: data.id,
+          part_no: partNo,
+          description: data.description,
+          unit: data.unit,
+          rate: data.rate,
+          current_stock: data.current_stock,
+          pending_requisition_qty: data.pending_requisition_qty,
+          on_order_qty: data.on_order_qty,
+          available_after_pending: data.available_after_pending
+        };
+        fillPartRow(row, partData);
+        if (data.is_out_of_stock || Number(data.available_after_pending) <= 0) {
+          showStockAlert(row, partData);
+        }
+        return;
+      }
+      if (data.inactive) {
+        message.className = "small lookup-message mt-1 text-danger";
+        message.textContent = data.message;
+        return;
+      }
+      message.className = "small lookup-message mt-1 text-danger";
+      message.textContent = "Not found — add to Part Master";
+      activeLookupRow = row;
+      document.getElementById("quickPartNo").value = partNo;
+      document.getElementById("quickPartDescription").value = "";
+      document.getElementById("quickPartError").classList.add("d-none");
+      quickPartModal.show();
+      setTimeout(() => document.getElementById("quickPartDescription").focus(), 300);
+    });
+}
+function searchParts(input) {
+  const row = input.closest("tr");
+  const query = input.value.trim();
+  clearPartRow(row);
+  row.querySelector(".lookup-message").textContent = "";
+  if (query.length < 3) {
+    suggestionPanel.classList.add("d-none");
+    suggestionPanel.innerHTML = "";
+    return;
+  }
+  activeSearchInput = input;
+  positionSuggestionPanel();
+  suggestionPanel.innerHTML = '<div class="list-group-item small text-muted">Searching...</div>';
+  suggestionPanel.classList.remove("d-none");
+  fetch("{% url 'part_master_search' %}?q=" + encodeURIComponent(query))
+    .then(response => response.json())
+    .then(data => {
+      if (activeSearchInput !== input || input.value.trim() !== query) return;
+      if (!data.results.length) {
+        suggestionPanel.innerHTML = '<div class="list-group-item small text-muted">No matching active parts</div>';
+        return;
+      }
+      suggestionPanel.innerHTML = data.results.map(part => `
+        <button type="button" class="list-group-item list-group-item-action part-suggestion"
+          data-part-no="${escapeHtml(part.part_no)}">
+          <div class="d-flex justify-content-between gap-2">
+            <div><strong>${escapeHtml(part.part_no)}</strong><br><small>${escapeHtml(part.description)}</small></div>
+            <div class="text-end"><small>Stock ${escapeHtml(part.current_stock)} ${escapeHtml(part.unit)}</small><br><small>₹${Number(part.rate).toFixed(2)}</small></div>
+          </div>
+        </button>`).join("");
+    });
+}
+function positionSuggestionPanel() {
+  if (!activeSearchInput) return;
+  const rect = activeSearchInput.getBoundingClientRect();
+  suggestionPanel.style.left = `${Math.max(12, rect.left)}px`;
+  suggestionPanel.style.top = `${rect.bottom + 3}px`;
+  suggestionPanel.style.width = `${Math.max(360, rect.width)}px`;
+}
+function addLine() {
+  document.querySelector("#lineTable tbody").append(document.getElementById("lineTemplate").content.cloneNode(true));
+}
+document.addEventListener("DOMContentLoaded", function () {
+  quickPartModal = new bootstrap.Modal(document.getElementById("quickPartModal"));
+  stockAlertModal = new bootstrap.Modal(document.getElementById("stockAlertModal"));
+  addLine();
+});
+document.getElementById("createOrderFromAlert").addEventListener("click", function () {
+  if (!alertPartData) return;
+  const jobId = document.querySelector("[name='job_id']").value;
+  const row = alertPartData.row;
+  const part = alertPartData.part;
+  const qty = row.querySelector("[name='quantity[]']").value || "1";
+  const params = new URLSearchParams({
+    job_id: jobId,
+    part_no: part.part_no,
+    part_desc: part.description,
+    qty: qty
+  });
+  window.open("{% url 'part_order_create' %}?" + params.toString(), "_blank");
+  stockAlertModal.hide();
+});
+document.getElementById("lineTable").addEventListener("focusout", function (event) {
+  if (event.target.classList.contains("part-no")) {
+    const input = event.target;
+    setTimeout(() => {
+      suggestionPanel.classList.add("d-none");
+      if (!input.closest("tr").querySelector(".part-id").value) lookupPart(input);
+    }, 180);
+  }
+});
+document.getElementById("lineTable").addEventListener("input", function (event) {
+  if (!event.target.classList.contains("part-no")) return;
+  const input = event.target;
+  clearTimeout(searchTimers.get(input));
+  searchTimers.set(input, setTimeout(() => searchParts(input), 280));
+});
+suggestionPanel.addEventListener("mousedown", function (event) {
+  const option = event.target.closest(".part-suggestion");
+  if (!option) return;
+  event.preventDefault();
+  const input = activeSearchInput;
+  const row = input.closest("tr");
+  input.value = option.dataset.partNo;
+  suggestionPanel.classList.add("d-none");
+  lookupPart(input);
+});
+window.addEventListener("resize", positionSuggestionPanel);
+window.addEventListener("scroll", () => suggestionPanel.classList.add("d-none"), true);
+
+const neededDisplay = document.getElementById("neededByDisplay");
+const neededValue = document.getElementById("neededByValue");
+const neededPicker = document.getElementById("neededByPicker");
+function applyNeededDate(isoDate) {
+  if (!isoDate) {
+    neededDisplay.value = "";
+    neededValue.value = "";
+    return;
+  }
+  const [year, month, day] = isoDate.split("-");
+  neededDisplay.value = `${day}-${month}-${year}`;
+  neededValue.value = isoDate;
+}
+neededPicker.addEventListener("change", () => applyNeededDate(neededPicker.value));
+document.getElementById("neededByPickerButton").addEventListener("click", () => {
+  if (neededPicker.showPicker) neededPicker.showPicker();
+  else neededPicker.click();
+});
+neededDisplay.addEventListener("input", function () {
+  let digits = this.value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 4) digits = `${digits.slice(0,2)}-${digits.slice(2,4)}-${digits.slice(4)}`;
+  else if (digits.length > 2) digits = `${digits.slice(0,2)}-${digits.slice(2)}`;
+  this.value = digits;
+  neededValue.value = "";
+  if (/^\d{2}-\d{2}-\d{4}$/.test(digits)) {
+    const [day, month, year] = digits.split("-");
+    const iso = `${year}-${month}-${day}`;
+    const parsed = new Date(`${iso}T00:00:00`);
+    if (parsed.getFullYear() === Number(year) && parsed.getMonth() + 1 === Number(month) && parsed.getDate() === Number(day)) {
+      neededValue.value = iso;
+      neededPicker.value = iso;
+    }
+  }
+});
+document.getElementById("quickPartForm").addEventListener("submit", function (event) {
+  event.preventDefault();
+  const button = document.getElementById("quickPartSave");
+  const errorBox = document.getElementById("quickPartError");
+  button.disabled = true;
+  fetch("{% url 'part_master_quick_add' %}", {
+    method: "POST",
+    headers: {"Content-Type":"application/json","X-CSRFToken":getCookie("csrftoken")},
+    body: JSON.stringify({
+      part_no: document.getElementById("quickPartNo").value,
+      description: document.getElementById("quickPartDescription").value,
+      category: document.getElementById("quickPartCategory").value,
+      unit: document.getElementById("quickPartUnit").value,
+      manufacturer: document.getElementById("quickPartManufacturer").value,
+      rate: document.getElementById("quickPartRate").value,
+      gst_percent: document.getElementById("quickPartGst").value,
+      preferred_supplier: document.getElementById("quickPartSupplier").value,
+      reorder_level: document.getElementById("quickPartReorder").value
+    })
+  }).then(async response => {
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Unable to add part.");
+    return data;
+  }).then(data => {
+    fillPartRow(activeLookupRow, data.part);
+    const createdRow = activeLookupRow;
+    quickPartModal.hide();
+    activeLookupRow = null;
+    this.reset();
+    if (Number(data.part.current_stock) <= 0) {
+      setTimeout(() => showStockAlert(createdRow, data.part), 350);
+    }
+  }).catch(error => {
+    errorBox.textContent = error.message;
+    errorBox.classList.remove("d-none");
+  }).finally(() => button.disabled = false);
+});
+document.getElementById("reqForm").addEventListener("submit", function (event) {
+  if (neededDisplay.value && !neededValue.value) {
+    event.preventDefault();
+    alert("Enter Needed By date in DD-MM-YYYY format.");
+    neededDisplay.focus();
+    return;
+  }
+  const unresolved = Array.from(document.querySelectorAll("#lineTable tbody tr")).some(
+    row => !row.querySelector(".part-id").value
+  );
+  if (unresolved) {
+    event.preventDefault();
+    alert("Fetch or add every entered part number before submitting.");
+  }
+});
+</script>
+{% endblock %}

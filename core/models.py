@@ -1,20 +1,194 @@
-from decimal import Decimal
-from typing import Any
-
+from decimal import Decimal,InvalidOperation
+from django.conf import settings
+from django.db import models
 from django.core.validators import RegexValidator
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
 class ItemData(models.Model):
+    UNIT_CHOICES = [
+        ("Nos", "Nos"),
+        ("Set", "Set"),
+        ("Pair", "Pair"),
+        ("Litre", "Litre"),
+        ("Kg", "Kg"),
+        ("Metre", "Metre"),
+    ]
+
     item_code = models.CharField(max_length=50, unique=True)
     item_name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, blank=True, null=True)
     rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=20, default="Active")
+    unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default="Nos")
+    manufacturer = models.CharField(max_length=120, blank=True)
+    hsn_code = models.CharField(max_length=20, blank=True)
+    gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    preferred_supplier = models.CharField(max_length=150, blank=True)
+    bin_location = models.CharField(max_length=80, blank=True)
+    current_stock = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    reorder_level = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     def __str__(self):
         return self.item_name
+
+    @property
+    def needs_reorder(self):
+        return (
+            self.status == "Active"
+            and self.reorder_level > 0
+            and self.current_stock <= self.reorder_level
+        )
+
+
+class PartStockTransaction(models.Model):
+    TRANSACTION_CHOICES = [
+        ("Opening", "Opening Stock"),
+        ("Receipt", "Stock Receipt"),
+        ("Issue", "Stock Issue"),
+        ("Return", "Stock Return"),
+        ("Adjustment", "Stock Adjustment"),
+    ]
+
+    part = models.ForeignKey(
+        ItemData,
+        on_delete=models.PROTECT,
+        related_name="stock_transactions",
+    )
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_CHOICES,
+        default="Adjustment",
+    )
+    quantity_change = models.DecimalField(max_digits=12, decimal_places=2)
+    balance_after = models.DecimalField(max_digits=12, decimal_places=2)
+    reference = models.CharField(max_length=100, blank=True)
+    remarks = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="part_stock_transactions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.part.item_code}: {self.quantity_change}"
+
+
+class PartRequisition(models.Model):
+    STATUS_CHOICES = [
+        ("Submitted", "Submitted"),
+        ("Partially Fulfilled", "Partially Fulfilled"),
+        ("Fulfilled", "Fulfilled"),
+        ("Cancelled", "Cancelled"),
+    ]
+    PRIORITY_CHOICES = [
+        ("Normal", "Normal"),
+        ("Urgent", "Urgent"),
+        ("Vehicle Hold", "Vehicle Hold"),
+    ]
+
+    requisition_no = models.CharField(max_length=40, unique=True, blank=True)
+    job = models.ForeignKey(
+        "JobCard",
+        on_delete=models.PROTECT,
+        related_name="part_requisitions",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="part_requisitions_requested",
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    needed_by = models.DateField(null=True, blank=True)
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default="Normal",
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default="Submitted",
+    )
+    remarks = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-requested_at", "-id"]
+
+    def __str__(self):
+        return self.requisition_no or f"Requisition #{self.id}"
+
+
+class PartRequisitionLine(models.Model):
+    requisition = models.ForeignKey(
+        PartRequisition,
+        on_delete=models.CASCADE,
+        related_name="lines",
+    )
+    part = models.ForeignKey(
+        ItemData,
+        on_delete=models.PROTECT,
+        related_name="requisition_lines",
+    )
+    estimated_part = models.ForeignKey(
+        "JobCardPart",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="requisition_lines",
+    )
+    requested_qty = models.DecimalField(max_digits=12, decimal_places=2)
+    fulfilled_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    remarks = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["requisition", "part"],
+                name="unique_part_per_requisition",
+            )
+        ]
+
+    @property
+    def pending_qty(self):
+        return max(self.requested_qty - self.fulfilled_qty, Decimal("0"))
+
+
+class PartRequisitionFulfillment(models.Model):
+    line = models.ForeignKey(
+        PartRequisitionLine,
+        on_delete=models.PROTECT,
+        related_name="fulfillments",
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    stock_transaction = models.OneToOneField(
+        PartStockTransaction,
+        on_delete=models.PROTECT,
+        related_name="requisition_fulfillment",
+    )
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="part_requisition_fulfillments",
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    remarks = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["-issued_at", "-id"]
 
 
 
@@ -133,6 +307,12 @@ class Vehicle(models.Model):
     policy_no = models.CharField(max_length=100, blank=True)
     policy_start_date = models.DateField(null=True, blank=True)
     policy_end_date = models.DateField(null=True, blank=True)
+    rc_document = models.FileField(upload_to="vehicle_documents/rc/", null=True, blank=True)
+    insurance_policy_document = models.FileField(upload_to="vehicle_documents/insurance/", null=True, blank=True)
+    primary_driver = models.ForeignKey(
+        "DriverMaster", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="vehicles"
+    )
     last_service_km = models.PositiveIntegerField(null=True, blank=True)
     last_service_type = models.CharField(max_length=50, blank=True)
     last_service_date = models.DateField(null=True, blank=True)
@@ -149,6 +329,34 @@ class Vehicle(models.Model):
 
     def __str__(self):
       return f"{self.registration_no} - {self.model}"
+
+
+class DriverMaster(models.Model):
+    DRIVER_TYPE_CHOICES = [
+        ("SELF", "Self"),
+        ("PAID", "Paid Driver"),
+        ("RELATIVE", "Relative"),
+    ]
+
+    name = models.CharField(max_length=150)
+    vehicle = models.ForeignKey(
+        Vehicle, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="driver_master_records"
+    )
+    driver_type = models.CharField(max_length=20, choices=DRIVER_TYPE_CHOICES, default="SELF")
+    mobile_no = models.CharField(max_length=15, blank=True)
+    driving_license_no = models.CharField(max_length=50, unique=True)
+    license_valid_until = models.DateField(null=True, blank=True)
+    license_document = models.FileField(upload_to="driver_documents/licenses/", null=True, blank=True)
+    face_photo = models.ImageField(upload_to="driver_documents/faces/", null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.driving_license_no})"
 
 # core/models.py
 
@@ -226,6 +434,8 @@ class Employee(models.Model):
         ('Floor Supervisor', 'Floor Supervisor'),
         ('Gate Security', 'Gate Security'),
         ('Reception', 'Reception'),
+        ('Quality Inspector', 'Quality Inspector'),
+        ('Parts Manager', 'Parts Manager'),
     ]
 
     user = models.OneToOneField(
@@ -669,16 +879,27 @@ class Claim(models.Model):
         return self.claim_no
 
 
+class JobCardType(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "mst_jobcard_type"
+        ordering = ["display_order", "name"]
+        verbose_name = "Job Card Type"
+        verbose_name_plural = "Job Card Types"
+
+    def __str__(self):
+        return self.name
 
 
 class JobCard(models.Model):
-    JOBCARD_TYPE_CHOICES = [
-        ("Cashless", "Cashless"),
-        ("NonCashless", "Non-Cashless"),
-        ("Paid", "Paid"),
-        ("FOC", "FOC"),
-        ("Warranty", "Warranty"),
-    ]
+
 
     INWARD_TYPE_CHOICES = [
         ("Pickup", "Pickup"),
@@ -726,12 +947,11 @@ class JobCard(models.Model):
 
     job_date = models.DateTimeField(auto_now_add=True)
 
-
-    jobcard_type = models.CharField(
-            max_length=30,
-            choices=JOBCARD_TYPE_CHOICES,
-            default="Paid"
-        )
+    jobcard_type = models.ForeignKey(
+        JobCardType,
+        on_delete=models.PROTECT,
+        related_name="jobcards"
+    )
 
 
     advisor = models.ForeignKey(
@@ -877,6 +1097,314 @@ class JobCard(models.Model):
             return self.job_no
 
 
+
+
+class JobCardQualityCheck(models.Model):
+    jobcard = models.OneToOneField(
+        "JobCard",
+        on_delete=models.CASCADE,
+        related_name="quality_check",
+    )
+
+    paint_finish = models.BooleanField(default=False)
+    color_match = models.BooleanField(default=False)
+    panel_alignment = models.BooleanField(default=False)
+    electrical_check = models.BooleanField(default=False)
+    ac_check = models.BooleanField(default=False)
+    road_test = models.BooleanField(default=False)
+    washing_done = models.BooleanField(default=False)
+    interior_cleaning = models.BooleanField(default=False)
+    exterior_cleaning = models.BooleanField(default=False)
+    tool_kit_available = models.BooleanField(default=False)
+    spare_wheel_available = models.BooleanField(default=False)
+    fuel_level_checked = models.BooleanField(default=False)
+    customer_belongings_checked = models.BooleanField(default=False)
+    documents_checked = models.BooleanField(default=False)
+    final_inspection = models.BooleanField(default=False)
+
+    remarks = models.TextField(
+        blank=True,
+        default="",
+    )
+
+    inspector_signature = models.ImageField(
+        upload_to="quality_check/signatures/",
+        blank=True,
+        null=True,
+    )
+
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="jobcard_quality_checks",
+    )
+
+    completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "Job Card Quality Check"
+        verbose_name_plural = "Job Card Quality Checks"
+
+    @property
+    def total_items(self):
+        return self.items.count()
+
+    @property
+    def ok_items(self):
+        return self.items.filter(
+            status="OK",
+        ).count()
+
+    @property
+    def not_ok_items(self):
+        return self.items.filter(
+            status="NOT_OK",
+        ).count()
+
+    @property
+    def pending_items(self):
+        return self.items.filter(
+            status="PENDING",
+        ).count()
+
+    @property
+    def checked_items(self):
+        return self.ok_items + self.not_ok_items
+
+    @property
+    def completion_percentage(self):
+        total = self.total_items
+
+        if total == 0:
+            return 0
+
+        return round(
+            (self.checked_items / total) * 100,
+            2,
+        )
+
+    @property
+    def result(self):
+        if self.not_ok_items > 0:
+            return "NOT_OK"
+
+        if self.total_items > 0 and self.pending_items == 0:
+            return "OK"
+
+        return "PENDING"
+    def __str__(self):
+        return f"QC - {self.jobcard.job_no}"
+
+
+class QualityCheckEvidencePhoto(models.Model):
+    quality_check = models.ForeignKey(
+        "JobCardQualityCheck",
+        on_delete=models.CASCADE,
+        related_name="evidence_photos",
+    )
+    image = models.ImageField(
+        upload_to="quality_check/evidence/%Y/%m/",
+    )
+    caption = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quality_check_evidence_uploaded",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.quality_check_id} - {self.caption or self.image.name}"
+
+
+class QualityCheckInspectorSignature(models.Model):
+    quality_check = models.ForeignKey(
+        "JobCardQualityCheck",
+        on_delete=models.CASCADE,
+        related_name="inspector_signatures",
+    )
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quality_check_signatures",
+    )
+    image = models.ImageField(
+        upload_to="quality_check/signatures/",
+    )
+    signed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["signed_at", "id"]
+
+    def __str__(self):
+        return f"{self.quality_check_id} - {self.inspector or 'Inspector'}"
+
+
+
+class QualityCheckItem(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        OK = "OK", "OK"
+        NOT_OK = "NOT_OK", "Not OK"
+
+    quality_check = models.ForeignKey(
+        "JobCardQualityCheck",
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+
+    item_key = models.CharField(
+        max_length=50,
+    )
+
+    item_name = models.CharField(
+        max_length=100,
+    )
+
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    remarks = models.TextField(
+        blank=True,
+        default="",
+    )
+
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quality_check_items_checked",
+    )
+
+    checked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = [
+            "id",
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "quality_check",
+                    "item_key",
+                ],
+                name="unique_quality_check_item",
+            ),
+        ]
+
+    @property
+    def total_items(self):
+        return self.items.count()
+
+    @property
+    def ok_items(self):
+        return self.items.filter(
+            status=QualityCheckItem.Status.OK,
+        ).count()
+
+    @property
+    def not_ok_items(self):
+        return self.items.filter(
+            status=QualityCheckItem.Status.NOT_OK,
+        ).count()
+
+    @property
+    def pending_items(self):
+        return self.items.filter(
+            status=QualityCheckItem.Status.PENDING,
+        ).count()
+
+    @property
+    def checked_items(self):
+        return self.items.exclude(
+            status=QualityCheckItem.Status.PENDING,
+        ).count()
+
+    @property
+    def completion_percentage(self):
+        total = self.total_items
+
+        if total == 0:
+            return 0
+
+        return round(
+            (self.checked_items / total) * 100,
+            2,
+        )
+
+    @property
+    def has_failures(self):
+        return self.not_ok_items > 0
+
+    @property
+    def result(self):
+        if self.total_items == 0:
+            return "PENDING"
+
+        if self.pending_items > 0:
+            return "PENDING"
+
+        if self.not_ok_items > 0:
+            return "NOT_OK"
+
+        return "OK"
+
+    @property
+    def can_complete(self):
+        return (
+                self.total_items > 0
+                and self.pending_items == 0
+                and self.not_ok_items == 0
+        )
+    def __str__(self):
+        return (
+            f"{self.quality_check_id} - "
+            f"{self.item_name} - "
+            f"{self.get_status_display()}"
+        )
 class GateInEntry(models.Model):
     SERVICE_TYPE_CHOICES = [
         ("Service", "Service"),
@@ -951,6 +1479,10 @@ class GateInEntry(models.Model):
     cancellation_remark = models.TextField(blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     gate_out_datetime = models.DateTimeField(null=True, blank=True)
+    out_km = models.PositiveIntegerField(null=True, blank=True)
+    gate_pass_no = models.CharField(max_length=80, blank=True)
+    gate_pass_evidence = models.ImageField(upload_to="gate_pass/evidence/", null=True, blank=True)
+    customer_signature = models.ImageField(upload_to="gate_pass/signatures/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1075,6 +1607,7 @@ def vehicle_condition_photo_upload_path(instance, filename):
 
 
 class JobCardVehicleConditionPhoto(models.Model):
+
         job = models.ForeignKey(
             JobCard,
             on_delete=models.CASCADE,
@@ -1096,6 +1629,106 @@ class JobCardVehicleConditionPhoto(models.Model):
                     name="unique_jobcard_vehicle_condition_caption"
                 )
             ]
+class JobCardPhotoAnnotation(models.Model):
+
+    ANNOTATION_TYPE_CHOICES = [
+        ("circle", "Circle"),
+        ("rectangle", "Rectangle"),
+        ("arrow", "Arrow"),
+        ("text", "Text"),
+    ]
+
+    photo = models.ForeignKey(
+        JobCardVehicleConditionPhoto,
+        on_delete=models.CASCADE,
+        related_name="annotations",
+    )
+
+    annotation_type = models.CharField(
+        max_length=20,
+        choices=ANNOTATION_TYPE_CHOICES,
+    )
+
+    # ---------------------------------------------------------
+    # Normalized coordinates
+    # 0.0 -> 1.0
+    # ---------------------------------------------------------
+
+    start_x = models.FloatField(
+        default=0.0,
+    )
+
+    start_y = models.FloatField(
+        default=0.0,
+    )
+
+    end_x = models.FloatField(
+        null=True,
+        blank=True,
+    )
+
+    end_y = models.FloatField(
+        null=True,
+        blank=True,
+    )
+
+    # ---------------------------------------------------------
+    # Text annotation
+    # ---------------------------------------------------------
+
+    text = models.TextField(
+        blank=True,
+        default="",
+    )
+
+    # ---------------------------------------------------------
+    # Drawing appearance
+    # ---------------------------------------------------------
+
+    color = models.CharField(
+        max_length=20,
+        default="#FF0000",
+    )
+
+    stroke_width = models.FloatField(
+        default=4.0,
+    )
+
+    font_size = models.FloatField(
+        default=18.0,
+    )
+
+    # ---------------------------------------------------------
+    # Ordering
+    # ---------------------------------------------------------
+
+    display_order = models.PositiveIntegerField(
+        default=0,
+    )
+
+    # ---------------------------------------------------------
+    # Audit
+    # ---------------------------------------------------------
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = [
+            "display_order",
+            "id",
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.annotation_type} "
+            f"- Photo {self.photo_id}"
+        )
 
 class ClaimDocument(models.Model):
         claim = models.ForeignKey(
@@ -1177,7 +1810,18 @@ class JobCardLabour(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        self.amount = self.labour_hrs * self.rate
+        try:
+            labour_hrs = Decimal(str(self.labour_hrs or 0))
+        except (InvalidOperation, TypeError):
+            labour_hrs = Decimal("0")
+
+        try:
+            rate = Decimal(str(self.rate or 0))
+        except (InvalidOperation, TypeError):
+            rate = Decimal("0")
+
+        self.amount = labour_hrs * rate
+
         super().save(*args, **kwargs)
 
 class JobCardPart(models.Model):
@@ -1196,11 +1840,21 @@ class JobCardPart(models.Model):
 
     amount = models.DecimalField(max_digits=10, decimal_places=2)
 
+    from decimal import Decimal, InvalidOperation
+
     def save(self, *args, **kwargs):
-        qty = Decimal(self.qty or 0)
-        rate = Decimal(self.rate or 0)
+        try:
+            qty = Decimal(str(self.qty or 0))
+        except (InvalidOperation, TypeError):
+            qty = Decimal("0")
+
+        try:
+            rate = Decimal(str(self.rate or 0))
+        except (InvalidOperation, TypeError):
+            rate = Decimal("0")
 
         self.total = qty * rate
+
         super().save(*args, **kwargs)
 
 class PartOrderHeader(models.Model):
@@ -1391,6 +2045,18 @@ class JobCardAssessmentPart(models.Model):
         default=0
     )
 
+    approval_date = models.DateTimeField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    assessment_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="assessed_jobcard_parts"
+    )
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="updated_jobcard_assessment_parts"
+    )
+    updated_date_time = models.DateTimeField(auto_now=True)
+
 
 
 class JobCardAssessmentLabour(models.Model):
@@ -1412,6 +2078,18 @@ class JobCardAssessmentLabour(models.Model):
             default=0
         )
         revised_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+        approval_date = models.DateTimeField(null=True, blank=True)
+        remarks = models.TextField(blank=True)
+        assessment_by = models.ForeignKey(
+            User, on_delete=models.SET_NULL, null=True, blank=True,
+            related_name="assessed_jobcard_labours"
+        )
+        updated_by = models.ForeignKey(
+            User, on_delete=models.SET_NULL, null=True, blank=True,
+            related_name="updated_jobcard_assessment_labours"
+        )
+        updated_date_time = models.DateTimeField(auto_now=True)
 
 
 class JobCardInventory(models.Model):
@@ -2136,3 +2814,186 @@ class EmployeeType(models.TextChoices):
     PAINTER = "PAINTER", "Painter"
     DENTER = "DENTER", "Denter"
     QC = "QC", "Quality Inspector"
+
+
+
+
+class CustomerApprovalEvidence(models.Model):
+
+    APPROVAL_STATUS = [
+        ("Pending", "Pending"),
+        ("Approved", "Approved"),
+        ("Rejected", "Rejected"),
+        ("Need Clarifications", "Need Clarifications"),
+    ]
+
+    COMMUNICATION_TYPES = [
+        ("Manual", "Manual"),
+        ("WhatsApp", "WhatsApp"),
+        ("SMS", "SMS"),
+        ("Email", "Email"),
+    ]
+
+    jobcard = models.ForeignKey(
+        JobCard,
+        on_delete=models.CASCADE,
+        related_name="approval_evidence"
+    )
+
+    communication_type = models.CharField(
+        max_length=50,
+        choices=COMMUNICATION_TYPES,
+        default="Manual"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_STATUS,
+        default="Pending"
+    )
+
+    customer_name = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    mobile_no = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    message_reference = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    approval_date = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    remarks = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+
+    def __str__(self):
+        return f"{self.jobcard.id} - {self.status}"
+
+
+class CustomerApprovalAttachment(models.Model):
+    EVIDENCE_TYPES = [
+        ("WhatsApp", "WhatsApp screenshot"),
+        ("Email", "Email"),
+        ("SMS", "SMS screenshot"),
+        ("Other", "Other"),
+    ]
+
+    approval = models.ForeignKey(
+        CustomerApprovalEvidence,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    evidence_type = models.CharField(max_length=30, choices=EVIDENCE_TYPES, default="Other")
+    file = models.FileField(upload_to="approval_evidence/%Y/%m/")
+    caption = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="uploaded_approval_attachments",
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+
+    def __str__(self):
+        return self.caption or f"{self.evidence_type} evidence #{self.id}"
+
+
+class CustomerApprovalPhotoAnnotation(models.Model):
+    jobcard = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name="approval_photo_annotations")
+    photo = models.ForeignKey(JobCardVehicleConditionPhoto, on_delete=models.CASCADE, related_name="approval_annotations")
+    annotations = models.JSONField(default=list, blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["jobcard", "photo"], name="unique_approval_photo_annotation")
+        ]
+
+    def __str__(self):
+        return f"Annotations for {self.photo_id}"
+
+
+class JobCardDamageAISuggestion(models.Model):
+    STATUS_CHOICES = [
+        ("Pending", "Pending review"),
+        ("Accepted", "Accepted"),
+        ("Rejected", "Rejected"),
+    ]
+    CATEGORY_CHOICES = [
+        ("dent", "Dent"),
+        ("scratch", "Scratch"),
+        ("broken", "Broken / cracked"),
+        ("paint", "Paint damage"),
+        ("missing", "Missing part"),
+        ("glass", "Glass damage"),
+        ("other", "Other"),
+    ]
+
+    jobcard = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name="damage_ai_suggestions")
+    photo = models.ForeignKey(JobCardVehicleConditionPhoto, on_delete=models.CASCADE, related_name="damage_ai_suggestions")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="other")
+    confidence = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    x = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    y = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    width = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    height = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    note = models.CharField(max_length=255, blank=True)
+    provider = models.CharField(max_length=50, default="pending_provider")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Pending")
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_damage_ai_suggestions")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.get_category_display()} ({self.confidence}%)"
+
+class JobCardDamage(models.Model):
+    job = models.ForeignKey(JobCard, on_delete=models.CASCADE)
+    photo = models.ForeignKey(JobCardVehicleConditionPhoto, on_delete=models.CASCADE)
+
+    damage_type = models.CharField(max_length=50)
+
+    confidence = models.FloatField()
+
+    severity = models.CharField(max_length=20)
+
+    x = models.FloatField()
+
+    y = models.FloatField()
+
+    width = models.FloatField()
+
+    height = models.FloatField()
+
+    approved = models.BooleanField(default=False)
+
+    remarks = models.TextField(blank=True)

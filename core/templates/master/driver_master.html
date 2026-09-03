@@ -1,0 +1,13 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Driver Master{% endblock %}
+
+{% block content %}
+{% load static %}
+<div id="vehicle-master-root"></div>
+
+<script type="module" src="{% static 'vehicle.js' %}"></script>
+<link rel="stylesheet" href="{% static 'DriverMaster.css' %}">
+
+
+{% endblock %}

@@ -3,192 +3,313 @@
 {% block title %}Part Master{% endblock %}
 
 {% block content %}
-
 <style>
-    .part-master-wrap {
-        padding: 10px;
-    }
-
-    .part-master-card {
-        border: 1px solid #d9e2ef;
-        border-radius: 8px;
-        background: #ffffff;
-        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
-    }
-
-    .part-master-card .card-header {
-        padding: 6px 10px;
-        background: #0f5f80;
-        color: #ffffff;
-        font-weight: 700;
-    }
-
-    .part-compact label {
-        font-size: 11px;
-        font-weight: 700;
-        color: #475569;
-        margin-bottom: 2px;
-    }
-
-    .part-compact .form-control,
-    .part-compact .btn {
-        min-height: 30px;
-        padding-top: 3px;
-        padding-bottom: 3px;
-        font-size: 12px;
-    }
-
-    .part-table-wrap {
-        max-height: 64vh;
-        overflow: auto;
-    }
-
-    .part-table th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #e2ecf5;
-        color: #172033;
-    }
-
-    .part-table td,
-    .part-table th {
-        padding: 4px 6px;
-        font-size: 12px;
-        vertical-align: middle;
-    }
+  .pm-shell { max-width:1500px; margin:0 auto; }
+  .pm-hero { background:linear-gradient(125deg,#102b45,#176276); color:#fff; border-radius:20px; }
+  .pm-metric,.pm-card { border:0; border-radius:15px; box-shadow:0 5px 18px rgba(25,42,70,.08); }
+  .pm-value { font-size:1.55rem; font-weight:800; line-height:1; }
+  .pm-table th { color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  .pm-table td { vertical-align:middle; }
+  .pm-code { color:#154d6b; font-weight:800; }
+  .pm-status { border-radius:999px; padding:.35rem .65rem; font-size:.72rem; font-weight:700; }
+  .pm-form-label { font-size:.78rem; font-weight:700; color:#5d6c7b; }
 </style>
 
-<div class="container-fluid part-master-wrap">
-    <div class="part-master-card mb-2">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span>Part Master</span>
-            <form method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
-                {% csrf_token %}
-                {{ form.excel_file }}
-                <button type="submit" class="btn btn-sm btn-light">
-                    Upload Excel
-                </button>
-            </form>
-        </div>
-
-        <div class="card-body p-2">
-            <form method="post" class="row g-2 align-items-end part-compact">
-                {% csrf_token %}
-                <input type="hidden" name="part_master_action" value="save">
-                <input type="hidden" name="item_id" value="{{ edit_item.id|default:'' }}">
-
-                <div class="col-md-2">
-                    <label>Part No</label>
-                    <input type="text"
-                           name="part_no"
-                           class="form-control"
-                           value="{{ edit_item.item_code|default:'' }}"
-                           required>
-                </div>
-
-                <div class="col-md-5">
-                    <label>Part Description</label>
-                    <input type="text"
-                           name="part_description"
-                           class="form-control"
-                           value="{{ edit_item.item_name|default:'' }}"
-                           required>
-                </div>
-
-                <div class="col-md-3">
-                    <label>Model</label>
-                    <input type="text"
-                           name="model"
-                           class="form-control"
-                           list="partModelOptions"
-                           value="{{ edit_item.category|default:'' }}">
-                    <datalist id="partModelOptions">
-                        {% for model in model_options %}
-                        <option value="{{ model }}"></option>
-                        {% endfor %}
-                    </datalist>
-                </div>
-
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-success flex-fill">
-                        {% if edit_item %}Update{% else %}Save{% endif %}
-                    </button>
-                    {% if edit_item %}
-                    <a href="{% url 'part' %}" class="btn btn-outline-secondary">
-                        New
-                    </a>
-                    {% endif %}
-                </div>
-            </form>
-        </div>
+<div class="container-fluid py-4 px-lg-4 pm-shell">
+  <section class="pm-hero p-4 mb-3 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+    <div>
+      <div class="small text-uppercase opacity-75">Parts catalogue</div>
+      <h3 class="mb-1">Part Master</h3>
+      <div class="opacity-75">Control catalogue data, taxation, suppliers, stock balances and reorder levels.</div>
     </div>
+    <button class="btn btn-light text-primary fw-semibold px-4" type="button" data-bs-toggle="collapse" data-bs-target="#excelImport">
+      Import Excel
+    </button>
+  </section>
 
-    <div class="part-master-card">
-        <div class="card-body p-2">
-            <form method="get" class="row g-2 align-items-end part-compact mb-2">
-                <div class="col-md-4">
-                    <label>Search</label>
-                    <input type="search"
-                           name="q"
-                           class="form-control"
-                           value="{{ search_text }}"
-                           placeholder="Part No / Description / Model">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">
-                        Search
-                    </button>
-                </div>
-                <div class="col-md-2">
-                    <a href="{% url 'part' %}" class="btn btn-outline-secondary w-100">
-                        Clear
-                    </a>
-                </div>
-                <div class="col-md-4 text-end">
-                    <span class="badge bg-dark px-3 py-2">
-                        Showing {{ items|length }} rows
-                    </span>
-                </div>
+  <div class="collapse mb-3" id="excelImport">
+    <div class="card pm-card">
+      <div class="card-body p-4">
+        <div class="row align-items-center g-3">
+          <div class="col-lg-5">
+            <h6 class="mb-1">Create or update from Excel</h6>
+            <div class="small text-muted">Columns: Part No, Description, Category, Rate, Status, Unit, Manufacturer, HSN, GST %, Supplier, Bin, Stock, Reorder Level.</div>
+          </div>
+          <div class="col-lg-7">
+            <form method="post" enctype="multipart/form-data" class="d-flex flex-column flex-sm-row gap-2">
+              {% csrf_token %}
+              {{ form.excel_file }}
+              <button type="submit" class="btn btn-success text-nowrap">Upload & Process</button>
             </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-            <div class="part-table-wrap">
-                <table class="table table-bordered table-sm table-hover part-table mb-0">
-                    <thead>
-                        <tr>
-                            <th style="width:60px;">Sr</th>
-                            <th style="width:180px;">Part No</th>
-                            <th>Part Description</th>
-                            <th style="width:220px;">Model</th>
-                            <th style="width:90px;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in items %}
-                        <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td class="fw-bold">{{ item.item_code }}</td>
-                            <td>{{ item.item_name }}</td>
-                            <td>{{ item.category|default:"-" }}</td>
-                            <td>
-                                <a href="{% url 'part' %}?edit={{ item.id }}"
-                                   class="btn btn-sm btn-outline-primary">
-                                    Edit
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-3">
-                                No parts found
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-2"><div class="card pm-metric h-100"><div class="card-body">
+      <div class="small text-muted">Total Parts</div><div class="pm-value mt-2">{{ summary.total }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-2"><div class="card pm-metric h-100"><div class="card-body">
+      <div class="small text-muted">Active</div><div class="pm-value mt-2 text-success">{{ summary.active }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-2"><div class="card pm-metric h-100"><div class="card-body">
+      <div class="small text-muted">Inactive</div><div class="pm-value mt-2 text-secondary">{{ summary.inactive }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-2"><div class="card pm-metric h-100"><div class="card-body">
+      <div class="small text-muted">Categories</div><div class="pm-value mt-2 text-primary">{{ summary.categories }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-2"><div class="card pm-metric h-100"><div class="card-body">
+      <div class="small text-muted">Low Stock</div><div class="pm-value mt-2 text-danger">{{ summary.low_stock }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-2"><div class="card pm-metric h-100"><div class="card-body">
+      <div class="small text-muted">Stock Value</div><div class="fw-bold mt-2 text-success">₹{{ summary.stock_value|floatformat:2 }}</div>
+    </div></div></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-4">
+      <div class="card pm-card sticky-xl-top" style="top:80px">
+        <div class="card-header bg-white p-3">
+          <h6 class="mb-0">{% if edit_item %}Edit Part{% else %}Create New Part{% endif %}</h6>
+          <small class="text-muted">{% if edit_item %}Update the selected catalogue item.{% else %}Add one part directly to the catalogue.{% endif %}</small>
+        </div>
+        <div class="card-body p-4">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="part_master_action" value="save">
+            <input type="hidden" name="item_id" value="{{ edit_item.id|default:'' }}">
+
+            <div class="mb-3">
+              <label class="form-label pm-form-label">Part Number *</label>
+              <input class="form-control" name="part_no" value="{{ edit_item.item_code|default:'' }}" required autofocus placeholder="Unique OEM / part number">
             </div>
+            <div class="mb-3">
+              <label class="form-label pm-form-label">Part Description *</label>
+              <textarea class="form-control" name="part_description" rows="3" required placeholder="Clear part description">{{ edit_item.item_name|default:'' }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label pm-form-label">Category / Model</label>
+              <input class="form-control" name="model" list="partModelOptions" value="{{ edit_item.category|default:'' }}" placeholder="Select or enter category">
+              <datalist id="partModelOptions">{% for model in model_options %}<option value="{{ model }}"></option>{% endfor %}</datalist>
+            </div>
+            <div class="row g-2 mb-4">
+              <div class="col-7">
+                <label class="form-label pm-form-label">Rate</label>
+                <div class="input-group"><span class="input-group-text">₹</span><input class="form-control text-end" name="rate" type="number" min="0" step="0.01" value="{{ edit_item.rate|default:'0.00' }}"></div>
+              </div>
+              <div class="col-5">
+                <label class="form-label pm-form-label">Status</label>
+                <select class="form-select" name="status">
+                  <option value="Active" {% if not edit_item or edit_item.status == "Active" %}selected{% endif %}>Active</option>
+                  <option value="Inactive" {% if edit_item.status == "Inactive" %}selected{% endif %}>Inactive</option>
+                </select>
+              </div>
+            </div>
+            <hr>
+            <div class="small text-uppercase fw-bold text-muted mb-3">Tax & sourcing</div>
+            <div class="row g-2">
+              <div class="col-6 mb-3">
+                <label class="form-label pm-form-label">Unit</label>
+                <select class="form-select" name="unit">
+                  {% for value, label in unit_choices %}<option value="{{ value }}" {% if edit_item.unit == value or not edit_item and value == "Nos" %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label pm-form-label">HSN Code</label>
+                <input class="form-control" name="hsn_code" value="{{ edit_item.hsn_code|default:'' }}">
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label pm-form-label">GST %</label>
+                <input class="form-control text-end" name="gst_percent" type="number" min="0" max="100" step="0.01" value="{{ edit_item.gst_percent|default:'0.00' }}">
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label pm-form-label">Manufacturer</label>
+                <input class="form-control" name="manufacturer" value="{{ edit_item.manufacturer|default:'' }}">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label pm-form-label">Preferred Supplier</label>
+              <input class="form-control" name="preferred_supplier" value="{{ edit_item.preferred_supplier|default:'' }}">
+            </div>
+            <div class="row g-2 mb-4">
+              <div class="col-6">
+                <label class="form-label pm-form-label">Bin Location</label>
+                <input class="form-control" name="bin_location" value="{{ edit_item.bin_location|default:'' }}" placeholder="A-01-R2">
+              </div>
+              <div class="col-6">
+                <label class="form-label pm-form-label">Reorder Level</label>
+                <input class="form-control text-end" name="reorder_level" type="number" min="0" step="0.01" value="{{ edit_item.reorder_level|default:'0.00' }}">
+              </div>
+              {% if not edit_item %}
+              <div class="col-12 mt-3">
+                <label class="form-label pm-form-label">Opening Stock</label>
+                <input class="form-control text-end" name="opening_stock" type="number" min="0" step="0.01" value="0">
+              </div>
+              {% else %}
+              <div class="col-12 mt-3">
+                <div class="alert alert-light border mb-0">Current stock: <strong>{{ edit_item.current_stock }} {{ edit_item.unit }}</strong>. Use Stock Adjustment to change the balance.</div>
+              </div>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+              {% if edit_item %}<a class="btn btn-outline-secondary" href="{% url 'part' %}">Cancel</a>{% endif %}
+              <button class="btn btn-success flex-grow-1" type="submit">{% if edit_item %}Save Changes{% else %}Create Part{% endif %}</button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
+
+    <div class="col-xl-8">
+      <div class="card pm-card">
+        <div class="card-body border-bottom">
+          <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label pm-form-label">Search catalogue</label>
+              <input class="form-control" name="q" value="{{ search_text }}" placeholder="Part number or description">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label pm-form-label">Category</label>
+              <select class="form-select" name="category">
+                <option value="">All categories</option>
+                {% for category in model_options %}<option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label pm-form-label">Status</label>
+              <select class="form-select" name="status">
+                <option value="">All</option>
+                <option value="Active" {% if selected_status == "Active" %}selected{% endif %}>Active</option>
+                <option value="Inactive" {% if selected_status == "Inactive" %}selected{% endif %}>Inactive</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label pm-form-label">Stock</label>
+              <select class="form-select" name="stock">
+                <option value="">All stock</option>
+                <option value="low" {% if selected_stock == "low" %}selected{% endif %}>Low / reorder</option>
+                <option value="available" {% if selected_stock == "available" %}selected{% endif %}>Available</option>
+                <option value="zero" {% if selected_stock == "zero" %}selected{% endif %}>Zero stock</option>
+              </select>
+            </div>
+            <div class="col-md-2 d-grid"><button class="btn btn-primary">Filter</button></div>
+            <div class="col-md-4">
+              <label class="form-label pm-form-label">Supplier</label>
+              <input class="form-control" name="supplier" value="{{ selected_supplier }}" placeholder="Preferred supplier">
+            </div>
+            <div class="col-12 mt-2"><a class="small text-decoration-none" href="{% url 'part' %}">Clear filters</a></div>
+          </form>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover pm-table mb-0">
+            <thead class="table-light"><tr><th>Part</th><th>Description / Supplier</th><th>Tax</th><th class="text-end">Rate</th><th class="text-end">Stock</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+              {% for item in items %}
+              <tr>
+                <td><div class="pm-code">{{ item.item_code }}</div><small class="text-muted">{{ item.category|default:"Uncategorised" }} · {{ item.bin_location|default:"No bin" }}</small></td>
+                <td><div>{{ item.item_name }}</div><small class="text-muted">{{ item.preferred_supplier|default:"No preferred supplier" }}</small></td>
+                <td><div>{{ item.hsn_code|default:"—" }}</div><small class="text-muted">GST {{ item.gst_percent|floatformat:2 }}%</small></td>
+                <td class="text-end">₹{{ item.rate|floatformat:2 }}</td>
+                <td class="text-end">
+                  <strong class="{% if item.needs_reorder %}text-danger{% else %}text-success{% endif %}">{{ item.current_stock }} {{ item.unit }}</strong>
+                  <br><small class="text-muted">Reorder {{ item.reorder_level }}</small>
+                </td>
+                <td>
+                  {% if item.status == "Active" %}<span class="pm-status bg-success-subtle text-success">Active</span>
+                  {% else %}<span class="pm-status bg-secondary-subtle text-secondary">Inactive</span>{% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                  <button class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#stockModal" data-item-id="{{ item.id }}" data-item-code="{{ item.item_code }}" data-current-stock="{{ item.current_stock }}" data-unit="{{ item.unit }}">Stock</button>
+                  <a class="btn btn-sm btn-outline-primary" href="?edit={{ item.id }}&q={{ search_text|urlencode }}&category={{ selected_category|urlencode }}&status={{ selected_status|urlencode }}">Edit</a>
+                  <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="part_master_action" value="toggle_status">
+                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button class="btn btn-sm {% if item.status == 'Active' %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">
+                      {% if item.status == "Active" %}Deactivate{% else %}Activate{% endif %}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-5">No parts match the selected filters.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+          <small class="text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} records</small>
+          <div class="btn-group">
+            {% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?page={{ page_obj.previous_page_number }}&q={{ search_text|urlencode }}&category={{ selected_category|urlencode }}&status={{ selected_status|urlencode }}&stock={{ selected_stock|urlencode }}&supplier={{ selected_supplier|urlencode }}">Previous</a>{% endif %}
+            {% if page_obj.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?page={{ page_obj.next_page_number }}&q={{ search_text|urlencode }}&category={{ selected_category|urlencode }}&status={{ selected_status|urlencode }}&stock={{ selected_stock|urlencode }}&supplier={{ selected_supplier|urlencode }}">Next</a>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card pm-card mt-3">
+    <div class="card-header bg-white p-3">
+      <h6 class="mb-0">Recent Stock Movements</h6>
+      <small class="text-muted">Latest receipts, issues, returns and adjustments</small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm pm-table mb-0">
+        <thead class="table-light"><tr><th>Date</th><th>Part</th><th>Type</th><th>Reference</th><th class="text-end">Movement</th><th class="text-end">Balance</th><th>Posted By</th></tr></thead>
+        <tbody>
+          {% for movement in recent_transactions %}
+          <tr>
+            <td>{{ movement.created_at|date:"d M Y H:i" }}</td>
+            <td><strong>{{ movement.part.item_code }}</strong><br><small class="text-muted">{{ movement.part.item_name }}</small></td>
+            <td>{{ movement.get_transaction_type_display }}</td>
+            <td>{{ movement.reference|default:"—" }}{% if movement.remarks %}<br><small class="text-muted">{{ movement.remarks }}</small>{% endif %}</td>
+            <td class="text-end {% if movement.quantity_change < 0 %}text-danger{% else %}text-success{% endif %} fw-bold">{{ movement.quantity_change }}</td>
+            <td class="text-end">{{ movement.balance_after }} {{ movement.part.unit }}</td>
+            <td>{{ movement.created_by.get_full_name|default:movement.created_by.username|default:"System" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No stock movements recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
+<div class="modal fade" id="stockModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      {% csrf_token %}
+      <input type="hidden" name="part_master_action" value="adjust_stock">
+      <input type="hidden" name="item_id" id="stockItemId">
+      <div class="modal-header"><div><h5 class="modal-title">Stock Adjustment</h5><small class="text-muted" id="stockPartMeta"></small></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6"><label class="form-label pm-form-label">Movement</label><select class="form-select" name="direction"><option value="add">Add stock</option><option value="subtract">Subtract stock</option></select></div>
+          <div class="col-6"><label class="form-label pm-form-label">Transaction Type</label><select class="form-select" name="transaction_type">{% for value, label in stock_transaction_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+          <div class="col-12"><label class="form-label pm-form-label">Quantity</label><input class="form-control" type="number" min="0.01" step="0.01" name="quantity" required></div>
+          <div class="col-12"><label class="form-label pm-form-label">Reference</label><input class="form-control" name="reference" placeholder="GRN, invoice, issue slip..."></div>
+          <div class="col-12"><label class="form-label pm-form-label">Remarks</label><textarea class="form-control" rows="2" name="stock_remarks"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" type="submit">Post Stock Movement</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById("stockModal").addEventListener("show.bs.modal", function (event) {
+  const button = event.relatedTarget;
+  document.getElementById("stockItemId").value = button.dataset.itemId;
+  document.getElementById("stockPartMeta").textContent =
+    button.dataset.itemCode + " · Current " + button.dataset.currentStock + " " + button.dataset.unit;
+});
+</script>
 {% endblock %}

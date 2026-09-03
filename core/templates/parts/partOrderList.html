@@ -1,371 +1,140 @@
 {% extends "registration/auth_base.html" %}
 
-{% block title %}Part Order Tracking{% endblock %}
+{% block title %}Parts Orders{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+<style>
+    .parts-hero { background: linear-gradient(120deg, #132a46, #1f5f78); color: #fff; border-radius: 18px; }
+    .metric-card { border: 0; border-radius: 14px; box-shadow: 0 5px 18px rgba(25,42,70,.08); }
+    .metric-card .metric-value { font-size: 1.65rem; font-weight: 750; line-height: 1; }
+    .tracking-card { border: 0; border-radius: 15px; box-shadow: 0 5px 18px rgba(25,42,70,.08); }
+    .order-table th { color: #64748b; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+    .order-table td { vertical-align: middle; }
+    .order-number { color: #173f62; font-weight: 700; }
+    .mini-progress { width: 92px; height: 6px; background: #e8edf2; border-radius: 10px; overflow: hidden; }
+    .mini-progress span { display: block; height: 100%; background: #20a47b; }
+    .status-pill { border-radius: 999px; font-size: .72rem; font-weight: 650; padding: .38rem .65rem; white-space: nowrap; }
+    .status-pending { background:#edf1f5; color:#526170; }
+    .status-order-placed { background:#fff1c7; color:#895d00; }
+    .status-in-transit { background:#d9f2fb; color:#08647f; }
+    .status-partially-received { background:#e7e2ff; color:#5036a6; }
+    .status-received { background:#d9f5e9; color:#187152; }
+    .status-back-order { background:#ffe3e0; color:#a43a30; }
+    .status-cancelled { background:#ececec; color:#666; }
+</style>
+
+<div class="container-fluid py-3 px-lg-4">
+    <section class="parts-hero p-4 mb-3 d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
         <div>
-            <h4 class="mb-0">Part Order & Tracking</h4>
-            <small class="text-muted">Select an order header to view and update part order lines.</small>
+            <div class="small text-uppercase opacity-75 mb-1">Parts control centre</div>
+            <h3 class="mb-1">Purchase Orders & Tracking</h3>
+            <div class="opacity-75">Create orders, monitor deliveries and follow up overdue parts.</div>
         </div>
-        <a class="btn btn-primary btn-sm" href="{% url 'part_order_create' %}">
-            New Parts Order
+        <a class="btn btn-light text-primary fw-semibold px-4" href="{% url 'part_order_create' %}">
+            + Create New Order
         </a>
+    </section>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg"><div class="card metric-card h-100"><div class="card-body">
+            <div class="text-muted small">All Orders</div><div class="metric-value mt-2">{{ summary.total }}</div>
+        </div></div></div>
+        <div class="col-6 col-lg"><div class="card metric-card h-100"><div class="card-body">
+            <div class="text-muted small">Open Orders</div><div class="metric-value mt-2 text-primary">{{ summary.open }}</div>
+        </div></div></div>
+        <div class="col-6 col-lg"><div class="card metric-card h-100"><div class="card-body">
+            <div class="text-muted small">In Transit</div><div class="metric-value mt-2 text-info">{{ summary.transit }}</div>
+        </div></div></div>
+        <div class="col-6 col-lg"><div class="card metric-card h-100"><div class="card-body">
+            <div class="text-muted small">Overdue</div><div class="metric-value mt-2 text-danger">{{ summary.overdue }}</div>
+        </div></div></div>
+        <div class="col-6 col-lg"><div class="card metric-card h-100"><div class="card-body">
+            <div class="text-muted small">Received</div><div class="metric-value mt-2 text-success">{{ summary.received }}</div>
+        </div></div></div>
     </div>
 
-    <div class="card border-0 shadow-sm mb-2">
-        <div class="card-body py-2">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-5">
-                    <label class="form-label">Search Order</label>
-                    <input class="form-control" id="orderQuickFilter" placeholder="Order no, job no, claim no, reg no, customer">
+    <div class="card tracking-card">
+        <div class="card-body border-bottom">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-lg-3">
+                    <label class="form-label small mb-1">Search</label>
+                    <input class="form-control" name="q" value="{{ q }}" placeholder="Order, job, vehicle, part...">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Order Status</label>
-                    <select class="form-select" id="statusFilter">
-                        <option value="">All</option>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="">All statuses</option>
                         {% for value, label in statuses %}
-                        <option value="{{ value }}">{{ label }}</option>
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
-                        <option value="Completed">Completed</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <button class="btn btn-outline-secondary w-100" id="refreshJobs" type="button">
-                        Refresh
-                    </button>
+                <div class="col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Supplier</label>
+                    <input class="form-control" name="supplier" value="{{ supplier }}" placeholder="Any supplier">
                 </div>
-                <div class="col-md-2">
-                    <button class="btn btn-primary w-100" id="createOrderBtn" type="button" disabled>
-                        New Order
-                    </button>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Order From</label>
+                    <input class="form-control" type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}">
                 </div>
-            </div>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label small mb-1">Order To</label>
+                    <input class="form-control" type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}">
+                </div>
+                <div class="col-lg-1 d-grid"><button class="btn btn-primary">Filter</button></div>
+                <div class="col-12 d-flex justify-content-between mt-3">
+                    <a class="small text-decoration-none" href="{% url 'part_order_list' %}">Clear filters</a>
+                    <button class="btn btn-sm btn-outline-success" name="export" value="csv">Download Tracking Report</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table order-table table-hover mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>Order</th><th>Vehicle / Job</th><th>Supplier</th><th>Expected</th>
+                    <th>Status</th><th>Receiving</th><th class="text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <div class="order-number">{{ row.header.order_no|default:"Draft order" }}</div>
+                        <div class="small text-muted">{{ row.header.order_date|date:"d M Y"|default:"Date not set" }} · {{ row.line_count }} line{{ row.line_count|pluralize }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ row.vehicle.registration_no|default:"Vehicle not linked" }}</div>
+                        <div class="small text-muted">{% if row.job %}{{ row.job.job_no }}{% else %}Advance order{% endif %}{% if row.vehicle.customer %} · {{ row.vehicle.customer.name }}{% endif %}</div>
+                    </td>
+                    <td>{{ row.header.supplier|default:"—" }}</td>
+                    <td>
+                        <div class="{% if row.is_overdue %}text-danger fw-semibold{% endif %}">{{ row.header.expected_date|date:"d M Y"|default:"Not set" }}</div>
+                        {% if row.is_overdue %}<div class="small text-danger">Overdue</div>{% endif %}
+                    </td>
+                    <td><span class="status-pill status-{{ row.header.status|slugify }}">{{ row.header.status }}</span></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="mini-progress"><span style="width:{{ row.progress }}%"></span></div>
+                            <span class="small fw-semibold">{{ row.progress }}%</span>
+                        </div>
+                        <div class="small text-muted mt-1">{{ row.received_qty }} / {{ row.ordered_qty }} qty</div>
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'part_order_header_edit' row.header.id %}">Edit Header</a>
+                        {% if row.job %}
+                        <a class="btn btn-sm btn-primary" href="{% url 'part_order_job_detail' row.job.id %}?order_id={{ row.header.id }}">Track</a>
+                        {% endif %}
+                        <a class="btn btn-sm btn-outline-secondary" target="_blank" href="{% url 'part_order_print' row.header.id %}">Print</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center py-5 text-muted">No parts orders match the selected filters.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
-
-    <div id="partOrderJobGrid"
-         class="ag-theme-alpine"
-         style="height: calc(100vh - 210px); min-height: 460px; width:100%;">
-    </div>
 </div>
-
-<div class="modal fade" id="partOrderLineModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen-xl-down modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header py-2">
-                <div>
-                    <h6 class="modal-title mb-0" id="selectedJobTitle">Order Tracking Details</h6>
-                    <small class="text-muted" id="selectedJobMeta">Select an order</small>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <a class="btn btn-sm btn-outline-success d-none"
-                       id="printOrderBtn"
-                       target="_blank"
-                       href="#">
-                        Print
-                    </a>
-                    <a class="btn btn-sm btn-outline-primary d-none"
-                       id="openDetailBtn"
-                       href="#">
-                        Full Edit
-                    </a>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-            </div>
-            <div class="modal-body p-2">
-                <div id="partOrderLineGrid"
-                     class="ag-theme-alpine"
-                     style="height: 70vh; min-height: 420px; width:100%;">
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-let jobGridApi;
-let lineGridApi;
-let selectedHeader = null;
-let selectedOrderId = "";
-let lineModal = null;
-const orderStatuses = {{ status_values|safe }};
-
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(";").shift();
-    return "";
-}
-
-const jobColumnDefs = [
-    {
-        headerName: "Order No",
-        field: "order_no",
-        pinned: "left",
-        width: 140,
-        cellRenderer: params => {
-            const icon = params.data.line_count > 0 ? "▶" : "+";
-            return `<span class="text-primary fw-bold">${icon}</span> ${params.value}`;
-        }
-    },
-    { headerName: "Order Date", field: "order_date", width: 125 },
-    {
-        headerName: "Status",
-        field: "status",
-        width: 150,
-        cellRenderer: params => statusBadge(params.value)
-    },
-    { headerName: "Line Items", field: "line_count", width: 115 },
-    { headerName: "Received", field: "received_count", width: 105 },
-    { headerName: "Back Order", field: "back_order_count", width: 120 },
-    { headerName: "Job No", field: "job_no", width: 130 },
-    { headerName: "Claim No", field: "claim_no", width: 130 },
-    { headerName: "Reg No", field: "reg_no", width: 140 },
-    { headerName: "Customer", field: "customer", flex: 1, minWidth: 160 },
-    { headerName: "Model", field: "model", width: 140 },
-    { headerName: "Supplier", field: "supplier", width: 150 },
-    { headerName: "Expected", field: "expected_date", width: 125 }
-];
-
-const lineColumnDefs = [
-    {
-        headerName: "Action",
-        width: 95,
-        pinned: "left",
-        editable: false,
-        cellRenderer: params => {
-            if (!params.data || !params.data.id) return "";
-            return "<button class=\"btn btn-sm btn-outline-danger\" onclick=\"deleteOrderLine(" + params.data.id + ")\">Delete</button>";
-        }
-    },
-    { headerName: "Part No", field: "part_no", width: 120, pinned: "left" },
-    { headerName: "Description", field: "description", flex: 1, minWidth: 180 },
-    {
-        headerName: "Order Qty",
-        field: "ordered_qty",
-        width: 105,
-        editable: true,
-        cellClass: "text-end"
-    },
-    {
-        headerName: "Received",
-        field: "received_qty",
-        width: 105,
-        editable: true,
-        cellClass: "text-end"
-    },
-    {
-        headerName: "Status",
-        field: "status",
-        width: 150,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: {
-            values: orderStatuses
-        },
-        cellRenderer: params => statusBadge(params.value)
-    },
-    { headerName: "Expected", field: "expected_date", width: 125, editable: true },
-    { headerName: "Received Date", field: "received_date", width: 135, editable: true },
-    { headerName: "Tracking Ref", field: "tracking_ref", width: 150, editable: true },
-    { headerName: "Remarks", field: "remarks", width: 220, editable: true }
-];
-
-const jobGridOptions = {
-    columnDefs: jobColumnDefs,
-    pagination: true,
-    rowSelection: "single",
-    defaultColDef: {
-        sortable: true,
-        resizable: true,
-        filter: true
-    },
-    onRowClicked: params => selectOrderHeader(params.data)
-};
-
-const lineGridOptions = {
-    columnDefs: lineColumnDefs,
-    rowData: [],
-    defaultColDef: {
-        sortable: true,
-        resizable: true,
-        filter: true
-    },
-    stopEditingWhenCellsLoseFocus: true,
-    onCellValueChanged: params => updateOrderLine(params.data)
-};
-
-document.addEventListener("DOMContentLoaded", function () {
-    jobGridApi = agGrid.createGrid(
-        document.querySelector("#partOrderJobGrid"),
-        jobGridOptions
-    );
-
-    lineGridApi = agGrid.createGrid(
-        document.querySelector("#partOrderLineGrid"),
-        lineGridOptions
-    );
-    lineModal = new bootstrap.Modal(document.getElementById("partOrderLineModal"));
-    document.getElementById("partOrderLineModal").addEventListener("shown.bs.modal", function () {
-        lineGridApi.sizeColumnsToFit();
-    });
-
-    loadOrderHeaders();
-
-    document.getElementById("orderQuickFilter").addEventListener("input", function () {
-        jobGridApi.setGridOption("quickFilterText", this.value);
-    });
-
-    document.getElementById("statusFilter").addEventListener("change", function () {
-        jobGridApi.setFilterModel(
-            this.value
-                ? { status: { type: "equals", filter: this.value } }
-                : null
-        );
-    });
-
-    document.getElementById("refreshJobs").addEventListener("click", loadOrderHeaders);
-    document.getElementById("createOrderBtn").addEventListener("click", createSelectedOrder);
-});
-
-function loadOrderHeaders(preferredOrderId) {
-    fetch("/api/part-orders/headers/")
-        .then(res => res.json())
-        .then(data => {
-            jobGridApi.setGridOption("rowData", data);
-            if (preferredOrderId) {
-                const header = data.find(item => String(item.id) === String(preferredOrderId));
-                if (header) {
-                    selectOrderHeader(header);
-                }
-            }
-        });
-}
-
-function selectOrderHeader(header) {
-    selectedHeader = header;
-    selectedOrderId = String(header.id || "");
-    document.getElementById("selectedJobTitle").innerText =
-        `${header.order_no} | ${header.job_no || ""}`;
-    document.getElementById("selectedJobMeta").innerText =
-        `${header.reg_no || ""} ${header.customer ? "| " + header.customer : ""}`;
-
-    const createBtn = document.getElementById("createOrderBtn");
-    createBtn.disabled = !header.job_id;
-    createBtn.innerText = "New Order";
-
-    if (header.job_id) {
-        updateDetailLink();
-        loadOrderLines(header.id);
-    } else {
-        document.getElementById("openDetailBtn").classList.add("d-none");
-        loadOrderLines(header.id);
-    }
-
-    updatePrintLink();
-    lineModal.show();
-}
-
-function createSelectedOrder() {
-    if (!selectedHeader || !selectedHeader.job_id) return;
-
-    fetch("/part-orders/job/" + encodeURIComponent(selectedHeader.job_id) + "/create/", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken")
-        },
-        body: JSON.stringify({})
-    })
-        .then(res => res.json())
-        .then(data => {
-            if (data.status !== "success") return;
-            selectedOrderId = String(data.order_id);
-            loadOrderHeaders(selectedOrderId);
-        });
-}
-
-function updateDetailLink() {
-    const detailBtn = document.getElementById("openDetailBtn");
-
-    if (!selectedHeader || !selectedHeader.job_id || !selectedOrderId) {
-        detailBtn.classList.add("d-none");
-        detailBtn.href = "#";
-        return;
-    }
-
-    detailBtn.href = "/part-orders/job/" + selectedHeader.job_id + "/?order_id=" + encodeURIComponent(selectedOrderId);
-    detailBtn.classList.remove("d-none");
-}
-
-function updatePrintLink() {
-    const printBtn = document.getElementById("printOrderBtn");
-
-    if (!selectedOrderId) {
-        printBtn.classList.add("d-none");
-        printBtn.href = "#";
-        return;
-    }
-
-    printBtn.href = "/part-orders/" + encodeURIComponent(selectedOrderId) + "/print/";
-    printBtn.classList.remove("d-none");
-}
-
-function loadOrderLines(orderId) {
-    fetch("/api/part-orders/header/" + encodeURIComponent(orderId) + "/lines/")
-        .then(res => res.json())
-        .then(data => lineGridApi.setGridOption("rowData", data));
-}
-
-function updateOrderLine(row) {
-    fetch("/api/part-orders/line/" + encodeURIComponent(row.id) + "/update/", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken")
-        },
-        body: JSON.stringify(row)
-    })
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === "success") {
-                row.status = data.line_status;
-                lineGridApi.refreshCells({ force: true });
-                loadOrderHeaders(selectedOrderId);
-            }
-        });
-}
-
-function deleteOrderLine(orderId) {
-    if (!confirm("Delete this part order line?")) return;
-
-    fetch("/api/part-orders/line/" + encodeURIComponent(orderId) + "/delete/", {
-        method: "POST",
-        headers: {
-            "X-CSRFToken": getCookie("csrftoken")
-        }
-    })
-        .then(res => res.json())
-        .then(data => {
-            if (data.status !== "success") return;
-            if (selectedOrderId) {
-                loadOrderLines(selectedOrderId);
-            }
-            loadOrderHeaders(selectedOrderId);
-        });
-}
-
-function statusBadge(status) {
-    const cls =
-        status === "Completed" || status === "Received" ? "bg-success" :
-        status === "Back Order" ? "bg-danger" :
-        status === "In Transit" ? "bg-info text-dark" :
-        status === "Order Placed" ? "bg-warning text-dark" :
-        "bg-secondary";
-
-    return `<span class="badge ${cls}">${status || "Pending"}</span>`;
-}
-</script>
 {% endblock %}

@@ -1,0 +1,115 @@
+{% extends "registration/auth_base.html" %}
+{% block title %}Quality Inspector Dashboard{% endblock %}
+{% block content %}
+<style>
+  .qi-shell { max-width:1500px; margin:0 auto; }
+  .qi-hero { background:linear-gradient(135deg,#102f4c,#1d6687); color:#fff; border-radius:20px; }
+  .qi-metric { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-radius:14px; }
+  .qi-tabs .nav-link { color:#475569; font-weight:700; border-radius:10px; padding:.8rem 1.2rem; }
+  .qi-tabs .nav-link.active { background:#17324d; color:#fff; }
+  .qi-progress { height:7px; }
+</style>
+<div class="container-fluid py-4 qi-shell">
+  <section class="qi-hero p-4 p-lg-5 mb-4 shadow-sm">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+      <div>
+        <div class="small text-uppercase opacity-75">Quality Control Workspace</div>
+        <h2 class="mb-1">Welcome, {{ employee.name|default:request.user.username }}</h2>
+        <div class="opacity-75">Review pending vehicles and maintain completed QC records.</div>
+      </div>
+      <div class="d-flex gap-3">
+        <div class="qi-metric p-3 text-center"><div class="fs-3 fw-bold">{{ pending_count }}</div><small>Pending QC</small></div>
+        <div class="qi-metric p-3 text-center"><div class="fs-3 fw-bold">{{ completed_month_count }}</div><small>Completed this month</small></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body border-bottom">
+      <div class="nav qi-tabs gap-2">
+        <a class="nav-link {% if active_tab == 'pending' %}active{% endif %}"
+           href="?tab=pending&search={{ search|urlencode }}">Pending <span class="badge text-bg-warning ms-1">{{ pending_count }}</span></a>
+        <a class="nav-link {% if active_tab == 'completed' %}active{% endif %}"
+           href="?tab=completed&from_date={{ from_date|date:'Y-m-d' }}&to_date={{ to_date|date:'Y-m-d' }}&search={{ search|urlencode }}">
+          Completed <span class="badge text-bg-success ms-1">{{ completed_month_count }}</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="card-body bg-light border-bottom">
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <div class="{% if active_tab == 'completed' %}col-lg-4{% else %}col-lg-8{% endif %}">
+          <label class="form-label">Search job card or registration</label>
+          <input class="form-control" name="search" value="{{ search }}" placeholder="Search...">
+        </div>
+        {% if active_tab == "completed" %}
+        <div class="col-md-3 col-lg-2"><label class="form-label">From</label><input class="form-control" type="date" name="from_date" value="{{ from_date|date:'Y-m-d' }}"></div>
+        <div class="col-md-3 col-lg-2"><label class="form-label">To</label><input class="form-control" type="date" name="to_date" value="{{ to_date|date:'Y-m-d' }}"></div>
+        {% endif %}
+        <div class="col-md-3 col-lg-2"><button class="btn btn-primary w-100">Apply Filter</button></div>
+        <div class="col-md-3 col-lg-2"><a class="btn btn-outline-secondary w-100" href="?tab={{ active_tab }}">Reset</a></div>
+      </form>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Job Card</th><th>Vehicle</th><th>Created</th><th>Progress</th>{% if active_tab == "completed" %}<th>Inspector</th><th>Completed</th>{% endif %}<th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+          <tr>
+            <td><strong>{{ row.jobcard.job_no }}</strong><br><small class="text-muted">{{ row.jobcard.get_repair_status_display }}</small></td>
+            <td><strong>{{ row.registration }}</strong></td>
+            <td>
+              {% if row.quality_check %}
+                {{ row.quality_check.created_at|date:"d M Y" }}
+              {% else %}
+                {{ row.jobcard.job_date|date:"d M Y" }}
+              {% endif %}
+            </td>
+            <td style="min-width:160px">
+              {% if active_tab == "pending" %}
+              <div class="small fw-semibold text-success mb-1">
+                {{ row.completed_progress_count }} work progress completed
+              </div>
+              {% if row.quality_check %}
+              <div class="d-flex justify-content-between small"><span>{{ row.quality_check.checked_items }}/{{ row.quality_check.total_items }}</span><span>{{ row.quality_check.completion_percentage }}%</span></div>
+              <div class="progress qi-progress"><div class="progress-bar {% if row.quality_check.result == 'NOT_OK' %}bg-danger{% else %}bg-success{% endif %}" style="width:{{ row.quality_check.completion_percentage }}%"></div></div>
+              {% else %}
+              <small class="text-muted">QC not started</small>
+              {% endif %}
+              {% else %}
+              <div class="d-flex justify-content-between small"><span>{{ row.quality_check.checked_items }}/{{ row.quality_check.total_items }}</span><span>{{ row.quality_check.completion_percentage }}%</span></div>
+              <div class="progress qi-progress"><div class="progress-bar {% if row.quality_check.result == 'NOT_OK' %}bg-danger{% else %}bg-success{% endif %}" style="width:{{ row.quality_check.completion_percentage }}%"></div></div>
+              {% endif %}
+            </td>
+            {% if active_tab == "completed" %}
+              <td>{{ row.inspector_name }}</td><td>{{ row.quality_check.completed_at|date:"d M Y, H:i" }}</td>
+            {% endif %}
+            <td class="text-end">
+              <div class="btn-group">
+                <a class="btn btn-sm btn-primary" href="{% url 'quality_check_detail' row.jobcard.id %}">
+                  {% if active_tab == "pending" %}
+                    {% if row.quality_check %}Continue QC{% else %}Start QC{% endif %}
+                  {% else %}View QC{% endif %}
+                </a>
+                {% if active_tab == "completed" %}
+                <a class="btn btn-sm btn-outline-danger"
+                   href="{% url 'quality_check_report' row.jobcard.id %}?download=1">
+                  Download Report
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-5">No {{ active_tab }} quality checks found.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

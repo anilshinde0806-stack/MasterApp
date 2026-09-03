@@ -1,5 +1,8 @@
 # Register your models here.
-
+from django.contrib import admin
+from .models import JobCardQualityCheck, JobCardType
+from .models import QualityCheckItem
+from core.models import JobCardQualityCheck
 from .models import (
     ItemData,
     Employee,
@@ -11,7 +14,7 @@ from .models import (
     GateInEntry,
     UserLoginActivity,
 )
-from django.contrib import admin
+
 admin.site.register(ItemData)
 admin.site.register(InsuranceCompany)
 admin.site.register(Employee)
@@ -89,3 +92,74 @@ class UserLoginActivityAdmin(admin.ModelAdmin):
     list_filter = ["login_at"]
     search_fields = ["user__username", "user__first_name", "user__last_name", "ip_address"]
     readonly_fields = ["user", "login_at", "ip_address", "user_agent", "session_key"]
+
+
+
+@admin.register(JobCardQualityCheck)
+class JobCardQualityCheckAdmin(admin.ModelAdmin):
+    list_display = [
+        "jobcard",
+        "inspector",
+        "completed",
+        "completed_at",
+        "updated_at",
+    ]
+
+    list_filter = [
+        "completed",
+        "paint_finish",
+        "road_test",
+        "washing_done",
+        "final_inspection",
+    ]
+
+    search_fields = [
+        "jobcard__job_no",
+        "remarks",
+        "inspector__username",
+        "inspector__first_name",
+        "inspector__last_name",
+    ]
+
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+    ]
+class QualityCheckItemInline(admin.TabularInline):
+    model = QualityCheckItem
+    extra = 0
+
+    fields = (
+        "item_name",
+        "category",
+        "status",
+        "remarks",
+        "checked_by",
+        "checked_at",
+    )
+
+    readonly_fields = (
+        "checked_by",
+        "checked_at",
+    )
+
+    @admin.register(JobCardType)
+    class JobCardTypeAdmin(admin.ModelAdmin):
+        list_display = (
+            "name",
+            "display_order",
+            "is_active",
+        )
+
+        list_filter = (
+            "is_active",
+        )
+
+        search_fields = (
+            "name",
+        )
+
+        ordering = (
+            "display_order",
+            "name",
+        )

@@ -75,7 +75,7 @@
                         <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select id="statusFilter" class="form-select">
-                                <option value="Pending" selected>Pending</option>
+                                <option value="all" selected>All</option>
                                 <option value="Converted">Converted</option>
                                 <option value="Cancelled">Cancelled</option>
                                 <option value="all">All</option>
@@ -92,10 +92,22 @@
                             </select>
                         </div>
 
+                        <div class="col-md-3">
+                            <label class="form-label">From Date</label>
+                            <input type="date" id="exportFromDate" class="form-control">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">To Date</label>
+                            <input type="date" id="exportToDate" class="form-control">
+                        </div>
+
                         <div class="col-md-4 text-md-end">
                             <button type="button" id="refreshGateList" class="btn btn-outline-primary">
                                 <i class="fa fa-refresh me-1"></i>
                                 Refresh
+                            </button>
+                            <button type="button" id="exportGateRegister" class="btn btn-success ms-1">
+                                <i class="fa fa-file-excel me-1"></i> Excel
                             </button>
                         </div>
                     </div>
@@ -211,6 +223,22 @@
     </div>
 </div>
 
+<div class="modal fade" id="gateOutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <form method="post" enctype="multipart/form-data" id="gateOutForm">
+            {% csrf_token %}
+            <div class="modal-header"><h5 class="modal-title">Authorize Gate Out</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><p class="text-muted small" id="gateOutVehicle"></p>
+                <label class="form-label">Physical Gate Pass No.</label><input class="form-control mb-3" name="gate_pass_no" required>
+                <label class="form-label">Out KM</label><input class="form-control mb-3" type="number" name="out_km" min="1" step="1" required>
+                <label class="form-label">Scan / upload physical pass</label><input class="form-control mb-3" type="file" name="gate_pass_evidence" accept="image/*" required>
+                <div class="form-text">The logged-in user is recorded as the Gate-Out authorizer.</div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-success">Authorize Gate Out</button></div>
+        </form>
+    </div></div>
+</div>
+
 <script>
 const csrfToken = "{{ csrf_token }}";
 
@@ -281,6 +309,9 @@ function loadGateEntries() {
                            Edit
                        </button>`
                     : "";
+                const gateOutButton = row.can_gate_out
+                    ? `<button type="button" class="btn btn-sm btn-success gate-out-btn ms-1" data-index="${index}">Gate Out</button>`
+                    : "";
 
                 return `
                     <tr>
@@ -293,20 +324,37 @@ function loadGateEntries() {
                         <td>${escapeHtml(row.gate_in_datetime)}</td>
                         <td><span class="badge ${badgeClass(row.status)}">${escapeHtml(row.status)}</span></td>
                         <td>${escapeHtml(row.job_no) || "-"}</td>
-                        <td class="text-end">${editButton}</td>
+                        <td class="text-end">${editButton}${gateOutButton}</td>
                     </tr>`;
             }).join("");
         });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+    const today = new Date();
+    const iso = value => value.toISOString().slice(0, 10);
+    document.getElementById("exportFromDate").value = iso(new Date(today.getFullYear(), today.getMonth(), 1));
+    document.getElementById("exportToDate").value = iso(today);
     loadGateEntries();
     document.getElementById("refreshGateList").addEventListener("click", loadGateEntries);
     document.getElementById("statusFilter").addEventListener("change", loadGateEntries);
     document.getElementById("serviceTypeFilter").addEventListener("change", loadGateEntries);
+    document.getElementById("exportGateRegister").addEventListener("click", function () {
+        const from = document.getElementById("exportFromDate").value;
+        const to = document.getElementById("exportToDate").value;
+        window.location.href = `/gate-in/export/?date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}`;
+    });
     document.getElementById("editCancelEntry").addEventListener("change", toggleCancelRemark);
     document.addEventListener("click", function (event) {
         const button = event.target.closest(".gate-edit-btn");
+        const gateOutButton = event.target.closest(".gate-out-btn");
+        if (gateOutButton) {
+            const row = window.gateRows[gateOutButton.dataset.index];
+            document.getElementById("gateOutForm").action = `/gate-in/${row.id}/gate-out/`;
+            document.getElementById("gateOutVehicle").textContent = `${row.registration_no} · Job Card ${row.job_no || "-"}`;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById("gateOutModal")).show();
+            return;
+        }
         if (!button) return;
         openGateEdit((window.gateRows || [])[Number(button.dataset.index)]);
     });

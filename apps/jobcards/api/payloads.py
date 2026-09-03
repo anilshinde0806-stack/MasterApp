@@ -3,6 +3,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.core.signing import TimestampSigner
 from django.urls import reverse
 
 from apps.common.utils.parser_utils import clean_text
@@ -46,7 +47,7 @@ def save_mobile_signature_data(job, field_name, data_url):
 
 def mobile_jobcard_payload(job, request=None):
     claim = job.claim if job.claim_id else None
-    vehicle = claim.vehicle if claim and claim.vehicle_id else None
+    vehicle = job.vehicle if getattr(job, "vehicle_id", None) else (claim.vehicle if claim and claim.vehicle_id else None)
     customer = vehicle.customer if vehicle and vehicle.customer_id else None
     stage_lookup = dict(Claim.CLAIM_STAGES)
     inventory = getattr(job, "inventory", None)
@@ -170,6 +171,8 @@ def mobile_jobcard_payload(job, request=None):
         "job_no": job.job_no,
         "job_date": job.job_date.isoformat(sep=" ", timespec="minutes") if job.job_date else "",
         "registration_no": vehicle.registration_no if vehicle else "",
+        "vehicle": vehicle.id if vehicle else "",
+        "gate_entry_id": getattr(getattr(job, "gate_in_entry", None), "id", ""),
         "customer": customer.name if customer else "",
         "model": str(vehicle.model) if vehicle and vehicle.model_id else "",
         "variant": vehicle.variant.name if vehicle and vehicle.variant_id else "",
@@ -187,6 +190,7 @@ def mobile_jobcard_payload(job, request=None):
         "part_order_date": job.part_order_date.isoformat() if job.part_order_date else "",
         "part_order_no": job.part_order_no or "",
         "repair_status": job.repair_status or "",
+        "jobCardType":job.jobcard_type_id or "",
         # -----------------------------
         # Workshop Workflow
         # -----------------------------
@@ -375,15 +379,19 @@ def mobile_jobcard_action_payload(request, job):
     whatsapp_url = ""
     whatsapp_message = ""
     claim = job.claim if job.claim_id else None
-    vehicle = claim.vehicle if claim and claim.vehicle_id else None
+    vehicle = job.vehicle if getattr(job, "vehicle_id", None) else (claim.vehicle if claim and claim.vehicle_id else None)
     customer = vehicle.customer if vehicle and vehicle.customer_id else None
-    mobile_no = (customer.mobile_no if customer else "") or ""
+    mobile_no = ((customer.mobile_no if customer else "") or (customer.whatsapp_no if customer else "") or "")
     if mobile_no:
         mobile = "91" + mobile_no[-10:]
+        tracking_token = TimestampSigner().sign(str(job.id))
+        tracking_path = reverse("customer_jobcard_tracking", args=[tracking_token])
+        tracking_url = f"{getattr(settings, 'SITE_URL', '').rstrip('/')}{tracking_path}"
         whatsapp_message = (
             f"Dear {customer.name},\n"
             f"Your Job Card {job.job_no} has been created.\n"
             f"Vehicle: {vehicle.registration_no if vehicle else ''}\n\n"
+            f"Track your repair progress:\n{tracking_url}\n\n"
             f"JobCard PDF:\n{pdf_url}"
         )
         whatsapp_url = f"https://wa.me/{mobile}?text={quote(whatsapp_message)}"

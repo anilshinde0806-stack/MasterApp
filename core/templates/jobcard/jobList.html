@@ -1,335 +1,57 @@
 {% extends "registration/auth_base.html" %}
-
-{% block title %}Claim Entry{% endblock %}
-
+{% block title %}Job Cards{% endblock %}
 {% block content %}
-
 <style>
-.job-grid-page {
-    padding: 10px 12px;
-}
-
-.job-page-header {
-    margin-bottom: 8px;
-}
-
-.job-page-header h3 {
-    font-size: 1.05rem;
-    font-weight: 800;
-}
-
-.job-filter-card {
-    border: 1px solid #dfe5ee;
-    border-radius: 8px;
-    margin-bottom: 8px;
-}
-
-.job-filter-card.card {
-    padding: 10px 12px !important;
-}
-
-.job-filter-card label {
-    margin-bottom: 3px;
-    color: #4b5563;
-    font-size: .76rem;
-    font-weight: 700;
-}
-
-.job-filter-card .form-control,
-.job-filter-card .form-select {
-    min-height: 34px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    font-size: .86rem;
-}
-
-#jobGrid {
-    height: calc(100vh - 188px);
-    min-height: 520px;
-    width: 100%;
-    --ag-font-size: 12px;
-    --ag-grid-size: 4px;
-    --ag-row-height: 30px;
-    --ag-header-height: 32px;
-    --ag-list-item-height: 26px;
-    --ag-cell-horizontal-padding: 6px;
-}
-
-#jobGrid .ag-cell {
-    line-height: 29px;
-}
-
-#jobGrid .ag-header-cell-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+:root{--jc-blue:#073b82;--jc-ink:#10203a;--jc-muted:#6b7280;--jc-line:#e8edf4}
+.jc-page{max-width:1180px;margin:auto;padding:28px 24px 40px;background:#f8fafc;min-height:calc(100vh - 70px)}
+.jc-top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}.jc-title{font-size:1.65rem;font-weight:800;color:var(--jc-ink);margin:0}.jc-sub{color:var(--jc-muted);font-size:.88rem;margin-top:4px}
+.jc-action{background:var(--jc-blue);color:#fff;border:0;border-radius:10px;padding:11px 17px;font-weight:700;text-decoration:none}.jc-action:hover{color:#fff;background:#052e68}
+.jc-tabs{display:flex;gap:27px;border-bottom:1px solid var(--jc-line);overflow:auto;margin-bottom:18px}.jc-tab{border:0;background:none;padding:0 2px 13px;color:#445066;font-weight:700;white-space:nowrap}.jc-tab.active{color:var(--jc-blue);border-bottom:3px solid var(--jc-blue)}.jc-count{background:#e9edf3;border-radius:15px;padding:2px 7px;font-size:.72rem;margin-left:4px}.jc-tab.active .jc-count{background:#dbeafe;color:var(--jc-blue)}
+.jc-search{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}.jc-search input{flex:1;min-width:240px;border:1px solid var(--jc-line);border-radius:12px;padding:13px 16px;background:#fff;font-size:.92rem;box-shadow:0 2px 8px #10203a08}.jc-date{border:1px solid var(--jc-line);border-radius:12px;padding:0 12px;background:#fff;color:#445066;font-size:.8rem}.jc-filter{border:1px solid var(--jc-line);background:#fff;border-radius:12px;padding:0 16px;color:var(--jc-blue);font-weight:700}
+.jc-list{display:grid;gap:13px}.jc-card{display:grid;grid-template-columns:145px 1fr auto;gap:20px;align-items:center;background:#fff;border:1px solid var(--jc-line);border-radius:16px;padding:16px 20px;box-shadow:0 4px 15px #10203a08;cursor:pointer;transition:.15s}.jc-card:hover{transform:translateY(-1px);box-shadow:0 8px 22px #10203a14}.jc-car{height:92px;width:145px;object-fit:contain}.jc-no{font-size:1rem;font-weight:800;color:var(--jc-ink);margin-bottom:8px}.jc-model{font-size:.95rem;color:var(--jc-ink);margin-bottom:11px}.jc-meta,.jc-footer{display:flex;gap:14px;flex-wrap:wrap;color:#26354d;font-size:.82rem}.jc-meta span+span:before{content:'•';margin-right:14px;color:#9aa4b2}.jc-footer{border-top:1px solid #f0f2f6;margin-top:14px;padding-top:12px;color:var(--jc-muted)}.jc-status{align-self:start;border-radius:6px;padding:6px 9px;font-size:.75rem;font-weight:800;white-space:nowrap}.s-progress{background:#dceafe;color:#1456b8}.s-pending{background:#fff0d9;color:#b96c00}.s-completed{background:#dcf6e4;color:#198746}.s-hold{background:#edf0f4;color:#5c6674}.jc-arrow{font-size:1.7rem;color:var(--jc-blue);padding-left:10px}
+.jc-claim{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:.74rem;color:#52647d}.jc-claim strong{color:#17345d}.jc-stage{border-radius:999px;padding:3px 8px;background:#eef5ff;color:#1769aa;font-weight:700}.jc-intimated{color:#198746}.jc-not-intimated{color:#b96c00}
+.jc-page{max-width:1280px;padding:24px 24px 40px;background:#f8fafc}.jc-actions{display:flex;gap:9px;align-items:center}.jc-action.secondary{background:#fff;color:#17345d;border:1px solid #dbe3ee}.jc-action.new{background:#123d86}.jc-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:15px;margin:20px 0}.jc-kpi{background:#fff;border:1px solid #e1e8f1;border-radius:13px;padding:17px 18px;box-shadow:0 4px 14px #10203a08}.jc-kpi-label{font-size:.78rem;color:#25334b}.jc-kpi-value{font-size:1.7rem;font-weight:800;color:#101d35;margin:7px 0}.jc-kpi-trend{font-size:.75rem;color:#16a05b}.jc-kpi:nth-child(4) .jc-kpi-trend,.jc-kpi:nth-child(5) .jc-kpi-trend{color:#e11d36}.jc-kpi-icon{float:right;width:39px;height:39px;border-radius:10px;display:grid;place-items:center;font-size:21px;background:#eaf2ff;color:#1769d2}.jc-kpi:nth-child(2) .jc-kpi-icon{background:#e7f8ed;color:#13944d}.jc-kpi:nth-child(3) .jc-kpi-icon{background:#fff2df;color:#f28a00}.jc-kpi:nth-child(4) .jc-kpi-icon{background:#f1e9ff;color:#8041df}.jc-kpi:nth-child(5) .jc-kpi-icon{background:#ffe9eb;color:#e11d36}.jc-list{padding:0 16px 8px;background:#fff;border:1px solid var(--jc-line);border-radius:14px;box-shadow:0 4px 15px #10203a08}.jc-card{border:0;border-bottom:1px solid #edf1f5;border-radius:0;box-shadow:none;padding:15px 0}.jc-card:last-child{border-bottom:0}.jc-card:hover{transform:none;box-shadow:none;background:#fbfdff}.jc-tabs{padding:0 10px;margin-bottom:0;background:#fff;border:1px solid var(--jc-line);border-bottom:0;border-radius:14px 14px 0 0;padding-top:17px}.jc-search{padding:16px 10px;margin-bottom:0;background:#fff;border-left:1px solid var(--jc-line);border-right:1px solid var(--jc-line)}
+@media(max-width:680px){.jc-page{padding:18px 13px}.jc-top{align-items:flex-start}.jc-title{font-size:1.3rem}.jc-action{font-size:.75rem;padding:9px}.jc-card{grid-template-columns:92px 1fr auto;gap:11px;padding:13px}.jc-car{width:92px;height:72px}.jc-model{font-size:.82rem}.jc-meta,.jc-footer{font-size:.72rem}.jc-status{grid-column:2}.jc-arrow{grid-column:3;grid-row:1}}
 </style>
-
-<div class="container-fluid job-grid-page">
-    <div class="d-flex justify-content-between align-items-center job-page-header">
-        <h3 class="mb-0">Job Card List</h3>
-        <a class="btn btn-outline-primary btn-sm" href="{% url 'part_order_list' %}">
-            Part Order Tracking
-        </a>
-    </div>
-
-    <!-- FILTER PANEL -->
-    <div class="card job-filter-card">
-
-        <div class="row">
-
-            <div class="col-md-3">
-                <label>Advisor</label>
-                <select id="advisorFilter" class="form-control">
-                    <option value="">All</option>
-                    <option value="null">Unassigned</option>
-                </select>
-            </div>
-
-            <div class="col-md-3">
-                <label>Work Progress</label>
-                <select id="workProgressFilter" class="form-control">
-                    <option value="">All</option>
-                    <option selected>Work Not Started</option>
-                    <option>Started</option>
-                    <option>Work Completed</option>
-                    <option>2nd Approval Pending</option>
-                    <option>2nd Approval Approved</option>
-                    <option>2nd Approval Rejected</option>
-                </select>
-            </div>
-
-            <div class="col-md-3">
-                <label>Date From</label>
-                <input type="date" id="fromDate" class="form-control">
-            </div>
-
-            <div class="col-md-3">
-                <label>Date To</label>
-                <input type="date" id="toDate" class="form-control">
-            </div>
-
-        </div>
-
-    </div>
-
-    <!-- GRID -->
-    <div class="container-fluid px-2">
-
-    <div id="jobGrid"
-         class="ag-theme-quartz">
-    </div>
-
+<style>
+.jc-list-header{display:grid;grid-template-columns:145px 1fr 180px 30px;gap:20px;padding:13px 20px;border:1px solid var(--jc-line);border-bottom:0;border-radius:14px 14px 0 0;background:#f8fafc;color:#6a778c;font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.jc-list-header+ .jc-list{border-radius:0 0 14px 14px}.jc-card{grid-template-columns:145px 1fr 180px 30px!important;border-radius:0!important;box-shadow:none!important;padding:15px 4px!important}.jc-card>div:last-child{display:contents}.jc-card:last-child{border-bottom:0}
+@media(max-width:680px){.jc-list-header{grid-template-columns:92px 1fr 80px 20px;gap:11px;padding:10px;font-size:.62rem}.jc-card{padding:13px!important}}
+</style>
+<div class="jc-page">
+  <div class="jc-top"><div><h1 class="jc-title">Job Cards</h1><div class="jc-sub">Dashboard &nbsp;›&nbsp; Job Cards</div></div><div class="jc-actions"><a class="jc-action secondary" href="{% url 'part_order_list' %}">⇩ Export</a><button class="jc-action secondary" type="button">⇧ Import</button><a class="jc-action new" href="{% url 'jobCreate' %}">＋ New Job Card</a></div></div>
+  <div class="jc-kpis"><div class="jc-kpi"><span class="jc-kpi-icon">▤</span><div class="jc-kpi-label">Total Job Cards</div><div class="jc-kpi-value" id="kpiAll">0</div><div class="jc-kpi-trend">Current filtered results</div></div><div class="jc-kpi"><span class="jc-kpi-icon">♧</span><div class="jc-kpi-label">In Progress</div><div class="jc-kpi-value" id="kpiProgress">0</div><div class="jc-kpi-trend">Current filtered results</div></div><div class="jc-kpi"><span class="jc-kpi-icon">✓</span><div class="jc-kpi-label">Completed</div><div class="jc-kpi-value" id="kpiCompleted">0</div><div class="jc-kpi-trend">Current filtered results</div></div><div class="jc-kpi"><span class="jc-kpi-icon">◷</span><div class="jc-kpi-label">Pending Approval</div><div class="jc-kpi-value" id="kpiPending">0</div><div class="jc-kpi-trend">Current filtered results</div></div><div class="jc-kpi"><span class="jc-kpi-icon">×</span><div class="jc-kpi-label">Cancelled</div><div class="jc-kpi-value" id="kpiCancelled">0</div><div class="jc-kpi-trend">Current filtered results</div></div></div>
+  <div class="jc-tabs"><button class="jc-tab active" data-filter="">All <span class="jc-count" id="countAll">0</span></button><button class="jc-tab" data-filter="In Progress">In Progress <span class="jc-count" id="countProgress">0</span></button><button class="jc-tab" data-filter="Completed">Completed <span class="jc-count" id="countCompleted">0</span></button><button class="jc-tab" data-filter="On Hold">On Hold <span class="jc-count" id="countHold">0</span></button></div>
+  <div class="jc-search"><input id="jobSearch" placeholder="Search by Job No, Vehicle, Customer..."><select class="jc-date" id="branchFilter"><option value="">All Branches</option></select><select class="jc-date" id="advisorFilter"><option value="">All Advisors</option></select><select class="jc-date" id="serviceFilter"><option value="">All Service Types</option></select><input class="jc-date" id="dateFrom" type="date" title="From date"><input class="jc-date" id="dateTo" type="date" title="To date"><button class="jc-filter" id="refreshJobs">↻ Filter</button></div>
+  <div class="jc-list-header"><span>Vehicle</span><span>Job Card Details</span><span>Status</span><span>Action</span></div><div class="jc-list" id="jobList"><div class="text-muted p-4">Loading job cards…</div></div>
 </div>
-  </div>
-
 <script>
-
-let gridApi;
-
-const columnDefs = [
-
-    {
-        headerName: "Job No",
-        field: "job_no",
-        pinned: "left",
-        filter: true,
-        width: 126,
-        minWidth: 112
-    },
-
-    {
-        headerName: "Claim",
-        field: "claim__claim_no",
-        filter: true,
-        width: 124
-    },
-
-    {
-        headerName: "Reg No",
-        field: "claim__vehicle__registration_no",
-        filter: true,
-        width: 112
-    },
-
-    {
-        headerName: "Model",
-        field: "claim__vehicle__model__name",
-        width: 95
-    },
-
-    {
-        headerName: "Customer",
-        field: "claim__vehicle__customer__name",
-        minWidth: 130,
-        flex: 1
-    },
-
-    {
-        headerName: "Advisor",
-        field: "advisor__name",
-        filter: true,
-        width: 118,
-        cellRenderer: params =>
-            params.value ? params.value : "<span style='color:red'>Unassigned</span>"
-    },
-
-    {
-        headerName: "Status",
-        field: "repair_status",
-        filter: true,
-        width: 92,
-        cellRenderer: params => {
-            let color =
-                params.value === "Closed" ? "green" :
-                params.value === "Completed" ? "green" :
-                params.value === "Open" ? "orange" :
-                params.value === "Cancellation" ? "red" : "gray";
-
-            return `<span style="color:${color};font-weight:bold">
-                        ${params.value}
-                    </span>`;
-        }
-    },
-
-    {
-        headerName: "Progress",
-        field: "work_progress_status",
-        width: 165,
-        filter: true,
-        cellRenderer: params => {
-            const value = params.value || "Work Not Started";
-            const cls = value.includes("2nd Approval Pending") || value.includes("2nd Approval Rejected")
-                ? "bg-danger"
-                : value.includes("2nd Approval Approved")
-                    ? "bg-warning text-dark"
-                    : value === "Work Completed"
-                        ? "bg-success"
-                        : value === "Work Not Started"
-                            ? "bg-secondary"
-                            : "bg-info text-dark";
-
-            return `<span class="badge ${cls}">${value}</span>`;
-        }
-    },
-
-    {
-        headerName: "PNA",
-        field: "parts_not_available_status",
-        width: 108,
-        filter: true,
-        cellRenderer: params => {
-            const value = params.value || "No PNA";
-            const cls = value === "No PNA" ? "bg-success" : "bg-danger";
-            return `<span class="badge ${cls}">${value}</span>`;
-        }
-    },
-
-    {
-        headerName: "Net Total",
-        field: "grand_total",
-        width: 92
-    },
-
-    {
-        headerName: "Created",
-        field: "created_at",
-        width: 112
-    }
-
-];
-
-const gridOptions = {
-
-    columnDefs: columnDefs,
-
-    pagination: true,
-    paginationPageSize: 50,
-    rowHeight: 30,
-    headerHeight: 32,
-    animateRows: false,
-    suppressCellFocus: true,
-
-    defaultColDef: {
-        sortable: true,
-        resizable: true,
-        filter: true,
-        suppressHeaderMenuButton: true,
-        minWidth: 72,
-        flex: 0
-    },
-
-    rowSelection: "single",
-
-    onRowDoubleClicked: function (event) {
-
-        let jobId = event.data.id;
-
-        // 👉 OPEN JOB CARD EDIT PAGE
-        window.location.href = `/jobCard/${jobId}/edit/`;
-    }
-
-};
-
-document.addEventListener("DOMContentLoaded", function () {
-
-    const gridDiv = document.querySelector("#jobGrid");
-
-    gridApi = agGrid.createGrid(gridDiv, gridOptions);
-
-    loadData();
-});
-
-function loadData() {
-    const workProgress = document.getElementById("workProgressFilter").value;
-    const fromDate = document.getElementById("fromDate").value;
-    const toDate = document.getElementById("toDate").value;
-    const params = new URLSearchParams();
-
-    if (workProgress) {
-        params.set("work_progress", workProgress);
-    }
-
-    if (fromDate) {
-        params.set("date_from", fromDate);
-    }
-
-    if (toDate) {
-        params.set("date_to", toDate);
-    }
-
-    fetch(`/api/jobcards/?${params.toString()}`)
-        .then(res => res.json())
-        .then(data => {
-
-            gridApi.setGridOption("rowData", data);
-            setTimeout(() => gridApi.sizeColumnsToFit(), 0);
-        });
-}
-
-window.addEventListener("resize", function () {
-    if (gridApi) {
-        gridApi.sizeColumnsToFit();
-    }
-});
-
-document.getElementById("workProgressFilter").addEventListener("change", loadData);
-document.getElementById("fromDate").addEventListener("change", loadData);
-document.getElementById("toDate").addEventListener("change", loadData);
-
-document.getElementById("advisorFilter").addEventListener("change", function () {
-
-    let val = this.value;
-
-    if (val === "null") {
-
-        gridApi.setGridOption("quickFilterText", "Unassigned");
-
-    } else {
-
-        gridApi.setGridOption("quickFilterText", val);
-    }
-});
+let jobs=[],activeFilter='';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function statusClass(v){v=String(v||'').toLowerCase();return v.includes('complete')?'s-completed':v.includes('hold')?'s-hold':v.includes('pending')?'s-pending':'s-progress'}
+function jobStatus(j){return String(j.work_progress_status||j.repair_status||'').trim().toLowerCase()}
+function isClosed(j){return String(j.repair_status||'').trim().toLowerCase()==='closed'}
+function matchesFilter(j,filter){const s=jobStatus(j);if(!filter)return true;if(filter==='Completed')return s.includes('complete');if(filter==='On Hold')return s.includes('hold');if(filter==='In Progress')return s&&!s.includes('complete')&&!s.includes('hold')&&!s.includes('pending')&&!s.includes('not started')&&!s.includes('not-started');return s.includes(filter.toLowerCase())}
+function render(){const q=document.getElementById('jobSearch').value.toLowerCase();const from=document.getElementById('dateFrom').value;const to=document.getElementById('dateTo').value;const rows=jobs.filter(j=>{const date=String(j.job_date||j.created_at||'').slice(0,10);return matchesFilter(j,activeFilter)&&(!from||date>=from)&&(!to||date<=to)&&JSON.stringify(j).toLowerCase().includes(q)});document.getElementById('countAll').textContent=jobs.length;document.getElementById('countProgress').textContent=jobs.filter(j=>matchesFilter(j,'In Progress')).length;document.getElementById('countCompleted').textContent=jobs.filter(j=>matchesFilter(j,'Completed')).length;document.getElementById('countHold').textContent=jobs.filter(j=>matchesFilter(j,'On Hold')).length;document.getElementById('jobList').innerHTML=rows.length?rows.map(j=>`<article class="jc-card" onclick="location.href='/jobCard/${j.id}/edit/'"><img class="jc-car" src="${esc(j.vehicle_condition_photo||'/static/images/car-top-view.png')}" onerror="this.src='/static/images/car-top-view.png'"><div><div class="jc-no">${esc(j.job_no||'—')}</div><div class="jc-model">${esc(j.claim__vehicle__model__name||'Vehicle')}</div><div class="jc-claim"><strong>Claim: ${esc(j.claim__claim_no||'Direct Job')}</strong><span>${esc(j.claim__claim_type||'Service')}</span><span class="jc-stage">Stage: ${esc(j.claim__stage_name||'No Claim')}</span><span class="${j.claim__intimation_date?'jc-intimated':'jc-not-intimated'}">${j.claim__intimation_date?'Intimated':'Intimation Pending'}</span></div><div class="jc-meta"><span>${esc(j.claim__vehicle__registration_no||'No registration')}</span><span>${esc(j.claim__vehicle__customer__name||'Customer')}</span><span>${esc(j.claim__insurance||'Not specified')}</span></div><div class="jc-footer"><span>◷ ${esc(j.created_at||'')}</span><span>♙ ${esc(j.advisor__name||'Unassigned')}</span></div></div><div><span class="jc-status ${statusClass(j.work_progress_status||j.repair_status)}">${esc(j.work_progress_status||j.repair_status||'Open')}</span><div class="jc-arrow">›</div></div></article>`).join(''):'<div class="text-muted p-4">No job cards found.</div>'}
+fetch('/api/jobcards/').then(r=>r.json()).then(d=>{jobs=d;render()}).catch(()=>document.getElementById('jobList').innerHTML='<div class="text-danger p-4">Unable to load job cards.</div>');document.getElementById('jobSearch').addEventListener('input',render);document.getElementById('dateFrom').addEventListener('change',render);document.getElementById('dateTo').addEventListener('change',render);document.getElementById('refreshJobs').addEventListener('click',render);document.querySelectorAll('.jc-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelector('.jc-tab.active').classList.remove('active');t.classList.add('active');activeFilter=t.dataset.filter;render()}));
 </script>
-
+<script>
+setInterval(function(){if(!jobs||!jobs.length)return;document.getElementById('kpiAll').textContent=jobs.length;document.getElementById('kpiProgress').textContent=jobs.filter(j=>matchesFilter(j,'In Progress')).length;document.getElementById('kpiCompleted').textContent=jobs.filter(j=>matchesFilter(j,'Completed')).length;document.getElementById('kpiPending').textContent=jobs.filter(j=>jobStatus(j).includes('pending')).length;document.getElementById('kpiCancelled').textContent=jobs.filter(j=>jobStatus(j).includes('cancel')).length},300)
+</script>
+<script>
+let allJobs=[], filterReady=false;
+function fillJobFilters(){
+ if(!jobs.length)return;
+ if(!allJobs.length)allJobs=jobs.slice();
+ if(!filterReady){
+  const values=(key)=>[...new Map(allJobs.map(j=>[String(j[key]||''),j[key.replace('__name','__id')]||j[key]]).filter(x=>x[0])).entries()];
+  const add=(id,items)=>{const el=document.getElementById(id);items.forEach(([value,label])=>el.insertAdjacentHTML('beforeend',`<option value="${esc(value)}">${esc(label)}</option>`))};
+  add('branchFilter',[...new Map(allJobs.filter(j=>j.branch__name).map(j=>[j.branch__id,j.branch__name])).entries()]);
+  add('advisorFilter',[...new Map(allJobs.filter(j=>j.advisor__name).map(j=>[j.advisor__id,j.advisor__name])).entries()]);
+  add('serviceFilter',[...new Set(allJobs.map(j=>j.service_type).filter(Boolean))].map(v=>[v,v]));
+  ['branchFilter','advisorFilter','serviceFilter'].forEach(id=>document.getElementById(id).addEventListener('change',applyJobFilters));filterReady=true;
+ }
+}
+function applyJobFilters(){const b=document.getElementById('branchFilter').value,a=document.getElementById('advisorFilter').value,s=document.getElementById('serviceFilter').value;jobs=allJobs.filter(j=>(!b||String(j.branch__id)===b)&&(!a||String(j.advisor__id)===a)&&(!s||j.service_type===s));render()}
+setInterval(fillJobFilters,350);
+</script>
 {% endblock %}

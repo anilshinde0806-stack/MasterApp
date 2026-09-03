@@ -1,4 +1,3 @@
-
 {% extends "registration/auth_base.html" %}
 
 {% block title %}Register{% endblock %}
@@ -211,6 +210,30 @@
                 </select>
             </div>
 
+            <!-- ADVISOR NAME -->
+            <div class="col-md-2">
+                <label class="form-label">
+                    Advisor Name
+                </label>
+
+                <input type="text"
+                       id="advisor_name_filter"
+                       class="form-control"
+                       placeholder="Advisor name...">
+            </div>
+
+            <!-- CLAIM TYPE -->
+            <div class="col-md-2">
+                <label class="form-label">
+                    Claim Type
+                </label>
+
+                <input type="text"
+                       id="claim_type_filter"
+                       class="form-control"
+                       placeholder="Claim type...">
+            </div>
+
             <!-- SEARCH -->
             <div class="col-md-2">
                 <label class="form-label">
@@ -241,8 +264,35 @@
 <div class="claim-grid-toolbar">
 <input type="text" id="quickFilter" placeholder="Search claim, vehicle, customer..." class="form-control">
 
-    <button id="toggleColumns" class="btn btn-outline-secondary">
-    <i class="fa fa-columns me-1"></i> Columns
+    <div class="d-flex gap-2">
+        <button id="exportExcelBtn" class="btn btn-outline-success" onclick="exportToExcel(false)">
+        <i class="fa fa-file-excel me-1"></i> Export
+        </button>
+
+        <button id="toggleColumns" class="btn btn-outline-secondary">
+        <i class="fa fa-columns me-1"></i> Columns
+        </button>
+    </div>
+</div>
+
+<!-- BULK ACTIONS BAR (shown when 1+ rows selected) -->
+<div id="bulkActionBar" class="d-none align-items-center gap-2 p-2 mb-2 border rounded bg-light">
+    <span id="bulkSelectedCount" class="fw-semibold me-2"></span>
+
+    <button class="btn btn-sm btn-outline-primary" onclick="openBulkAssignAdvisor()">
+        <i class="fa fa-user-check me-1"></i> Assign Advisor
+    </button>
+
+    <button class="btn btn-sm btn-outline-danger" onclick="bulkCloseClaims()">
+        <i class="fa fa-lock me-1"></i> Close Claims
+    </button>
+
+    <button class="btn btn-sm btn-outline-success" onclick="exportToExcel(true)">
+        <i class="fa fa-file-excel me-1"></i> Export Selected
+    </button>
+
+    <button class="btn btn-sm btn-link ms-auto" onclick="clearSelection()">
+        Clear selection
     </button>
 </div>
 
@@ -769,6 +819,35 @@
   </div>
 </div>
 
+<!-- BULK ASSIGN ADVISOR MODAL -->
+<div class="modal fade" id="bulkAssignAdvisorModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Assign Advisor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <p id="bulkAssignAdvisorCount" class="text-muted"></p>
+
+        <label class="form-label">Advisor</label>
+        <select id="bulkAdvisorSelect" class="form-select">
+            <option value="">Loading advisors...</option>
+        </select>
+        <small id="bulkAssignAdvisorError" class="text-danger"></small>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-success" onclick="submitBulkAssignAdvisor()">Assign</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!--ADD VEHICLE   & CUSTOMER -->
 
 
@@ -782,6 +861,9 @@
 
 <!-- ✅ Select2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+
+<!-- ✅ SheetJS (Excel export) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- ✅ INIT (ONLY ONCE, AFTER LOAD) -->
 
 
@@ -794,7 +876,7 @@
     const CLAIM_COLUMN_PREF_KEY = "claimListGridColumns";
 
     const columnDefs = [
-   { field: "claim_no", headerName: "Claim", pinned: "left", width: 128, minWidth: 112 },
+   { field: "claim_no", headerName: "Claim", pinned: "left", width: 128, minWidth: 112, checkboxSelection: true, headerCheckboxSelection: true },
    { field: "vehicle__registration_no", headerName: "Reg No", pinned: "left", width: 112, minWidth: 100 },
    { field: "vehicle__customer__name", headerName: "Customer", width: 145, minWidth: 120 },
    { field: "vehicle__customer__mobile_no", headerName: "Mobile", width: 104 },
@@ -817,6 +899,34 @@
    { field: "surveyor__name", headerName: "Surveyor", width: 120 },
    { field: "accident_date", headerName: "Accident", width: 98 },
    { field: "intimation_date", headerName: "Intimation", width: 108 },
+   {
+    field: "intimation_date",
+    colId: "days_since_intimation",
+    headerName: "Days Since Intimation",
+    width: 128,
+    type: "numericColumn",
+    valueGetter: function (params) {
+        if (!params.data || !params.data.intimation_date) return null;
+        const intimated = new Date(params.data.intimation_date);
+        if (isNaN(intimated)) return null;
+        const today = new Date();
+        // normalize to midnight so partial-day differences don't round oddly
+        intimated.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffMs = today - intimated;
+        return Math.round(diffMs / (1000 * 60 * 60 * 24));
+    },
+    cellRenderer: function (params) {
+        if (params.value === null || params.value === undefined) return "";
+        if (params.value > 15) {
+            return `<span class="badge bg-danger">${params.value}d</span>`;
+        }
+        if (params.value > 7) {
+            return `<span class="badge bg-warning text-dark">${params.value}d</span>`;
+        }
+        return `<span class="badge bg-success">${params.value}d</span>`;
+    }
+   },
    { field: "survey_date", headerName: "Survey", width: 98 },
    { field: "estimated_amount", headerName: "Estimate", type: "numericColumn", width: 98 },
    { field: "approved_amount", headerName: "Approved", type: "numericColumn", width: 102 },
@@ -1138,7 +1248,8 @@ document.addEventListener("DOMContentLoaded", function () {
     gridApi = agGrid.createGrid(
         document.querySelector("#myGrid"),
         {
-            rowSelection: "single",
+            rowSelection: "multiple",
+            suppressRowClickSelection: true,
 
             pagination: true,
             paginationPageSize: 50,
@@ -1164,6 +1275,10 @@ document.addEventListener("DOMContentLoaded", function () {
             window.location.href =`/claim/${claimId}/edit/`;
 
         },
+
+            onSelectionChanged: function() {
+                updateBulkActionBar();
+            },
 
                 onGridReady: function(params) {
             gridApi = params.api;
@@ -1630,6 +1745,12 @@ function resetColumns() {
     const claimStatusFilter =
         document.getElementById("claim_status_filter").value;
 
+    const advisorNameFilter =
+        document.getElementById("advisor_name_filter").value.trim();
+
+    const claimTypeFilter =
+        document.getElementById("claim_type_filter").value.trim();
+
     let url =
         '/api/claim/?t=' + new Date().getTime();
 
@@ -1651,6 +1772,16 @@ function resetColumns() {
 
     if (advisorFilter === "assigned") {
         url += '&advisor_assigned=1';
+    }
+
+    // ADVISOR NAME FILTER
+    if (advisorNameFilter) {
+        url += '&advisor_name=' + encodeURIComponent(advisorNameFilter);
+    }
+
+    // CLAIM TYPE FILTER
+    if (claimTypeFilter) {
+        url += '&claim_type=' + encodeURIComponent(claimTypeFilter);
     }
 
     fetch(url)
@@ -1682,6 +1813,212 @@ function editJob(jobId) {
 
     window.location.href =
         `/jobCard/${jobId}/edit/`;
+}
+
+// ====================================
+// BULK ACTIONS
+// ====================================
+function getSelectedClaims() {
+    return gridApi ? gridApi.getSelectedRows() : [];
+}
+
+function updateBulkActionBar() {
+
+    const bar = document.getElementById("bulkActionBar");
+    const countLabel = document.getElementById("bulkSelectedCount");
+    const selected = getSelectedClaims();
+
+    if (selected.length > 0) {
+        bar.classList.remove("d-none");
+        bar.classList.add("d-flex");
+        countLabel.innerText = selected.length + " selected";
+    } else {
+        bar.classList.add("d-none");
+        bar.classList.remove("d-flex");
+    }
+}
+
+function clearSelection() {
+    if (gridApi) {
+        gridApi.deselectAll();
+    }
+    updateBulkActionBar();
+}
+
+// ---- Bulk assign advisor ----
+function openBulkAssignAdvisor() {
+
+    const selected = getSelectedClaims();
+
+    if (!selected.length) {
+        showToast("Select at least one claim first", "warning");
+        return;
+    }
+
+    document.getElementById("bulkAssignAdvisorCount").innerText =
+        `Assigning advisor to ${selected.length} claim(s).`;
+    document.getElementById("bulkAssignAdvisorError").innerText = "";
+
+    const select = document.getElementById("bulkAdvisorSelect");
+    select.innerHTML = `<option value="">Loading advisors...</option>`;
+
+    // NOTE: assumes a supporting endpoint that returns [{id, name}, ...].
+    // Adjust the URL below to match your actual advisor/employee list endpoint.
+    fetch('/ajax/advisor-list/')
+        .then(res => res.json())
+        .then(data => {
+
+            const advisors = data.results || data || [];
+
+            select.innerHTML = `<option value="">Select advisor...</option>` +
+                advisors.map(a => `<option value="${a.id}">${a.name}</option>`).join("");
+
+        })
+        .catch(() => {
+            select.innerHTML = `<option value="">Unable to load advisors</option>`;
+        });
+
+    new bootstrap.Modal(document.getElementById("bulkAssignAdvisorModal")).show();
+}
+
+function submitBulkAssignAdvisor() {
+
+    const advisorId = document.getElementById("bulkAdvisorSelect").value;
+    const errorBox = document.getElementById("bulkAssignAdvisorError");
+
+    if (!advisorId) {
+        errorBox.innerText = "Please select an advisor";
+        return;
+    }
+
+    const claimIds = getSelectedClaims().map(row => row.id);
+
+    if (!claimIds.length) {
+        errorBox.innerText = "No claims selected";
+        return;
+    }
+
+    // NOTE: assumes a supporting endpoint. Adjust the URL/payload to match your backend.
+    fetch('/api/claim/bulk-assign-advisor/', {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({
+            claim_ids: claimIds,
+            advisor_id: advisorId
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        if (data.status === "success") {
+            showToast("Advisor assigned to " + claimIds.length + " claim(s)");
+            bootstrap.Modal.getInstance(document.getElementById('bulkAssignAdvisorModal')).hide();
+            clearSelection();
+            loadClaims();
+        } else {
+            errorBox.innerText = data.message || "Error assigning advisor";
+        }
+
+    })
+    .catch(() => {
+        errorBox.innerText = "Error assigning advisor";
+    });
+}
+
+// ---- Bulk close claims ----
+function bulkCloseClaims() {
+
+    const selected = getSelectedClaims();
+
+    if (!selected.length) {
+        showToast("Select at least one claim first", "warning");
+        return;
+    }
+
+    if (!confirm(`Close ${selected.length} selected claim(s)? This cannot be undone.`)) {
+        return;
+    }
+
+    const claimIds = selected.map(row => row.id);
+
+    // NOTE: assumes a supporting endpoint. Adjust the URL/payload to match your backend.
+    fetch('/api/claim/bulk-close/', {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({
+            claim_ids: claimIds
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        if (data.status === "success") {
+            showToast(claimIds.length + " claim(s) closed");
+            clearSelection();
+            loadClaims();
+        } else {
+            showToast(data.message || "Error closing claims", "danger");
+        }
+
+    })
+    .catch(() => {
+        showToast("Error closing claims", "danger");
+    });
+}
+
+// ---- Export to Excel ----
+function exportToExcel(selectedOnly) {
+
+    if (!gridApi) return;
+
+    let rows = [];
+
+    if (selectedOnly) {
+        rows = getSelectedClaims();
+
+        if (!rows.length) {
+            showToast("Select at least one claim first", "warning");
+            return;
+        }
+    } else {
+        // export every row currently passing filters/quick-search (not just the visible page)
+        gridApi.forEachNodeAfterFilterAndSort(node => {
+            if (node.data) rows.push(node.data);
+        });
+    }
+
+    // Build columns from currently visible grid columns, in display order,
+    // skipping the Action column (not real data).
+    const exportCols = gridApi.getAllDisplayedColumns()
+        .filter(col => col.getColId() !== "id")
+        .map(col => ({
+            colId: col.getColId(),
+            field: col.getColDef().field,
+            header: col.getColDef().headerName || col.getColId()
+        }));
+
+    const exportRows = rows.map(row => {
+        const out = {};
+        exportCols.forEach(col => {
+            out[col.header] = row[col.field] ?? "";
+        });
+        return out;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Claims");
+
+    const filename = "claims_export_" +
+        new Date().toISOString().slice(0, 10) + ".xlsx";
+
+    XLSX.writeFile(workbook, filename);
 }
 </script>
 

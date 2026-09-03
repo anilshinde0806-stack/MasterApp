@@ -20,7 +20,7 @@ class FloorSupervisorDashboardService(BaseDashboardService):
         pending = jobs.filter(
             allocation__isnull=True,
             claim__claim_stage__gte=ClaimStageCode.WORK_ALLOCATION,
-        ).exclude(repair_status__iexact="Closed")
+        ).exclude(repair_status__iexact="Closed").distinct()
         active = jobs.filter(
             allocation__isnull=False,
             allocation__progress__start_time__isnull=False,

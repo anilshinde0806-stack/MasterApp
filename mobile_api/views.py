@@ -70,6 +70,7 @@ from core.models import (
     WorkProgress,
     WorkProgressPhoto,
     UserNotification,
+    PartOrderHeader,
 
 )
 from core.numbering import branch_for_claim, branch_for_user, next_claim_no, next_jobcard_no
@@ -89,6 +90,127 @@ def get_optional(model, pk):
     if not pk:
         return None
     return model.objects.filter(pk=pk).first()
+
+
+class MobilePartsManagerDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = Employee.objects.filter(user=request.user).first()
+        from core.views import is_parts_manager
+
+        if not request.user.is_superuser and not is_parts_manager(employee):
+            return Response(
+                {"detail": "Parts Manager access is required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        headers = PartOrderHeader.objects.select_related(
+            "job",
+            "job__claim",
+            "job__claim__vehicle",
+            "job__claim__vehicle__customer",
+            "vehicle",
+            "vehicle__customer",
+        ).prefetch_related("lines")
+
+        if employee and employee.branch_id:
+            headers = headers.filter(
+                Q(job__branch_id=employee.branch_id)
+                | Q(job__claim__branch_id=employee.branch_id)
+                | Q(job__isnull=True)
+            ).distinct()
+
+        open_headers = headers.exclude(status__in=["Received", "Cancelled"])
+        overdue_headers = open_headers.filter(expected_date__lt=today)
+
+        def order_payload(header):
+            job = header.job
+            claim = job.claim if job else None
+            vehicle = claim.vehicle if claim and claim.vehicle else header.vehicle
+            lines = list(header.lines.all())
+            ordered_qty = sum(
+                (line.ordered_qty or Decimal("0")) for line in lines
+            )
+            received_qty = sum(
+                (line.received_qty or Decimal("0")) for line in lines
+            )
+            progress = (
+                int((received_qty / ordered_qty) * 100)
+                if ordered_qty else 0
+            )
+            line_payload = []
+            for line in lines:
+                part = line.part
+                line_payload.append({
+                    "id": line.id,
+                    "part_no": part.part_no if part else line.manual_part_no,
+                    "description": (
+                        part.description if part else line.manual_description
+                    ),
+                    "unit": "Nos",
+                    "rate": str(part.rate if part else 0),
+                    "ordered_qty": str(line.ordered_qty or 0),
+                    "received_qty": str(line.received_qty or 0),
+                    "pending_qty": str(
+                        max((line.ordered_qty or 0) - (line.received_qty or 0), 0)
+                    ),
+                    "status": line.status,
+                    "supplier": line.supplier or header.supplier or "",
+                    "expected_date": (
+                        line.expected_date.isoformat() if line.expected_date else None
+                    ),
+                })
+            return {
+                "id": header.id,
+                "order_no": header.order_no or f"Order #{header.id}",
+                "order_date": header.order_date.isoformat() if header.order_date else None,
+                "expected_date": header.expected_date.isoformat() if header.expected_date else None,
+                "supplier": header.supplier or "",
+                "status": header.status,
+                "job_id": job.id if job else None,
+                "job_no": job.job_no if job else "",
+                "registration_no": vehicle.registration_no if vehicle else "",
+                "customer": (
+                    vehicle.customer.name
+                    if vehicle and vehicle.customer_id else ""
+                ),
+                "line_count": len(lines),
+                "ordered_qty": str(ordered_qty),
+                "received_qty": str(received_qty),
+                "progress": min(progress, 100),
+                "is_overdue": bool(
+                    header.expected_date
+                    and header.expected_date < today
+                    and header.status not in ["Received", "Cancelled"]
+                ),
+                "lines": line_payload,
+            }
+
+        return Response({
+            "manager_name": employee.name if employee else request.user.username,
+            "as_of_date": today.isoformat(),
+            "summary": {
+                "open": open_headers.count(),
+                "overdue": overdue_headers.count(),
+                "back_order": headers.filter(status="Back Order").count(),
+                "received_this_month": headers.filter(
+                    status="Received",
+                    updated_at__date__gte=month_start,
+                    updated_at__date__lte=today,
+                ).count(),
+            },
+            "overdue_orders": [
+                order_payload(header)
+                for header in overdue_headers.order_by("expected_date")[:10]
+            ],
+            "recent_orders": [
+                order_payload(header)
+                for header in headers.order_by("-updated_at")[:20]
+            ],
+        })
 
 
 
@@ -158,6 +280,7 @@ def mobile_gate_in_payload(entry):
         "registration_no": entry.registration_no,
         "customer": customer.name if customer else "",
         "current_km": entry.current_km,
+        "out_km": entry.out_km or "",
         "service_type": entry.service_type,
         "service_type_label": entry.get_service_type_display(),
         "gate_in_datetime": timezone.localtime(entry.gate_in_datetime).isoformat(timespec="minutes"),
@@ -272,10 +395,18 @@ class MobileGateInEntryView(APIView):
                     }
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            try:
+                out_km = int(request.data.get("outKm") or request.data.get("out_km") or 0)
+            except (TypeError, ValueError):
+                out_km = 0
+            if out_km <= 0:
+                return Response({"errors": {"outKm": "Enter valid Out KM."}}, status=status.HTTP_400_BAD_REQUEST)
+
             entry.status = "Gate Out"
+            entry.out_km = out_km
             entry.gate_out_datetime = timezone.now()
             entry.gate_out_by = request.user
-            entry.save(update_fields=["status", "gate_out_datetime", "gate_out_by", "updated_at"])
+            entry.save(update_fields=["status", "out_km", "gate_out_datetime", "gate_out_by", "updated_at"])
             return Response({
                 "message": f"Gate Out completed for {entry.registration_no}.",
                 "entry": mobile_gate_in_payload(entry),
@@ -923,6 +1054,32 @@ class MobileClaimEntryOptionsView(APIView):
             request.user,
         )
 
+        pending_gate_entries = branch_filter_queryset(
+            GateInEntry.objects.select_related("vehicle", "vehicle__customer", "vehicle__model")
+            .filter(status="Pending", jobcard__isnull=True, vehicle__isnull=False),
+            request.user,
+        ).order_by("-gate_in_datetime")
+        pending_gate_vehicles = []
+        seen_vehicle_ids = set()
+        for entry in pending_gate_entries[:300]:
+            if entry.vehicle_id in seen_vehicle_ids:
+                continue
+            seen_vehicle_ids.add(entry.vehicle_id)
+            vehicle = entry.vehicle
+            customer = vehicle.customer.name if vehicle.customer_id else ""
+            model = vehicle.model.name if vehicle.model_id else ""
+            pending_gate_vehicles.append({
+                "id": vehicle.id,
+                "label": " | ".join(
+                    value for value in (vehicle.registration_no, customer, model) if value
+                ),
+                "registration_no": vehicle.registration_no,
+                "gate_entry_id": entry.id,
+                "gate_in_datetime": timezone.localtime(entry.gate_in_datetime).isoformat(timespec="minutes"),
+                "gate_in_display": timezone.localtime(entry.gate_in_datetime).strftime("%d/%m/%Y %H:%M"),
+                "current_km": entry.current_km,
+            })
+
         return Response(
             {
                 "insurance_companies": [
@@ -988,6 +1145,7 @@ class MobileClaimEntryOptionsView(APIView):
                     }
                     for claim in open_claims.order_by("-id")[:100]
                 ],
+                "pending_gate_in_vehicles": pending_gate_vehicles,
                 "jobcard_inward_types": [
                     {"id": value, "label": label}
                     for value, label in JobCard.INWARD_TYPE_CHOICES

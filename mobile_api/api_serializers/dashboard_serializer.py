@@ -175,7 +175,28 @@ class NotificationSummarySerializer:
 
 
 
+class RevenueTrendSerializer(serializers.Serializer):
 
+    date = serializers.CharField()
+
+    label = serializers.CharField()
+
+    total = serializers.FloatField()
+
+    parts = serializers.FloatField()
+
+    labour = serializers.FloatField()
+
+
+class DashboardRevenueSerializer(serializers.Serializer):
+
+    total = serializers.FloatField()
+
+    parts = serializers.FloatField()
+
+    labour = serializers.FloatField()
+
+    trend = RevenueTrendSerializer(many=True)
 
 class DashboardSerializer(serializers.Serializer):
 
@@ -197,7 +218,7 @@ class DashboardSerializer(serializers.Serializer):
 
     branch_performance = serializers.ListField(required=False)
 
-    revenue = serializers.ListField(required=False)
+    revenue = DashboardRevenueSerializer(required=False)
 
     actions = DashboardActionSerializer(many=True)
 

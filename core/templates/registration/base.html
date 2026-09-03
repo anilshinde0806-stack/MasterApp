@@ -1,1002 +1,248 @@
 {% load static %}
-{% load menu_tags %}
 
+<!DOCTYPE html>
 
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Body Shop Management System{% endblock %}</title>
 
-    <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <title>
+        {% block title %}
+            Body Shop Management System
+        {% endblock %}
+    </title>
 
-    <!-- Tom Select -->
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
 
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{% static 'css/styles1.css' %}">
-    <link rel="stylesheet" href="{% static 'css/home.css' %}">
-    <link rel="stylesheet" href="{% static 'css/sidebar.css' %}">
-    <link rel="stylesheet" href="{% static 'css/columnCss.css' %}">
+    <!-- =========================
+         BOOTSTRAP
+    ========================== -->
 
-    <!-- JS Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise/dist/ag-grid-enterprise.min.js"></script>
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
 
-    <!-- Custom JS -->
-    <script src="{% static 'js/toastMsg.js' %}"></script>
 
-    <style>
-        #erpMessageContainer{
-    position: fixed;
-    top: 75px;
-    right: 20px;
-    z-index: 99999;
-    width: 350px;
-}
+    <!-- =========================
+         FONT AWESOME
+    ========================== -->
 
-.erp-alert{
+    <link
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        rel="stylesheet"
+    >
 
-    position: relative;
 
-    padding: 14px 16px;
+    <!-- =========================
+         TOM SELECT
+    ========================== -->
 
-    margin-bottom: 12px;
+    <link
+        href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css"
+        rel="stylesheet"
+    >
 
-    border-radius: 14px;
 
-    color: white;
+    <!-- =========================
+         EXISTING DJANGO CSS
+    ========================== -->
 
-    font-size: 14px;
+    <link
+        rel="stylesheet"
+        href="{% static 'css/styles1.css' %}"
+    >
 
-    font-weight: 500;
+    <link
+        rel="stylesheet"
+        href="{% static 'css/home.css' %}"
+    >
 
-    box-shadow: 0 8px 25px rgba(0,0,0,.15);
+    <link
+        rel="stylesheet"
+        href="{% static 'css/sidebar.css' %}"
+    >
 
-    animation: slideIn .25s ease;
+    <link
+        rel="stylesheet"
+        href="{% static 'css/columnCss.css' %}"
+    >
 
-    border-left: 5px solid rgba(255,255,255,.5);
-}
 
-.erp-alert-success{
-    background: linear-gradient(135deg,#198754,#20c997);
-}
+    <!-- =========================
+         REACT MENU CSS
+    ========================== -->
 
-.erp-alert-warning{
-    background: linear-gradient(135deg,#fd7e14,#ffb020);
-}
+    <link
+        rel="stylesheet"
+        href="{% static 'assets/menu.css' %}"
+    >
 
-.erp-alert-danger{
-    background: linear-gradient(135deg,#dc3545,#ff4d6d);
-}
 
-.erp-alert-info{
-    background: linear-gradient(135deg,#0dcaf0,#3b82f6);
-}
+    <!-- =========================
+         REACT HEADER CSS
+    ========================== -->
 
-.erp-alert-close{
+    <link
+        rel="stylesheet"
+        href="{% static 'assets/header.css' %}"
+    >
 
-    position:absolute;
 
-    top:8px;
-    right:10px;
+    <!-- =========================
+         REACT TOAST CSS
+    ========================== -->
 
-    cursor:pointer;
+    <link
+        rel="stylesheet"
+        href="{% static 'assets/toast.css' %}"
+    >
+    <link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/icon?family=Material+Icons"
+/>
+</head>
 
-    font-size:18px;
 
-    opacity:.8;
-}
+<body class="bg-light">
 
-.erp-alert-close:hover{
-    opacity:1;
-}
 
-@keyframes slideIn{
+    <!-- =========================
+         REACT ERP HEADER
+    ========================== -->
 
-    from{
-        transform:translateX(40px);
-        opacity:0;
-    }
+    <div id="erp-header-root"></div>
 
-    to{
-        transform:translateX(0);
-        opacity:1;
-    }
-}
-        .custom-breadcrumb {
-            background: #fff;
-            padding: 10px 16px;
-            border-radius: 14px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            font-size: 14px;
-        }
-
-        .custom-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
-            content: "›";
-            color: #999;
-            font-size: 16px;
-        }
-
-        .breadcrumb-link {
-            color: #198754;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .breadcrumb-link:hover {
-            color: #0f5132;
-        }
-
-        .breadcrumb-current {
-            color: #212529;
-            font-weight: 600;
-        }
-
-        .erp-menu-item.open > .erp-submenu {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0) scale(1);
-    display: block;
-}
-        @media (max-width: 768px) {
-
-    .erp-menu {
-        overflow-x: auto;
-        white-space: nowrap;
-    }
-
-    .erp-menu-list {
-        flex-wrap: nowrap;
-        min-width: max-content;
-    }
-
-        }
-
-        .erp-header{
-
-    min-height:65px;
-}
-
-.clock-box{
-
-    text-align:right;
-
-    min-width:160px;
-}
-
-#erpDate{
-
-    font-size:11px;
-
-    color:#6c757d;
-}
-
-#erpTime{
-
-    font-size:15px;
-
-    color:#0d6efd;
-}
-
-.notification-wrap {
-    position: relative;
-}
-
-.notification-btn {
-    position: relative;
-    width: 38px;
-    height: 34px;
-    border: 1px solid #d0d7de;
-    background: #fff;
-    color: #0d6efd;
-    border-radius: 8px;
-}
-
-.notification-count {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    display: none;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
-    border-radius: 999px;
-    background: #dc3545;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 800;
-    line-height: 20px;
-    text-align: center;
-}
-
-.notification-panel {
-    position: absolute;
-    top: 42px;
-    right: 0;
-    display: none;
-    width: 340px;
-    max-width: calc(100vw - 24px);
-    background: #fff;
-    border: 1px solid #d0d7de;
-    border-radius: 8px;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-    z-index: 10000;
-}
-
-.notification-panel.open {
-    display: block;
-}
-
-.notification-panel-header {
-    padding: 10px 12px;
-    border-bottom: 1px solid #edf0f3;
-    font-weight: 900;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.notification-read-all {
-    border: 0;
-    background: transparent;
-    color: #0d6efd;
-    font-size: 12px;
-    font-weight: 800;
-    padding: 0;
-    display: none;
-}
-
-.notification-list {
-    max-height: 360px;
-    overflow: auto;
-}
-
-.notification-item {
-    padding: 10px 12px;
-    border-bottom: 1px solid #edf0f3;
-}
-
-.notification-item:last-child {
-    border-bottom: 0;
-}
-
-.notification-title {
-    font-weight: 900;
-    color: #111827;
-}
-
-.notification-message {
-    margin-top: 3px;
-    font-size: 13px;
-    color: #4b5563;
-}
-
-.notification-empty {
-    padding: 18px 12px;
-    color: #6b7280;
-    text-align: center;
-}
-    </style>
 
+    
+
+    <!-- =========================
+         REACT GLOBAL TOAST
+    ========================== -->
+
+    <div id="react-toast-root"></div>
+
+
+    <!-- =========================
+         DJANGO PAGE CONTENT
+    ========================== -->
+
+    {% block content %}
+    {% endblock %}
+
+
+    <!-- =========================
+         JAVASCRIPT LIBRARIES
+    ========================== -->
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    ></script>
+
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"
+    ></script>
+
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise/dist/ag-grid-enterprise.min.js"
+    ></script>
+
+
+    <!-- =========================
+         REACT APPLICATIONS
+    ========================== -->
+
+    <script
+        type="module"
+        src="{% static 'assets/header.js' %}"
+    ></script>
+
+
+   
+
+
+    <script
+        type="module"
+        src="{% static 'assets/toast.js' %}"
+    ></script>
+
+
+    <!-- =========================
+         PAGE-SPECIFIC JAVASCRIPT
+    ========================== -->
+   <!-- DJANGO MESSAGES → REACT TOAST -->
+
+{% if messages %}
 
 <script>
 
-function showMessage(message, type="success") {
+(function () {
 
-    const container =
-        document.getElementById(
-            "erpMessageContainer"
-        );
+    const messages = [
 
-    const div =
-        document.createElement("div");
+        {% for message in messages %}
 
-    div.className =
-        `erp-alert erp-alert-${type}`;
+        {
+            message:
+                "{{ message|escapejs }}",
 
-    div.innerHTML = `
+            type:
+                "{% if message.tags == 'error' %}error{% else %}{{ message.tags }}{% endif %}"
+        },
 
-        <div class="erp-alert-close">
-            ×
-        </div>
+        {% endfor %}
 
-        ${message}
-    `;
-
-    div.querySelector(".erp-alert-close")
-        .onclick = function() {
-
-            div.remove();
-        };
-
-    container.prepend(div);
-}
+    ];
 
 
+    function sendMessagesToReactToast() {
 
-function escapeNotificationHtml(value) {
-    const div = document.createElement("div");
-    div.innerText = value || "";
-    return div.innerHTML;
-}
+        if (
+            typeof window.showMessage !==
+            "function"
+        ) {
 
-function notificationItems(data) {
-    if (Array.isArray(data)) {
-        return data;
-    }
-    return data.notifications || [];
-}
+            setTimeout(
+                sendMessagesToReactToast,
+                50
+            );
 
-function updateNotificationCounter(count) {
-    const badge = document.getElementById("notificationCount");
-    const readAllButton = document.getElementById("notificationReadAll");
-    if (!badge) return;
-
-    if (count > 0) {
-        badge.innerText = count > 99 ? "99+" : count;
-        badge.style.display = "inline-block";
-        if (readAllButton) {
-            readAllButton.style.display = "inline";
-        }
-    } else {
-        badge.innerText = "";
-        badge.style.display = "none";
-        if (readAllButton) {
-            readAllButton.style.display = "none";
-        }
-    }
-}
-
-function renderNotificationPanel(items) {
-    const list = document.getElementById("notificationList");
-    if (!list) return;
-
-    if (!items.length) {
-        list.innerHTML = `<div class="notification-empty">No unread notifications</div>`;
-        return;
-    }
-
-    list.innerHTML = items.map(n => `
-        <div class="notification-item" data-id="${n.id}">
-            <div class="notification-title">${escapeNotificationHtml(n.title)}</div>
-            <div class="notification-message">${escapeNotificationHtml(n.message)}</div>
-            <div class="mt-2 d-flex gap-2">
-                <a href="${n.url || "#"}"
-                   class="btn btn-sm btn-primary notification-open"
-                   data-id="${n.id}">
-                   Open
-                </a>
-                <button type="button"
-                        class="btn btn-sm btn-outline-secondary notification-read"
-                        data-id="${n.id}">
-                    Mark Read
-                </button>
-            </div>
-        </div>
-    `).join("");
-}
-
-function refreshNotifications(showToast=false) {
-
-    fetch(
-        "/ajax/unread-notifications/?t="
-        + Date.now()
-    )
-
-    .then(res => res.json())
-
-    .then(data => {
-        const items = notificationItems(data);
-        updateNotificationCounter(data.count ?? items.length);
-        renderNotificationPanel(items);
-
-        if (!showToast) {
             return;
+
         }
 
-        items.forEach(n => {
 
-            showToastHtml(
-                `<b>${escapeNotificationHtml(n.title)}</b><br>
-                 ${escapeNotificationHtml(n.message)}<br>
-                 <a href="${n.url || "#"}"
-                    class="text-white">
-                    Open
-                 </a>`,
-                "success"
+        messages.forEach(function (item) {
+
+            window.showMessage(
+                item.message,
+                item.type
             );
 
         });
 
-    });
-
-}
-
-function markNotificationRead(id) {
-    return fetch(`/ajax/notification/${id}/read/`)
-        .then(() => refreshNotifications(false));
-}
-
-function markAllNotificationsRead() {
-    return fetch("/ajax/notifications/read-all/")
-        .then(() => refreshNotifications(false));
-}
-
-document.addEventListener(
-    "DOMContentLoaded",
-    function() {
-        const notificationToggle = document.getElementById("notificationToggle");
-        const notificationPanel = document.getElementById("notificationPanel");
-        const notificationReadAll = document.getElementById("notificationReadAll");
-
-        refreshNotifications(false);
-
-        setInterval(
-            () => refreshNotifications(false),
-            10000
-        );
-
-        if (notificationToggle && notificationPanel) {
-            notificationToggle.addEventListener("click", function(e) {
-                e.stopPropagation();
-                notificationPanel.classList.toggle("open");
-                refreshNotifications(false);
-            });
-        }
-
-        if (notificationReadAll) {
-            notificationReadAll.addEventListener("click", function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                markAllNotificationsRead();
-            });
-        }
-
-        document.addEventListener("click", function(e) {
-            if (
-                notificationPanel
-                && !e.target.closest(".notification-wrap")
-            ) {
-                notificationPanel.classList.remove("open");
-            }
-
-            const readButton = e.target.closest(".notification-read");
-            if (readButton) {
-                markNotificationRead(readButton.dataset.id);
-            }
-
-            const openLink = e.target.closest(".notification-open");
-            if (openLink) {
-                e.preventDefault();
-                markNotificationRead(openLink.dataset.id)
-                    .finally(() => {
-                        window.location.href = openLink.href;
-                    });
-            }
-        });
-
-});
-
-function positionNestedSubmenu(item) {
-    const submenu = item.querySelector(":scope > .erp-submenu");
-
-    if (!submenu || !item.closest(".erp-submenu")) {
-        return;
     }
 
-    submenu.classList.remove("fly-left");
 
-    requestAnimationFrame(function () {
-        const rect = submenu.getBoundingClientRect();
+    sendMessagesToReactToast();
 
-        if (rect.right > window.innerWidth - 12) {
-            submenu.classList.add("fly-left");
-        }
-    });
-}
-
-document.addEventListener("mouseover", function(e) {
-    const item = e.target.closest(".erp-menu-item");
-
-    if (!item || !item.contains(e.target)) {
-        return;
-    }
-
-    positionNestedSubmenu(item);
-});
-
-document.addEventListener("click", function(e) {
-
-    const link = e.target.closest(".erp-menu-link");
-
-    if (!link) return;
-
-    const item =
-        link.closest(".erp-menu-item");
-
-    const directSubmenu =
-        item.querySelector(":scope > .erp-submenu");
-
-    const isInsideSubmenu =
-        link.closest(".erp-submenu") !== null;
-
-    const url =
-        link.dataset.url;
-
-    // =========================
-    // SUBMENU ITEM CLICK
-    // =========================
-    if (isInsideSubmenu) {
-
-        if (url && url !== "#") {
-
-            window.location.href =
-                "/" + url.replace(/^\/+/, "");
-        }
-
-        return;
-    }
-
-    // =========================
-    // MAIN MENU WITH CHILDREN
-    // =========================
-    if (directSubmenu) {
-
-        e.preventDefault();
-
-        document
-            .querySelectorAll(".erp-menu-item.open")
-            .forEach(function(el) {
-
-                if (el !== item) {
-                    el.classList.remove("open");
-                }
-
-            });
-
-        item.classList.toggle("open");
-
-        return;
-    }
-
-    // =========================
-    // MAIN MENU WITHOUT CHILDREN
-    // =========================
-    if (url && url !== "#") {
-
-        window.location.href =
-            "/" + url.replace(/^\/+/, "");
-    }
-
-});
-
+})();
 
 </script>
-</head>
 
-<body class="bg-light">
+{% endif %}
+    {% block extra_js %}
+    {% endblock %}
 
-            {% with company=company_setup %}
 
-                <div class="erp-header d-flex justify-content-between align-items-center px-3 py-2 bg-white border-bottom">
-
-                    <!-- LEFT -->
-
-                    <div class="d-flex align-items-center">
-
-                        {% if company.logo %}
-                            <img src="{{ company.logo.url }}"
-                                 height="42"
-                                 class="me-2 rounded">
-                        {% endif %}
-
-                        <div>
-
-                            <div class="fw-bold">
-                                {{ company.company_name }}
-                                {% if logged_branch %}
-                                    <span class="text-muted fw-semibold"> - {{ logged_branch.name }}</span>
-                                {% endif %}
-                            </div>
-
-                            <small class="text-muted">
-
-                            {% if request.user.employee %}
-
-                                {{ request.user.employee.name }}
-
-                            {% else %}
-
-                                {{ request.user.username }}
-
-                            {% endif %}
-
-                            (
-
-                            {% if request.user.is_superuser %}
-
-                                Admin
-
-                            {% elif request.user.groups.first %}
-
-                                {{ request.user.employee.employee_type}}
-
-                            {% else %}
-
-                                User
-
-                            {% endif %}
-
-                            )
-
-                            </small>
-
-                        </div>
-
-                    </div>
-
-                    <!-- RIGHT -->
-
-                    <div class="d-flex align-items-center gap-3">
-
-                        <div class="clock-box">
-
-                            <div id="erpDate"></div>
-
-                            <div id="erpTime"
-                                 class="fw-bold">
-                            </div>
-
-                        </div>
-
-                        <div class="notification-wrap">
-                            <button type="button"
-                                    id="notificationToggle"
-                                    class="notification-btn"
-                                    title="Unread notifications">
-                                <i class="fa fa-bell"></i>
-                                <span id="notificationCount"
-                                      class="notification-count">
-                                </span>
-                            </button>
-
-                            <div id="notificationPanel"
-                                 class="notification-panel">
-                                <div class="notification-panel-header">
-                                    <span>Notifications</span>
-                                    <button type="button"
-                                            id="notificationReadAll"
-                                            class="notification-read-all">
-                                        Read All
-                                    </button>
-                                </div>
-                                <div id="notificationList"
-                                     class="notification-list">
-                                    <div class="notification-empty">
-                                        Loading...
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <form method="POST"
-                              action="{% url 'logout' %}">
-
-                            {% csrf_token %}
-
-                            <button type="submit"
-                                    class="btn btn-sm btn-outline-danger">
-
-                                <i class="fa fa-sign-out-alt"></i>
-
-                                Logout
-
-                            </button>
-
-                        </form>
-
-                    </div>
-
-                </div>
-            {% endwith %}
-            <nav class="erp-menu">
-                <ul class="erp-menu-list">
-
-                    {% include "rbac/top_menu.html" with menu_items=menu_items %}
-
-                </ul>
-
-            <nav aria-label="breadcrumb">
-                                <ol class="breadcrumb custom-breadcrumb mb-0">
-
-                                    <li class="breadcrumb-item">
-                                        <a href="/" class="breadcrumb-link">
-                                            <i class="fa fa-home me-1"></i>
-                                            Home
-                                        </a>
-                                    </li>
-
-                                    {% for item in breadcrumbs %}
-                                        <li class="breadcrumb-item {% if forloop.last %}active{% endif %}">
-
-                                            {% if not forloop.last and item.url %}
-                                                <a href="{% url item.url %}" class="breadcrumb-link">
-                                                    {% if item.icon %}
-                                                        <i class="{{ item.icon }} me-1"></i>
-                                                    {% endif %}
-                                                    {{ item.title }}
-                                                </a>
-                                            {% else %}
-                                                <span class="breadcrumb-current">
-                                                    {% if item.icon %}
-                                                        <i class="{{ item.icon }} me-1"></i>
-                                                    {% endif %}
-                                                    {{ item.title }}
-                                                </span>
-                                            {% endif %}
-
-                                        </li>
-                                    {% endfor %}
-
-                                </ol>
-
-
-                            </nav>
-                </nav>
-            <!-- TOAST MESSAGES -->
-            {% if messages %}
-
-            <script>
-
-            document.addEventListener(
-                "DOMContentLoaded",
-                function() {
-
-                    {% for message in messages %}
-
-                        showMessage(
-                            `{{ message|escapejs }}`,
-                            `{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}`
-                        );
-
-                    {% endfor %}
-
-            });
-
-            </script>
-
-            {% endif %}
-
-            <div id="toastBox" class="position-fixed top-0 end-0 p-3" style="z-index:9999"></div>
-
-            <div class="app">
-                <!-- MAIN -->
-               <div class="main">
-
-                   <!-- PAGE CONTENT -->
-
-                        <div class="container-fluid">
-                            {% block content %}{% endblock %}
-                        </div>
-
-
-                </div>
-
-            </div>
-
-            <script>
-            function getCookie(name) {
-                let cookieValue = null;
-
-                if (document.cookie && document.cookie !== "") {
-                    const cookies = document.cookie.split(";");
-
-                    for (let i = 0; i < cookies.length; i++) {
-                        const cookie = cookies[i].trim();
-
-                        if (cookie.substring(0, name.length + 1) === (name + "=")) {
-                            cookieValue = decodeURIComponent(
-                                cookie.substring(name.length + 1)
-                            );
-                            break;
-                        }
-                    }
-                }
-
-                return cookieValue;
-            }
-
-            document.addEventListener("DOMContentLoaded", function () {
-
-                document.querySelectorAll(".toast").forEach(function (toastEl) {
-                    new bootstrap.Toast(toastEl, {
-                        delay: 3000
-                    }).show();
-                });
-
-            });
-
-            document.addEventListener("click", function (e) {
-
-                const link = e.target.closest(".menu-link");
-                if (!link) return;
-
-                const item = link.closest(".menu-item");
-                const submenu = item.querySelector(":scope > .submenu");
-
-                if (submenu) {
-                    e.preventDefault();
-
-                    document.querySelectorAll(".menu-item").forEach(el => {
-                        if (el !== item) el.classList.remove("active");
-                    });
-
-                    item.classList.toggle("active");
-                } else {
-                    const url = link.dataset.url;
-                    if (url) window.location.href = url;
-                }
-
-            });
-            </script>
-
-            {% block extra_js %}{% endblock %}
-            <div id="erpMessageContainer"></div>
-            <div class="modal fade"
-     id="announcementModal"
-     tabindex="-1">
-
-    <div class="modal-dialog modal-dialog-centered">
-
-        <div class="modal-content">
-
-            <div class="modal-header bg-primary text-white">
-
-                <h5 class="modal-title"
-                    id="announcementTitle">
-                </h5>
-
-                <button type="button"
-                        class="btn-close btn-close-white"
-                        data-bs-dismiss="modal">
-                </button>
-
-            </div>
-
-            <div class="modal-body">
-
-                <span id="announcementType"
-                      class="badge bg-warning text-dark mb-2">
-                </span>
-
-                <p id="announcementMessage"
-                   class="mt-2">
-                </p>
-
-            </div>
-
-            <div class="modal-footer">
-
-                <button type="button"
-                        class="btn btn-success"
-                        id="announcementOkBtn">
-
-                    I Have Read
-
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    fetch("/ajax/unread-announcements/?t=" + Date.now())
-        .then(res => res.json())
-        .then(data => {
-
-            if (!data.length) return;
-
-            let index = 0;
-
-            function showNotice() {
-
-                const n = data[index];
-
-                document.getElementById("announcementTitle").innerText =
-                    n.title;
-
-                document.getElementById("announcementMessage").innerText =
-                    n.message;
-
-                document.getElementById("announcementType").innerText =
-                    n.type;
-
-                const modalEl =
-                    document.getElementById("announcementModal");
-
-                const modal =
-                    bootstrap.Modal.getOrCreateInstance(modalEl);
-
-                modal.show();
-
-                document.getElementById("announcementOkBtn").onclick =
-                    function () {
-
-                        fetch(`/ajax/announcement/${n.id}/read/`)
-                            .then(() => {
-
-                                modal.hide();
-
-                                index++;
-
-                                if (index < data.length) {
-                                    setTimeout(showNotice, 500);
-                                }
-
-                            });
-                    };
-            }
-
-            showNotice();
-
-        });
-
-});
-
-function updateERPClock(){
-
-    const now =
-        new Date();
-
-    document.getElementById(
-        "erpDate"
-    ).innerText =
-
-        now.toLocaleDateString(
-            "en-IN",
-            {
-                weekday:"short",
-                day:"2-digit",
-                month:"short",
-                year:"numeric"
-            }
-        );
-
-    document.getElementById(
-        "erpTime"
-    ).innerText =
-
-        now.toLocaleTimeString(
-            "en-IN",
-            {
-                hour:"2-digit",
-                minute:"2-digit",
-                second:"2-digit"
-            }
-        );
-}
-
-updateERPClock();
-
-setInterval(
-    updateERPClock,
-    1000
-);
-
-</script>
 </body>
+
 </html>

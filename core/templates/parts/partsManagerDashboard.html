@@ -1,0 +1,136 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Parts Manager Dashboard{% endblock %}
+
+{% block content %}
+<style>
+  .pm-shell { max-width:1500px; margin:0 auto; }
+  .pm-hero { background:linear-gradient(130deg,#102b45,#176276); color:#fff; border-radius:20px; }
+  .pm-hero-action { border-radius:11px; font-weight:700; }
+  .pm-stat { border:0; border-radius:15px; box-shadow:0 5px 18px rgba(25,42,70,.08); }
+  .pm-stat-value { font-size:1.8rem; font-weight:800; line-height:1; }
+  .pm-card { border:0; border-radius:15px; box-shadow:0 5px 18px rgba(25,42,70,.08); overflow:hidden; }
+  .pm-table th { color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  .pm-table td { vertical-align:middle; }
+  .pm-status { display:inline-block; border-radius:999px; padding:.35rem .62rem; font-size:.72rem; font-weight:700; background:#edf1f5; color:#526170; white-space:nowrap; }
+  .pm-status.order-placed { background:#fff1c7; color:#895d00; }
+  .pm-status.in-transit { background:#d9f2fb; color:#08647f; }
+  .pm-status.partially-received { background:#e7e2ff; color:#5036a6; }
+  .pm-status.received { background:#d9f5e9; color:#187152; }
+  .pm-status.back-order { background:#ffe3e0; color:#a43a30; }
+  .pm-progress { height:6px; min-width:80px; background:#e9eef2; border-radius:8px; overflow:hidden; }
+  .pm-progress span { display:block; height:100%; background:#20a47b; }
+</style>
+
+<div class="container-fluid py-4 px-lg-4 pm-shell">
+  <section class="pm-hero p-4 p-lg-5 mb-4 shadow-sm">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4">
+      <div>
+        <div class="small text-uppercase opacity-75 mb-1">Parts operations workspace</div>
+        <h2 class="mb-1">Welcome, {{ employee.name|default:request.user.username }}</h2>
+        <div class="opacity-75">Prioritize delayed supplies, track incoming parts and create purchase orders.</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-warning pm-hero-action px-4" href="{% url 'part_requisition_list' %}">Part Requisitions <span class="badge text-bg-dark ms-1">{{ requisition_open_count }}</span></a>
+        <a class="btn btn-light text-primary pm-hero-action px-4" href="{% url 'part_order_create' %}">+ Create New Order</a>
+        <a class="btn btn-outline-light pm-hero-action px-4" href="{% url 'part_order_list' %}">Order Tracking</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="card pm-stat h-100"><div class="card-body p-4">
+      <div class="small text-muted">Open Orders</div><div class="pm-stat-value text-primary mt-2">{{ open_count }}</div>
+      <a class="small text-decoration-none" href="{% url 'part_order_list' %}">View all open activity</a>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card pm-stat h-100"><div class="card-body p-4">
+      <div class="small text-muted">Overdue Deliveries</div><div class="pm-stat-value text-danger mt-2">{{ overdue_count }}</div>
+      <div class="small text-muted">Needs supplier follow-up</div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card pm-stat h-100"><div class="card-body p-4">
+      <div class="small text-muted">Back Orders</div><div class="pm-stat-value text-warning mt-2">{{ back_order_count }}</div>
+      <a class="small text-decoration-none" href="{% url 'part_order_list' %}?status=Back+Order">Review back orders</a>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card pm-stat h-100"><div class="card-body p-4">
+      <div class="small text-muted">Received This Month</div><div class="pm-stat-value text-success mt-2">{{ received_month_count }}</div>
+      <a class="small text-decoration-none" href="{% url 'part_order_list' %}?status=Received">View completed orders</a>
+    </div></div></div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-5">
+      <div class="card pm-card h-100">
+        <div class="card-header bg-white p-3 d-flex justify-content-between align-items-center">
+          <div><h6 class="mb-0">Delivery Follow-up</h6><small class="text-muted">Oldest overdue orders first</small></div>
+          <span class="badge text-bg-danger">{{ overdue_count }}</span>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for row in overdue_rows %}
+          <div class="list-group-item px-3 py-3">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <div class="fw-bold text-primary">{{ row.header.order_no|default:"Draft order" }}</div>
+                <div>{{ row.vehicle.registration_no|default:"Vehicle not linked" }}{% if row.job %} · {{ row.job.job_no }}{% endif %}</div>
+                <div class="small text-muted">{{ row.header.supplier|default:"Supplier not set" }} · {{ row.line_count }} lines</div>
+              </div>
+              <div class="text-end">
+                <div class="text-danger fw-semibold">{{ row.header.expected_date|date:"d M Y" }}</div>
+                <a class="btn btn-sm btn-outline-danger mt-2" href="{% url 'part_order_header_edit' row.header.id %}">Follow up</a>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="text-center text-muted py-5">
+            <div class="fs-3 text-success">✓</div>
+            No overdue parts orders.
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-7">
+      <div class="card pm-card">
+        <div class="card-header bg-white p-3">
+          <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-center">
+            <div><h6 class="mb-0">Recent Order Activity</h6><small class="text-muted">Latest updated purchase orders</small></div>
+            <form method="get" class="d-flex gap-2">
+              <input class="form-control form-control-sm" name="search" value="{{ search }}" placeholder="Search order or vehicle">
+              <button class="btn btn-sm btn-primary">Search</button>
+              {% if search %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'parts_manager_dashboard' %}">Clear</a>{% endif %}
+            </form>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover pm-table mb-0">
+            <thead class="table-light"><tr><th>Order</th><th>Vehicle</th><th>Status</th><th>Receiving</th><th class="text-end">Action</th></tr></thead>
+            <tbody>
+              {% for row in recent_rows %}
+              <tr>
+                <td><strong>{{ row.header.order_no|default:"Draft order" }}</strong><br><small class="text-muted">{{ row.header.supplier|default:"No supplier" }}</small></td>
+                <td><strong>{{ row.vehicle.registration_no|default:"—" }}</strong><br><small class="text-muted">{% if row.job %}{{ row.job.job_no }}{% else %}Advance order{% endif %}</small></td>
+                <td><span class="pm-status {{ row.header.status|slugify }}">{{ row.header.status }}</span>{% if row.is_overdue %}<div class="small text-danger mt-1">Overdue</div>{% endif %}</td>
+                <td>
+                  <div class="d-flex gap-2 align-items-center"><div class="pm-progress"><span style="width:{{ row.progress }}%"></span></div><small>{{ row.progress }}%</small></div>
+                  <small class="text-muted">{{ row.received_qty }} / {{ row.ordered_qty }}</small>
+                </td>
+                <td class="text-end text-nowrap">
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'part_order_header_edit' row.header.id %}">Edit</a>
+                  {% if row.job %}<a class="btn btn-sm btn-primary" href="{% url 'part_order_job_detail' row.job.id %}?order_id={{ row.header.id }}">Track</a>{% endif %}
+                  <a class="btn btn-sm btn-outline-secondary" href="{% url 'part_order_print' row.header.id %}" target="_blank">Print</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-5">No recent orders found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer bg-white text-end">
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'part_order_list' %}">Open Full Tracking Report →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

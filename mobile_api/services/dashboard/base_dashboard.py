@@ -232,44 +232,100 @@ class BaseDashboardService:
     # _get_performance()
 
     def _get_performance(self, work):
-        stats = work.aggregate(
-            total=Count("id"),
-            completed=Count(
-                "id",
-                filter=Q(finish_time__isnull=False),
-            ),
-            running=Count(
-                "id",
-                filter=Q(
-                    start_time__isnull=False,
-                    finish_time__isnull=True,
-                ),
-            ),
-            pending=Count(
-                "id",
-                filter=Q(start_time__isnull=True),
-            ),
-        )
 
-        total = stats["total"] or 0
-        completed = stats["completed"] or 0
+        job_ids = work.values_list(
+            "allocation__job_id",
+            flat=True
+        ).distinct()
+
+
+        total_jobs = job_ids.count()
+
+
+        completed_jobs = 0
+        running_jobs = 0
+        pending_jobs = 0
+
+
+        for job_id in job_ids:
+
+            job_work = work.filter(
+                allocation__job_id=job_id
+            )
+
+
+            total_stages = job_work.count()
+
+
+            finished_stages = job_work.filter(
+                finish_time__isnull=False
+            ).count()
+
+
+            started_stages = job_work.filter(
+                start_time__isnull=False
+            ).count()
+
+
+            # ==============================
+            # COMPLETED
+            # ==============================
+
+            if (
+                total_stages > 0
+                and finished_stages == total_stages
+            ):
+
+                completed_jobs += 1
+
+
+            # ==============================
+            # RUNNING
+            # ==============================
+
+            elif started_stages > 0:
+
+                running_jobs += 1
+
+
+            # ==============================
+            # PENDING
+            # ==============================
+
+            else:
+
+                pending_jobs += 1
+
 
         completion_percentage = (
-            round((completed / total) * 100, 2)
-            if total > 0
+
+            round(
+                (completed_jobs / total_jobs) * 100,
+                2
+            )
+
+            if total_jobs > 0
+
             else 0.0
+
         )
 
-        result = {
-            "total_jobs": total,
-            "completed_jobs": completed,
-            "pending_jobs": stats["pending"] or 0,
-            "running_jobs": stats["running"] or 0,
-            "completion_percentage": completion_percentage,
-            "average_tat": 0,
-        }
 
-        return result
+        return {
+
+            "total_jobs": total_jobs,
+
+            "completed_jobs": completed_jobs,
+
+            "running_jobs": running_jobs,
+
+            "pending_jobs": pending_jobs,
+
+            "completion_percentage": completion_percentage,
+
+            "average_tat": 0,
+
+        }
 
     # _get_recent_work()
     def _get_recent_work(self, work):

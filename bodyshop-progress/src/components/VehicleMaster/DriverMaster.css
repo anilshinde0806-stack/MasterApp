@@ -1,0 +1,534 @@
+/* =========================================================
+   DRIVER MASTER
+   ========================================================= */
+
+.driver-master {
+  padding: 24px;
+  min-height: calc(100vh - 135px);
+  background: #f5f7fa;
+  box-sizing: border-box;
+}
+
+.driver-master-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.driver-master-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #172033;
+}
+
+.driver-master-subtitle {
+  margin-top: 5px;
+  color: #718096;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------
+   ACTIONS
+   --------------------------------------------------------- */
+
+.driver-master-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.driver-master-btn {
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.driver-master-btn-primary {
+  background: #1677ff;
+  color: #fff;
+}
+
+.driver-master-btn-primary:hover {
+  background: #095dcc;
+}
+
+.driver-master-btn-secondary {
+  background: #fff;
+  color: #344054;
+  border: 1px solid #d0d5dd;
+}
+
+.driver-master-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+/* ---------------------------------------------------------
+   SEARCH / FILTER BAR
+   --------------------------------------------------------- */
+
+.driver-master-toolbar {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.driver-master-search {
+  width: 320px;
+  max-width: 100%;
+  height: 38px;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  padding: 0 12px;
+
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.driver-master-search:focus {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.08);
+}
+
+.driver-master-count {
+  color: #667085;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------
+   TABLE CARD
+   --------------------------------------------------------- */
+
+.driver-master-card {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.driver-master-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.driver-master-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.driver-master-table thead {
+  background: #f8fafc;
+}
+
+.driver-master-table th {
+  padding: 12px 14px;
+  text-align: left;
+
+  font-size: 11px;
+  font-weight: 700;
+  color: #475467;
+
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+
+  border-bottom: 1px solid #e4e7ec;
+  white-space: nowrap;
+}
+
+.driver-master-table td {
+  padding: 13px 14px;
+
+  font-size: 13px;
+  color: #344054;
+
+  border-bottom: 1px solid #eaecf0;
+  vertical-align: middle;
+}
+
+.driver-master-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.driver-master-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ---------------------------------------------------------
+   DRIVER PHOTO
+   --------------------------------------------------------- */
+
+.driver-photo {
+  width: 40px;
+  height: 40px;
+
+  object-fit: cover;
+  border-radius: 50%;
+
+  border: 1px solid #e4e7ec;
+}
+
+.driver-photo-empty {
+  width: 40px;
+  height: 40px;
+
+  border-radius: 50%;
+  background: #f2f4f7;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #98a2b3;
+  font-size: 18px;
+}
+
+/* ---------------------------------------------------------
+   DRIVER NAME
+   --------------------------------------------------------- */
+
+.driver-name {
+  font-weight: 600;
+  color: #101828;
+}
+
+.driver-license {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #98a2b3;
+}
+
+/* ---------------------------------------------------------
+   DRIVER TYPE
+   --------------------------------------------------------- */
+
+.driver-type {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 9px;
+
+  border-radius: 20px;
+
+  background: #f2f4f7;
+  color: #475467;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------
+   STATUS
+   --------------------------------------------------------- */
+
+.driver-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.driver-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #12b76a;
+}
+
+.driver-status.inactive .driver-status-dot {
+  background: #98a2b3;
+}
+
+/* ---------------------------------------------------------
+   VEHICLE
+   --------------------------------------------------------- */
+
+.driver-vehicle {
+  color: #344054;
+  font-weight: 500;
+}
+
+.driver-no-vehicle {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------
+   DOCUMENTS
+   --------------------------------------------------------- */
+
+.driver-document-link {
+  color: #1677ff;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.driver-document-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------
+   EMPTY / LOADING / ERROR
+   --------------------------------------------------------- */
+
+.driver-master-empty {
+  padding: 50px 20px;
+  text-align: center;
+  color: #98a2b3;
+}
+
+.driver-master-loading {
+  padding: 50px 20px;
+  text-align: center;
+  color: #667085;
+}
+
+.driver-master-error {
+  padding: 14px 16px;
+  margin-bottom: 16px;
+
+  border: 1px solid #fecdca;
+  border-radius: 6px;
+
+  background: #fef3f2;
+  color: #b42318;
+
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------
+   RESPONSIVE
+   --------------------------------------------------------- */
+
+@media (max-width: 768px) {
+
+  .driver-master {
+    padding: 14px;
+  }
+
+  .driver-master-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .driver-master-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .driver-master-search {
+    width: 100%;
+  }
+
+}
+.driver-master-page {
+  padding: 24px;
+  background: #f7f8fa;
+  min-height: 100vh;
+}
+
+.driver-master-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.driver-master-header h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.driver-master-header p,
+.driver-master-section-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+}
+
+.driver-master-new-btn,
+.driver-master-save-btn,
+.driver-master-cancel-btn {
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 18px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.driver-master-new-btn,
+.driver-master-save-btn {
+  background: #2563eb;
+  color: white;
+}
+
+.driver-master-cancel-btn {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.driver-master-form-card,
+.driver-master-list-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.driver-master-section-header,
+.driver-master-list-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.driver-master-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.driver-master-section-header h3,
+.driver-master-list-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.driver-master-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  padding: 20px;
+}
+
+.driver-master-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.driver-master-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.driver-master-field input,
+.driver-master-field select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: white;
+}
+
+.driver-master-field input:focus,
+.driver-master-field select:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.driver-master-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.driver-master-table-wrapper {
+  overflow-x: auto;
+}
+
+.driver-master-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.driver-master-table th,
+.driver-master-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.driver-master-table th {
+  background: #f9fafb;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.driver-master-table td {
+  font-size: 14px;
+}
+
+.driver-master-photo,
+.driver-master-photo-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.driver-master-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e5e7eb;
+}
+
+.driver-master-loading,
+.driver-master-empty {
+  padding: 40px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.driver-master-error {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+@media (max-width: 900px) {
+  .driver-master-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .driver-master-page {
+    padding: 12px;
+  }
+
+  .driver-master-header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .driver-master-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

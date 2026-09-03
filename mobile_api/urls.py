@@ -39,6 +39,8 @@ from apps.jobcards.api.views import (
     MobileJobcardSignatureSaveView,
     MobileJobcardVehiclePhotoUploadView,
     MobileNextJobNoView,
+    MobileJobcardPhotoAnnotationSaveView,
+    mobile_jobcard_types,
 )
 from apps.workshop.api.views import (
     MobileMyWorkActionView,
@@ -51,14 +53,35 @@ from apps.workshop.api.views import (
     RepairProgressPhotoListAPIView,
     RepairProgressPhotoUploadAPIView,
 )
+from apps.spare_parts.spare_parts_view import (
+    JobCardSparePartsAPIView,)
 from .views import (
     MobileClaimEntryOptionsView,
     MobileClaimVehicleCheckView,
     MobileDashboardView,
     MobileGateInEntryView,
     MobileNextClaimNoView,
+    MobilePartsManagerDashboardView,
 )
-
+from apps.jobcards.api.quality_check_view import (
+    JobCardQualityCheckAPIView,
+)
+from apps.jobcards.api.quality_check_evidence_view import (
+    QualityCheckEvidenceAPIView,
+    QualityCheckEvidenceDetailAPIView,
+    QualityCheckSignatureAPIView,
+    MobileQualityCheckReportAPIView,
+)
+from .requisition_views import (
+    MobileJobPartRequisitionCreateView,
+    MobilePartOrderCreateView,
+    MobilePartMasterSearchView,
+    MobilePartRequisitionJobsView,
+    MobilePartRequisitionDetailView,
+    MobilePartRequisitionFulfillView,
+    MobilePartRequisitionReturnView,
+    MobilePartRequisitionListView,
+)
 
 urlpatterns = [
     path("login/", MobileLoginView.as_view(), name="mobile_login"),
@@ -69,6 +92,15 @@ urlpatterns = [
     path("notifications/", MobileNotificationListView.as_view(), name="mobile_notifications"),
     path("notifications/<int:pk>/read/", MobileNotificationReadView.as_view(), name="mobile_notification_read"),
     path("dashboard/", MobileDashboardView.as_view(), name="mobile_dashboard"),
+    path("parts-manager/dashboard/", MobilePartsManagerDashboardView.as_view(), name="mobile_parts_manager_dashboard"),
+    path("part-requisitions/", MobilePartRequisitionListView.as_view(), name="mobile_part_requisitions"),
+    path("part-requisitions/jobs/", MobilePartRequisitionJobsView.as_view(), name="mobile_part_requisition_jobs"),
+    path("part-requisitions/<int:requisition_id>/", MobilePartRequisitionDetailView.as_view(), name="mobile_part_requisition_detail"),
+    path("part-requisitions/<int:requisition_id>/fulfill/", MobilePartRequisitionFulfillView.as_view(), name="mobile_part_requisition_fulfill"),
+    path("part-requisitions/<int:requisition_id>/return/", MobilePartRequisitionReturnView.as_view(), name="mobile_part_requisition_return"),
+    path("jobcards/<int:job_id>/part-requisitions/", MobileJobPartRequisitionCreateView.as_view(), name="mobile_job_part_requisition_create"),
+    path("part-orders/create/", MobilePartOrderCreateView.as_view(), name="mobile_part_order_create"),
+    path("part-master/search/", MobilePartMasterSearchView.as_view(), name="mobile_part_master_search"),
     path("gate-in/", MobileGateInEntryView.as_view(), name="mobile_gate_in"),
     path("gate-in/<int:pk>/", MobileGateInEntryView.as_view(), name="mobile_gate_in_update"),
     path("my-work/", MobileMyWorkListView.as_view(), name="mobile_my_work"),
@@ -100,10 +132,11 @@ urlpatterns = [
     path("jobcards/<int:pk>/signatures/", MobileJobcardSignatureSaveView.as_view(), name="mobile_jobcard_signatures"),
     path("jobcards/<int:pk>/actions/", MobileJobcardActionLinksView.as_view(), name="mobile_jobcard_actions"),
     path("jobcards/<int:pk>/vehicle-condition-photos/", MobileJobcardVehiclePhotoUploadView.as_view(), name="mobile_jobcard_vehicle_condition_photo_upload"),
+    path("jobcards/<int:job_id>/vehicle-condition-photos/<int:photo_id>/annotations/",MobileJobcardPhotoAnnotationSaveView.as_view(),name="mobile_jobcard_photo_annotation_save",),
     path("jobcards/<int:pk>/allocation/",MobileWorkAllocationView.as_view(), name="MobileWorkAllocationView"),
     path("jobcards/<int:pk>/repair-progress/",MobileRepairProgressView.as_view(), name="MobileRepairProgressView"),
     path("jobcards/<int:job_id>/repair-progress/photos/",RepairProgressPhotoListAPIView.as_view(),name="repair-progress-photos",),
-# Upload Photo
+
     path("jobcards/<int:job_id>/repair-progress/photos/upload/",RepairProgressPhotoUploadAPIView.as_view(),name="repair-progress-photo-upload",),
 path(
     "jobcards/<int:job_id>/repair-progress/photos/<int:photo_id>/",
@@ -130,5 +163,39 @@ path(
         MobileBranchListView.as_view(),
         name="mobile-branches",
     ),
-
+path(
+        "jobcards/<int:jobcard_id>/parts/",
+        JobCardSparePartsAPIView.as_view(),
+        name="mobile-jobcard-parts",
+    ),
+path(
+    "jobcards/<int:jobcard_id>/quality-check/",
+    JobCardQualityCheckAPIView.as_view(),
+    name="mobile-jobcard-quality-check",
+),
+path(
+    "jobcards/<int:jobcard_id>/quality-check/evidence/",
+    QualityCheckEvidenceAPIView.as_view(),
+    name="mobile-jobcard-quality-check-evidence",
+),
+path(
+    "jobcards/<int:jobcard_id>/quality-check/evidence/<int:photo_id>/",
+    QualityCheckEvidenceDetailAPIView.as_view(),
+    name="mobile-jobcard-quality-check-evidence-detail",
+),
+path(
+    "jobcards/<int:jobcard_id>/quality-check/signature/",
+    QualityCheckSignatureAPIView.as_view(),
+    name="mobile-jobcard-quality-check-signature",
+),
+path(
+    "jobcards/<int:jobcard_id>/quality-check/report/",
+    MobileQualityCheckReportAPIView.as_view(),
+    name="mobile-jobcard-quality-check-report",
+),
+path(
+    "jobcard-types/",
+    mobile_jobcard_types,
+    name="mobile_jobcard_types",
+)
 ]

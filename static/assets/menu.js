@@ -1,0 +1,1 @@
+import{i as e,n as t,s as n,t as r}from"./jsx-runtime.js";/* empty css   */import{t as i}from"./Menu2.js";var a=n(e(),1),o=t(),s=r(),c=document.getElementById(`react-menu-root`);c&&(0,o.createRoot)(c).render((0,s.jsx)(a.StrictMode,{children:(0,s.jsx)(i,{})}));

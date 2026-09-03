@@ -18,33 +18,66 @@ class AdminKPIService:
         start_date=None,
         end_date=None,
     ):
+
         self.employee = employee
         self.branch = branch
         self.period = period
         self.start_date = start_date
         self.end_date = end_date
 
+
+        # =====================================
+        # CLAIMS
+        # =====================================
+
+        claims_queryset = Claim.objects.select_related(
+            "jobcard",
+            "jobcard__branch",
+            "insurance_company",
+        )
+
+        print("\n========== CLAIM DEBUG ==========")
+        print("Before filter:", claims_queryset.count())
+        print("Start date:", self.start_date)
+        print("End date:", self.end_date)
+
         self.claims = DashboardFilterService(
-            queryset=Claim.objects.select_related(
-                "jobcard",
-                "jobcard__branch",
-                "insurance_company",
-            ),
+            queryset=claims_queryset,
             branch=self.branch,
             period=self.period,
             start_date=self.start_date,
             end_date=self.end_date,
+            date_field="created_at",
         ).filter()
 
+        print("After filter:", self.claims.count())
+        print("=================================\n")
+
+
+        # =====================================
+        # JOBCARDS
+        # =====================================
+
+        jobcards_queryset = JobCard.objects.select_related(
+            "branch",
+        )
+
+        print("\n========== JOBCARD DEBUG ==========")
+        print("Before filter:", jobcards_queryset.count())
+
         self.jobcards = DashboardFilterService(
-            queryset=JobCard.objects.select_related(
-                "branch",
-            ),
+            queryset=jobcards_queryset,
             branch=self.branch,
             period=self.period,
             start_date=self.start_date,
             end_date=self.end_date,
+            date_field="job_date",
         ).filter()
+
+        print("After filter:", self.jobcards.count())
+        print("===================================\n")
+
+
         self._metrics = None
 
     def _get_metrics(self):

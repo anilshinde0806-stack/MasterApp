@@ -1,0 +1,93 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}Edit Parts Order Header{% endblock %}
+
+{% block content %}
+<style>
+  .header-edit-shell { max-width:1200px; margin:0 auto; }
+  .header-edit-hero { background:linear-gradient(125deg,#132a46,#1f5f78); color:#fff; border-radius:18px; }
+  .header-edit-card { border:0; border-radius:15px; box-shadow:0 5px 18px rgba(25,42,70,.08); }
+  .context-box { background:#f2f6f8; border-radius:12px; }
+</style>
+
+<div class="container-fluid py-4 px-lg-4">
+  <div class="header-edit-shell">
+    <section class="header-edit-hero p-4 mb-3 d-flex justify-content-between align-items-center gap-3">
+      <div>
+        <div class="small text-uppercase opacity-75">Purchase order</div>
+        <h3 class="mb-1">Edit Order Header</h3>
+        <div class="opacity-75">Update shared supplier and delivery information for every line.</div>
+      </div>
+      <a class="btn btn-light btn-sm" href="{% url 'part_order_list' %}">Back to Tracking</a>
+    </section>
+
+    <div class="context-box p-3 mb-3">
+      <div class="row g-2">
+        <div class="col-md-4"><small class="text-muted d-block">Vehicle</small><strong>{{ vehicle.registration_no|default:"Not linked" }}</strong></div>
+        <div class="col-md-4"><small class="text-muted d-block">Job Card</small><strong>{{ job.job_no|default:"Advance order" }}</strong></div>
+        <div class="col-md-4"><small class="text-muted d-block">Current Status</small><strong>{{ header.status }}</strong></div>
+      </div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="card header-edit-card mb-3">
+        <div class="card-body p-4">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Order Number</label>
+              <input class="form-control" name="order_no" value="{{ header.order_no }}" placeholder="Auto-generated if blank">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Supplier</label>
+              <input class="form-control" name="supplier" value="{{ header.supplier }}" placeholder="Supplier / vendor name">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Order Date</label>
+              <input class="form-control" type="date" name="order_date" value="{{ header.order_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Expected Delivery Date</label>
+              <input class="form-control" type="date" name="expected_date" value="{{ header.expected_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Order Remarks</label>
+              <textarea class="form-control" name="remarks" rows="3" placeholder="Delivery instructions or supplier follow-up notes">{{ header.remarks }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card header-edit-card mb-3">
+        <div class="card-header bg-white py-3"><strong>Linked Part Lines</strong> <span class="badge text-bg-secondary ms-1">{{ lines|length }}</span></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Part No</th><th>Description</th><th class="text-end">Ordered</th><th class="text-end">Received</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for line in lines %}
+              <tr>
+                <td>{% if line.part %}{{ line.part.part_no }}{% else %}{{ line.manual_part_no }}{% endif %}</td>
+                <td>{% if line.part %}{{ line.part.description }}{% else %}{{ line.manual_description }}{% endif %}</td>
+                <td class="text-end">{{ line.ordered_qty }}</td>
+                <td class="text-end">{{ line.received_qty }}</td>
+                <td>{{ line.status }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-4">No lines linked to this order.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'part_order_list' %}">Cancel</a>
+        {% if job %}
+        <button class="btn btn-outline-primary px-4" type="submit" name="save_and_track" value="1">Save & Track Lines</button>
+        {% endif %}
+        <button class="btn btn-success px-4" type="submit">Save Header</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

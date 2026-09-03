@@ -1,0 +1,26 @@
+{% extends "registration/auth_base.html" %}
+{% block title %}Part Requisitions{% endblock %}
+{% block content %}
+<style>
+  .rq-shell{max-width:1500px;margin:auto}.rq-hero{background:linear-gradient(125deg,#102b45,#176276);color:#fff;border-radius:20px}.rq-card{border:0;border-radius:15px;box-shadow:0 5px 18px rgba(25,42,70,.08)}.rq-value{font-size:1.6rem;font-weight:800}.rq-table th{font-size:.72rem;text-transform:uppercase;color:#64748b;white-space:nowrap}.rq-table td{vertical-align:middle}
+</style>
+<div class="container-fluid py-4 px-lg-4 rq-shell">
+  <section class="rq-hero p-4 mb-3 d-flex justify-content-between align-items-center gap-3">
+    <div><div class="small text-uppercase opacity-75">Parts operations</div><h3 class="mb-1">Part Requisitions & Fulfilment</h3><div class="opacity-75">Receive workshop requests and issue available stock with full traceability.</div></div>
+    <a class="btn btn-light text-primary fw-bold" href="{% url 'part_requisition_create' %}">+ New Requisition</a>
+  </section>
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><div class="card rq-card"><div class="card-body"><small class="text-muted">Open</small><div class="rq-value text-primary">{{ summary.open }}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card rq-card"><div class="card-body"><small class="text-muted">Urgent / Hold</small><div class="rq-value text-danger">{{ summary.urgent }}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card rq-card"><div class="card-body"><small class="text-muted">Partially Fulfilled</small><div class="rq-value text-warning">{{ summary.partial }}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card rq-card"><div class="card-body"><small class="text-muted">Fulfilled</small><div class="rq-value text-success">{{ summary.fulfilled }}</div></div></div></div>
+  </div>
+  <div class="card rq-card">
+    <div class="card-body border-bottom"><form method="get" class="row g-2"><div class="col-md-7"><input class="form-control" name="q" value="{{ q }}" placeholder="Requisition, job card or vehicle"></div><div class="col-md-3"><select class="form-select" name="status"><option value="">All statuses</option>{% for value,label in statuses %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><div class="col-md-2 d-grid"><button class="btn btn-primary">Filter</button></div></form></div>
+    <div class="table-responsive"><table class="table table-hover rq-table mb-0"><thead class="table-light"><tr><th>Requisition</th><th>Job / Vehicle</th><th>Requested</th><th>Priority</th><th>Lines</th><th>Status</th><th class="text-end">Action</th></tr></thead><tbody>
+      {% for req in requisitions %}<tr><td><strong>{{ req.requisition_no }}</strong><br><small class="text-muted">Need by {{ req.needed_by|date:"d M Y"|default:"Not specified" }}</small></td><td><strong>{{ req.job.job_no }}</strong><br><small class="text-muted">{{ req.job.claim.vehicle.registration_no }}</small></td><td>{{ req.requested_at|date:"d M Y H:i" }}<br><small class="text-muted">{{ req.requested_by.get_full_name|default:req.requested_by.username }}</small></td><td><span class="badge {% if req.priority == 'Vehicle Hold' %}text-bg-danger{% elif req.priority == 'Urgent' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ req.priority }}</span></td><td>{{ req.lines.count }}</td><td>{{ req.status }}</td><td class="text-end"><a class="btn btn-sm btn-primary" href="{% url 'part_requisition_detail' req.id %}">{% if req.status == "Fulfilled" or req.status == "Cancelled" %}View{% else %}Fulfil{% endif %}</a></td></tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-5">No requisitions found.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+{% endblock %}

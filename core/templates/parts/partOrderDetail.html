@@ -14,6 +14,10 @@
         <div class="d-flex gap-2">
             {% if selected_header %}
             <a class="btn btn-outline-primary"
+               href="{% url 'part_order_header_edit' selected_header.id %}">
+                Edit Header
+            </a>
+            <a class="btn btn-outline-primary"
                target="_blank"
                href="{% url 'part_order_print' selected_header.id %}">
                 Print

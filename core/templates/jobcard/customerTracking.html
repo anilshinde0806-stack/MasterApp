@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Repair Tracking · {{ job.job_no }}</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, Arial, sans-serif; background:#f3f6fb; color:#14213d; }
+    body { margin:0; background:#f3f6fb; }
+    header { background:#0d2340; color:#fff; padding:24px max(20px, calc((100% - 980px)/2)); }
+    main { max-width:980px; margin:24px auto; padding:0 16px 40px; }
+    .card { background:#fff; border:1px solid #dce5f0; border-radius:14px; padding:22px; margin-bottom:16px; box-shadow:0 5px 18px rgba(22,43,77,.06); }
+    .muted { color:#63738a; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
+    .label { font-size:12px; color:#718096; text-transform:uppercase; letter-spacing:.05em; } .value { margin-top:5px; font-weight:700; }
+    .status { display:inline-block; padding:7px 13px; border-radius:999px; background:#e8f7ee; color:#168044; font-weight:700; }
+    .bar { height:10px; border-radius:8px; background:#e7edf5; overflow:hidden; margin-top:18px; } .bar span { display:block; height:100%; background:#1d70e8; width:45%; }
+    .photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+    .photo { margin:0; border:1px solid #dce5f0; border-radius:10px; overflow:hidden; background:#f8fafc; }
+    .photo img { display:block; width:100%; height:120px; object-fit:cover; } .photo figcaption { padding:8px; font-size:12px; font-weight:700; }
+    .viewer-stage { position:relative; height:min(58vw,520px); min-height:260px; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:12px; background:#0c1728; cursor:ew-resize; user-select:none; touch-action:pan-y; }
+    .viewer-stage img { max-width:100%; max-height:100%; object-fit:contain; pointer-events:none; }
+    .viewer-caption { position:absolute; left:14px; bottom:12px; color:#fff; background:rgba(0,0,0,.58); padding:7px 11px; border-radius:8px; font-size:13px; }
+    .viewer-help { position:absolute; right:14px; bottom:12px; color:#dbeafe; background:rgba(0,0,0,.45); padding:6px 9px; border-radius:8px; font-size:12px; }
+    .viewer-thumbs { display:flex; gap:8px; overflow-x:auto; padding-top:10px; }
+    .viewer-thumb { width:76px; height:56px; flex:0 0 auto; border:2px solid transparent; border-radius:7px; overflow:hidden; padding:0; background:#fff; cursor:pointer; }
+    .viewer-thumb.active { border-color:#1d70e8; } .viewer-thumb img { width:100%; height:100%; object-fit:cover; }
+    .modal-viewer { position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; background:rgba(3,10,22,.92); padding:24px; }
+    .modal-viewer.open { display:flex; } .modal-viewer img { max-width:96vw; max-height:90vh; object-fit:contain; }
+    .modal-close { position:absolute; right:18px; top:14px; color:#fff; font-size:30px; border:0; background:none; cursor:pointer; }
+    .summary { padding:0; overflow:hidden; background:linear-gradient(135deg,#fff 0%,#f6f9ff 100%); }
+    .summary-head { padding:22px 24px; color:#fff; background:linear-gradient(110deg,#0d2340,#1756a2); display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .summary-head h1 { margin:4px 0 0; font-size:28px; } .summary-head .muted { color:#cfe0fa; }
+    .summary-status { background:#d8f8e5; color:#167b43; border-radius:999px; padding:8px 13px; font-weight:800; white-space:nowrap; }
+    .summary-body { padding:20px 24px 24px; } .summary-block { margin-bottom:18px; }
+    .summary-block:last-child { margin-bottom:0; } .summary-block h3 { margin:0 0 12px; font-size:15px; color:#1b4e91; }
+    .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; }
+    .summary-tile { border:1px solid #dbe6f4; background:#fff; border-radius:10px; padding:12px 13px; }
+    .workshop-section-card { padding:16px 24px 14px; border-bottom:1px solid #e1e9f3; background:#fbfdff; }
+    .workshop-section-title { display:flex; align-items:center; gap:8px; margin:0 0 13px; color:#1b4e91; font-size:15px; font-weight:700; }
+    .workshop-section-title i { color:#1d70e8; font-style:normal; }
+    .workshop-section-title i::before { content:"↗"; font-size:18px; font-weight:700; }
+    .workshop-stage-strip { display:flex; align-items:flex-start; gap:0; overflow-x:auto; }
+    .workshop-stage { position:relative; flex:1 0 125px; text-align:center; color:#7c8da3; font-size:12px; }
+    .workshop-stage:not(:last-child)::after { content:""; position:absolute; top:12px; left:50%; width:100%; height:3px; background:#dce6f2; z-index:0; }
+    .workshop-stage.done:not(:last-child)::after { background:#3aa76d; }
+    .workshop-stage-dot { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; width:25px; height:25px; margin:0 auto 6px; border-radius:50%; color:#fff; background:#cbd7e5; font-size:12px; font-style:normal; }
+    .workshop-stage small, .workshop-stage b { display:block; }
+    .workshop-stage small { margin-bottom:2px; font-size:11px; font-weight:700; }
+    .workshop-stage b { color:#1c3557; font-size:12px; }
+    .workshop-stage.done, .workshop-stage.active { color:#174c90; }
+    .workshop-stage.done .workshop-stage-dot { background:#2d9d62; }
+    .workshop-stage.active .workshop-stage-dot { background:#1d70e8; box-shadow:0 0 0 4px #dceaff; }
+    .claim-progress-strip { border-bottom:1px solid #e1e9f3; }
+    .workshop-hover-panel { display:none; margin-top:-8px; }
+    .workshop-hover-panel.visible { display:block; }
+    .claim-stage-eight, .workshop-hover-trigger { cursor:help; }
+    .workshop-hover-close { margin-left:auto; border:1px solid #9fb5d0; border-radius:6px; background:#fff; color:#174c90; padding:5px 11px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 1px 3px rgba(22,43,77,.08); }
+    .workshop-hover-close:hover { background:#eef4ff; color:#174c90; }
+    .workshop-gallery { margin-top:15px; padding-top:13px; border-top:1px solid #e1e9f3; }
+    .workshop-gallery-title { margin:0 0 9px; color:#47617e; font-size:12px; font-weight:800; }
+    .workshop-gallery-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:9px; }
+    .workshop-gallery-item { display:block; overflow:hidden; border:1px solid #dce5f0; border-radius:8px; background:#fff; color:#1c3557; text-decoration:none; }
+    .workshop-gallery-item img { display:block; width:100%; height:76px; object-fit:cover; }
+    .workshop-gallery-item span { display:block; padding:5px 6px 6px; font-size:10px; font-weight:700; line-height:1.2; }
+    .workshop-gallery-empty { margin:0; color:#7c8da3; font-size:12px; }
+    .claim-progress-strip > .workshop-gallery, main > section:not(.workshop-hover-panel) .workshop-gallery { display:none; }
+    /* Customer tracking dashboard theme */
+    header { padding:14px clamp(22px,4vw,52px); min-height:42px; display:flex; align-items:center; justify-content:space-between; gap:20px; background:#071b3d; box-shadow:0 3px 14px rgba(3,18,47,.18); }
+    header strong { font-size:18px; letter-spacing:.02em; text-transform:uppercase; } header div { margin-top:0 !important; font-size:12px; }
+    main { max-width:1440px; margin:0 auto; padding:16px clamp(16px,3vw,32px) 34px; }
+    #legacyTracking { display:none !important; }
+    body > header { display:none; }
+    body.react-ready #legacyTracking { display:none !important; }
+    #trackingReactRoot { max-width:1440px; margin:0 auto; padding:22px clamp(16px,3vw,32px) 36px; }
+    .react-hero,.react-card { background:#fff; border:1px solid #e0e8f3; border-radius:14px; box-shadow:0 5px 18px rgba(22,43,77,.07); }
+    .react-hero { padding:24px 26px 20px; margin-bottom:16px; } .react-hero-top { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; } .react-kicker { color:#63738a; font-size:13px; font-weight:700; } .react-job { margin:4px 0 6px; color:#102955; font-size:30px; } .react-sub { color:#63738a; font-size:13px; } .react-status { padding:8px 13px; border:1px solid #68c790; border-radius:999px; color:#148549; background:#effbf4; font-size:12px; font-weight:800; text-transform:uppercase; }
+    .react-hero > .react-grid3 { margin-top:20px; margin-bottom:0; }
+    .react-hero { padding:17px 20px 16px; background:linear-gradient(135deg,#fff 0%,#f6faff 100%); }
+    .react-card { transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease; } .react-card:hover { transform:translateY(-2px); border-color:#cbdcf2; box-shadow:0 9px 24px rgba(29,83,145,.11); }
+    .react-hero-top { align-items:center; }
+    .react-kicker { font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
+    .react-job { margin:2px 0 4px; font-size:25px; letter-spacing:.01em; }
+    .react-sub { font-size:12px; }
+    .react-status { padding:6px 10px; font-size:10px; }
+    .react-delivery { min-width:160px; padding:8px 11px; }
+    .react-delivery b { font-size:12px; }
+    .react-hero > .react-grid3 { margin-top:14px; gap:10px; }
+    .react-hero > .react-grid3 .react-card { padding:13px 15px; border-radius:10px; box-shadow:none; background:rgba(255,255,255,.82); }
+    .react-hero > .react-grid3 .react-card h2 { margin-bottom:10px; font-size:13px; }
+    .react-hero > .react-grid3 .react-value { margin-top:3px; font-size:16px; }
+    .react-hero > .react-grid3 .react-meta { margin-top:10px; font-size:11px; }
+    .react-delivery { min-width:180px; padding:10px 14px; border:1px solid #e4ebf5; border-radius:10px; } .react-delivery small { display:block; color:#63738a; font-size:10px; font-weight:800; } .react-delivery b { display:block; margin-top:3px; color:#102955; }
+    .react-chip-track { display:flex; overflow-x:auto; padding:22px 0 4px; } .react-chip { position:relative; flex:1 0 120px; text-align:center; color:#63738a; font-size:12px; } .react-chip:not(:last-child)::after { content:""; position:absolute; left:50%; top:13px; width:100%; height:3px; background:#dce6f2; } .react-chip.done:not(:last-child)::after,.react-chip.active:not(:last-child)::after { background:#2d9d62; } .react-chip-dot { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; width:27px; height:27px; margin:0 auto 7px; border-radius:50%; background:#cbd7e5; color:#fff; font-weight:800; } .react-chip.done .react-chip-dot { background:#2d9d62; } .react-chip.active .react-chip-dot { background:#1976e8; box-shadow:0 0 0 4px #dceaff; } .react-chip b { display:block; margin-top:3px; color:#1c3557; }
+    .react-claim-repair { display:none; margin-top:4px; border-top:1px solid #e5edf7; } .react-claim-repair.visible { display:block; } .react-claim-stage8 { cursor:help; }
+    .react-job-photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(105px,1fr)); gap:9px; margin-top:12px; padding-top:12px; border-top:1px solid #e5edf7; } .react-job-photo { overflow:hidden; border:1px solid #dce5f0; border-radius:8px; background:#f8fbff; } .react-job-photo img { display:block; width:100%; height:70px; object-fit:cover; } .react-job-photo span { display:block; padding:4px 6px; color:#47617e; font-size:10px; font-weight:700; }
+    .react-job-close { float:right; border:1px solid #9fb5d0; border-radius:6px; background:#fff; color:#174c90; padding:5px 10px; font-size:11px; font-weight:800; cursor:pointer; }
+    .react-photo-modal { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(4,15,34,.86); } .react-photo-modal-inner { position:relative; max-width:min(92vw,900px); max-height:90vh; padding:12px; border-radius:12px; background:#fff; box-shadow:0 14px 50px rgba(0,0,0,.35); } .react-photo-modal img { display:block; max-width:88vw; max-height:78vh; object-fit:contain; border-radius:7px; } .react-photo-modal-close { position:absolute; right:10px; top:8px; z-index:1; width:30px; height:30px; border:0; border-radius:50%; background:#102955; color:#fff; font-size:20px; line-height:1; cursor:pointer; }
+    .react-photo-modal img { width:auto; height:auto; max-width:100%; max-height:78vh; object-fit:contain; }
+    .react-grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:16px; } .react-card { padding:20px; } .react-card h2 { display:flex; align-items:center; gap:9px; margin:0 0 16px; color:#102955; font-size:16px; letter-spacing:.01em; } .react-card h2::before { content:""; width:28px; height:28px; flex:0 0 28px; border-radius:50%; background:linear-gradient(135deg,#1877ed,#4aa3ff); box-shadow:0 3px 8px rgba(24,119,237,.24); } .react-label { color:#718096; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; } .react-value { margin-top:5px; color:#102955; font-size:19px; font-weight:800; } .react-meta { display:flex; justify-content:space-between; gap:10px; margin-top:18px; color:#63738a; font-size:12px; }
+    .react-claim-strip { margin-bottom:16px; padding:18px 22px; } .react-claim-strip h2 { margin-bottom:0; }
+    .react-road-track { position:relative; overflow:hidden; margin-top:8px; padding:8px 10px 4px; border:1px solid #173b69; border-radius:12px; background:linear-gradient(180deg,#071a34 0%,#102b4b 58%,#081426 100%); }
+    .react-road-track::before { content:""; position:absolute; left:0; right:0; bottom:27px; height:2px; background:repeating-linear-gradient(90deg,#f7dd5b 0 34px,transparent 34px 58px); opacity:.9; }
+    .react-road-track::after { content:""; position:absolute; left:0; right:0; bottom:14px; height:1px; background:repeating-linear-gradient(90deg,#c9d5e5 0 26px,transparent 26px 44px); opacity:.55; }
+    .react-road-track .react-chip-track { position:relative; z-index:1; padding-top:17px; }
+    .react-road-track .react-chip { color:#d9e7f8; } .react-road-track .react-chip b { color:#fff; text-transform:uppercase; letter-spacing:.03em; }
+    .react-road-track .react-chip-dot { width:34px; height:34px; border:2px solid #8d9bac; background:#192b42; box-shadow:0 0 0 3px rgba(255,255,255,.05); }
+    .react-road-track .react-chip.done .react-chip-dot { border-color:#55da78; background:#10432d; box-shadow:0 0 12px rgba(55,225,106,.7); }
+    .react-road-track .react-chip.active .react-chip-dot { border-color:#48a6ff; background:#0a4384; box-shadow:0 0 18px rgba(39,145,255,.95); }
+    .react-road-car { position:absolute; z-index:2; left:-40px; bottom:28px; font-size:24px; filter:drop-shadow(0 0 7px rgba(255,70,35,.7)); animation:roadCarLap 7s linear infinite; }
+    @keyframes roadCarLap { from { transform:translateX(0); } to { transform:translateX(calc(100vw + 80px)); } }
+    .progress-card { width:100%; box-sizing:border-box; padding:22px 28px 24px; background:linear-gradient(135deg,#101827,#0b1220); border:1px solid rgba(255,255,255,.08); border-radius:18px; box-shadow:0 18px 55px rgba(0,0,0,.28); }
+    .react-claim-strip { background:linear-gradient(135deg,#101827,#0b1220); border-color:rgba(255,255,255,.08); } .react-claim-strip h2 { color:#fff; }
+    .progress-card h2 { color:#fff; margin:0 0 18px; font-size:20px; } .progress-wrapper { position:relative; padding:12px 0 4px; } .progress-line,.progress-line-active { position:absolute; top:43px; left:7%; right:7%; height:4px; border-radius:20px; } .progress-line { background:rgba(255,255,255,.14); } .progress-line-active { right:auto; background:linear-gradient(90deg,#21d96b,#20e6a0,#2196ff); box-shadow:0 0 15px rgba(40,180,255,.6); transition:width 1.2s ease; }
+    .progress-card .steps { position:relative; display:flex; justify-content:space-between; gap:8px; } .progress-card .step { position:relative; z-index:2; width:130px; text-align:center; } .progress-card .step-circle { width:54px; height:54px; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:#111b2b; border:2px solid #455064; color:#8491a7; font-size:18px; box-shadow:0 5px 20px rgba(0,0,0,.3); } .progress-card .step-circle.completed { color:#fff; background:linear-gradient(135deg,#16c964,#0da85b); border-color:#32ef85; box-shadow:0 0 22px rgba(30,220,110,.45); } .progress-card .step-circle.active { color:#fff; background:linear-gradient(135deg,#168cff,#0961db); border-color:#48b5ff; box-shadow:0 0 28px rgba(40,150,255,.75); animation:claimPulse 1.5s infinite; }
+    .progress-card .step-title { color:#fff; font-size:12px; font-weight:700; text-transform:uppercase; } .progress-card .step-status { margin-top:5px; font-size:9px; letter-spacing:1px; color:#6d7788; } .progress-card .step-status.done { color:#26df72; } .progress-card .step-status.current { color:#42aaff; } .progress-card .moving-car { position:absolute; z-index:5; top:17px; color:#fff; transform:translateX(-50%); filter:drop-shadow(0 0 10px #2196ff); transition:left 1.4s ease; }
+    .progress-card .progress-line-active { animation:progressFill 1.5s ease-in-out both; transform-origin:left center; }
+    .progress-card .moving-car { animation:carGlow 2s ease-in-out both; }
+    .progress-card .status-dot { display:inline-block; width:8px; height:8px; margin-right:8px; border-radius:50%; background:#2fa7ff; box-shadow:0 0 10px #2fa7ff; animation:pulse 1.5s infinite; }
+    .progress-card .job-status { display:flex; align-items:center; gap:0; padding:10px 16px; border-radius:30px; color:#5eb7ff; background:rgba(55,160,255,.08); border:1px solid rgba(55,160,255,.25); font-size:13px; }
+    .react-claim-strip .progress-card { margin:12px 0; padding:16px 18px 18px; border-radius:14px; }
+    .react-claim-strip .progress-card .progress-header { margin-bottom:22px; }
+    .react-claim-strip .progress-card .progress-header h2 { font-size:18px; }
+    .react-claim-strip .progress-card .steps { gap:0; }
+    .react-claim-strip .progress-card .step { flex:1 1 0; width:auto; min-width:0; }
+    .react-claim-strip .progress-card .step-circle { width:42px; height:42px; margin-bottom:7px; font-size:14px; }
+    .react-claim-strip .progress-card .step-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+    .react-claim-strip .progress-card .step-status { font-size:8px; letter-spacing:.6px; }
+    .react-claim-strip .progress-card .progress-wrapper { min-width:0; overflow:hidden; }
+    /* Light glassmorphism progress panels */
+    .react-claim-strip .progress-card { position:relative; isolation:isolate; overflow:hidden; background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(239,247,255,.72)) padding-box,linear-gradient(110deg,#8fc7ff,#d7c5ff,#91e8cf,#8fc7ff) border-box; border:1px solid transparent; box-shadow:0 18px 45px rgba(32,83,139,.14), inset 0 1px 0 rgba(255,255,255,.9); }
+    .react-claim-strip { background:transparent; border:0; box-shadow:none; }
+    .react-claim-strip .progress-card::before { content:""; position:absolute; inset:0; z-index:0; border-radius:14px; background:linear-gradient(110deg,transparent,rgba(255,255,255,.28),transparent); background-size:260% 100%; animation:glassBorder 7s linear infinite; pointer-events:none; }
+    .react-claim-strip .progress-card::after { content:""; position:absolute; z-index:0; top:-35%; left:-28%; width:28%; height:170%; transform:rotate(18deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent); animation:glassShimmer 5.5s ease-in-out infinite; pointer-events:none; }
+    .react-claim-strip .progress-card > * { position:relative; z-index:1; }
+    .react-claim-strip .progress-card h2 { color:#102955; }
+    .react-claim-strip .progress-card .eyebrow { color:#547092; }
+    .react-claim-strip .progress-card .step-title { color:#18365f; }
+    .react-claim-strip .progress-card .step-status { color:#71839b; }
+    .react-claim-strip .progress-card .step-circle { background:rgba(255,255,255,.72); border-color:#b7c9df; color:#6380a1; box-shadow:0 6px 18px rgba(42,91,145,.13); }
+    .react-claim-strip .progress-card .step-circle.completed { color:#fff; background:linear-gradient(135deg,#18b967,#0d9b68); border-color:#61d9a0; box-shadow:0 0 20px rgba(28,185,105,.3); }
+    .react-claim-strip .progress-card .step-circle.active { color:#fff; background:linear-gradient(135deg,#258bf0,#1762d4); border-color:#69b9ff; box-shadow:0 0 24px rgba(37,139,240,.35); }
+    .react-claim-strip .progress-card .progress-line { background:rgba(105,137,175,.22); }
+    .react-claim-strip .progress-card .job-status { color:#1268bd; background:rgba(224,241,255,.72); border-color:#9fcfff; box-shadow:0 4px 12px rgba(34,126,215,.1); }
+    @keyframes glassBorder { 0%{background-position:0 0} 50%{background-position:100% 0} 100%{background-position:0 0} }
+    @keyframes glassShimmer { 0%,25%{left:-28%;opacity:0} 40%{opacity:.8} 72%,100%{left:125%;opacity:0} }
+    @keyframes progressFill { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+    @keyframes carGlow { from { opacity:.1; transform:translateX(-50%) scale(.8); } to { opacity:1; transform:translateX(-50%) scale(1); } }
+    .react-claim-strip .steps { position:relative; display:flex; justify-content:space-between; gap:8px; }
+    .react-claim-strip .step { position:relative; z-index:2; width:130px; flex:1 0 110px; text-align:center; }
+    .react-claim-strip .step-circle { width:54px; height:54px; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:#111b2b; border:2px solid #455064; color:#8491a7; font-size:18px; box-shadow:0 5px 20px rgba(0,0,0,.3); }
+    .react-claim-strip .step-circle.completed { color:#fff; background:linear-gradient(135deg,#16c964,#0da85b); border-color:#32ef85; box-shadow:0 0 22px rgba(30,220,110,.45); }
+    .react-claim-strip .step-circle.active { color:#fff; background:linear-gradient(135deg,#168cff,#0961db); border-color:#48b5ff; box-shadow:0 0 28px rgba(40,150,255,.75); animation:claimPulse 1.5s infinite; }
+    .react-claim-strip .step-title { color:#fff; font-size:12px; font-weight:700; text-transform:uppercase; }
+    .react-claim-strip .step-status { margin-top:5px; font-size:9px; letter-spacing:1px; color:#6d7788; }
+    .react-claim-strip .step-status.done { color:#26df72; } .react-claim-strip .step-status.current { color:#42aaff; }
+    .react-claim-strip .moving-car { position:absolute; z-index:5; top:17px; color:#fff; transform:translateX(-50%); filter:drop-shadow(0 0 10px #2196ff); transition:left 1.4s ease; }
+    .react-claim-strip .progress-wrapper { position:relative; padding:12px 0 4px; overflow-x:auto; }
+    .react-timeline { display:grid; gap:0; }
+    .react-timeline-row { display:grid; grid-template-columns:28px 1fr auto; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid #e7eef7; }
+    .react-timeline-row:last-child { border-bottom:0; } .react-timeline-dot { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; background:#d7e0eb; color:#63738a; font-size:11px; font-weight:800; }
+    .react-timeline-row.done .react-timeline-dot { background:#20a261; color:#fff; } .react-timeline-row.active .react-timeline-dot { background:#1877ed; color:#fff; box-shadow:0 0 0 5px #e2efff; }
+    .react-timeline-label { color:#102955; font-weight:800; font-size:13px; } .react-timeline-status,.react-timeline-time { color:#718096; font-size:11px; }
+    .react-details-grid { display:grid; grid-template-columns:1.2fr .8fr; gap:16px; margin-bottom:16px; }
+    .react-details-grid > *:only-child { grid-column:1 / -1; }
+    .react-help { text-align:center; color:#63738a; font-size:13px; }
+    .react-advisor { display:flex; align-items:center; gap:12px; padding:12px 14px !important; }
+    .react-advisor-photo { width:58px; height:58px; flex:0 0 58px; border-radius:50%; object-fit:cover; border:3px solid #d9eaff; background:#eaf2fb; }
+    .react-advisor-name { color:#102955; font-weight:800; font-size:14px; } .react-advisor-role { color:#718096; font-size:10px; margin-top:2px; }
+    .react-advisor-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; } .react-chat-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 8px; border-radius:6px; text-decoration:none; font-size:10px; font-weight:800; color:#fff; }
+    .react-chat-btn.whatsapp { background:#20a261; } .react-chat-btn.email { background:#2878d8; } .react-chat-btn.call { background:#6c63d9; }
+    .react-detail-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; }
+    .react-detail-row { display:flex; flex-direction:column; gap:3px; min-width:0; }
+    .react-detail-row .react-label { font-size:9px; } .react-detail-row .react-value { margin:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .react-detail-note { margin:12px 0 0; padding:9px 10px; border-radius:8px; background:#f4f8fd; color:#58708d; font-size:11px; line-height:1.4; }
+    .react-approval-badge { display:inline-flex; align-items:center; gap:6px; width:max-content; padding:5px 9px; border-radius:999px; color:#147a48; background:#e8f8ef; border:1px solid #a7dfc0; font-size:10px; font-weight:800; }
+    .react-inventory-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .react-inventory-item { display:flex; align-items:center; gap:7px; min-width:0; padding:8px 9px; border:1px solid #dce7f3; border-radius:8px; background:#f8fbff; color:#314d70; font-size:11px; font-weight:700; }
+    .react-inventory-item .inventory-check { width:18px; height:18px; display:grid; place-items:center; flex:0 0 18px; border-radius:50%; border:1px solid #b6c6d8; color:#8293a8; background:#fff; font-size:12px; }
+    .react-inventory-item.available { border-color:#a8e1c2; background:#f0fbf5; color:#126b42; } .react-inventory-item.available .inventory-check { border-color:#29ad68; color:#fff; background:#20a261; }
+    .react-tyre-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; margin-top:12px; }
+    .react-tyre-cell { padding:7px; border:1px solid #dce7f3; border-radius:7px; background:#fff; color:#46617e; font-size:10px; }
+    .react-tyre-cell strong { display:block; margin-bottom:3px; color:#18365f; font-size:10px; } .react-tyre-cell span { display:block; line-height:1.35; }
+    @media(max-width:800px){.react-tyre-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    @media(max-width:800px){.react-inventory-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    .react-brandbar { background:#071b3d; color:#fff; padding:16px clamp(22px,4vw,52px); display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    .react-brandbar strong { font-size:18px; letter-spacing:.03em; text-transform:uppercase; display:block; } .react-brandbar span { display:block; color:#cfe0fa; font-size:11px; margin-top:3px; }
+    .react-brand-links { display:flex; align-items:center; gap:18px; color:#f4f8ff; font-size:12px; font-weight:700; }
+    .react-brand-links a { color:#fff; text-decoration:none; padding:8px 12px; border:1px solid rgba(255,255,255,.35); border-radius:7px; transition:background .18s ease,border-color .18s ease; }
+    .react-brand-links a:hover { background:rgba(255,255,255,.14); border-color:#8fc7ff; }
+    @media(max-width:800px){.react-details-grid{grid-template-columns:1fr}.react-hero-top{flex-direction:column;align-items:flex-start}.react-delivery{width:100%;box-sizing:border-box}}
+    @media(max-width:700px){.progress-card{overflow:hidden}.progress-card .progress-wrapper{min-width:0}.react-claim-strip .progress-card{padding:14px 10px}.react-claim-strip .progress-card .progress-header{margin-bottom:16px}.react-claim-strip .progress-card .progress-header h2{font-size:14px}.react-claim-strip .progress-card .job-status{padding:7px 9px;font-size:10px}.react-claim-strip .progress-card .step-circle{width:30px;height:30px;margin-bottom:5px;font-size:11px}.react-claim-strip .progress-card .step-title{font-size:7px}.react-claim-strip .progress-card .step-status{font-size:6px;letter-spacing:.2px}.react-claim-strip .progress-card .progress-line,.react-claim-strip .progress-card .progress-line-active{top:27px;height:3px}.react-claim-strip .progress-card .moving-car{top:11px;font-size:13px}}
+    @keyframes claimPulse { 0%,100% { box-shadow:0 0 0 0 rgba(25,118,232,.28); } 50% { box-shadow:0 0 0 7px rgba(25,118,232,0); } }
+    @keyframes claimLine { 0% { opacity:.45; transform:scaleX(.75); transform-origin:left; } 100% { opacity:1; transform:scaleX(1); transform-origin:left; } }
+    .react-claim-strip .react-chip.active .react-chip-dot { animation:claimPulse 1.8s ease-in-out infinite, activeStageBlink 1.25s ease-in-out infinite; }
+    .react-claim-strip .react-chip.active b, .react-claim-strip .react-chip.active small { color:#0b7f50; }
+    .react-claim-strip .react-chip.done .react-chip-dot { background:#168b57; } .react-claim-strip .react-chip.pending .react-chip-dot { background:#cbd7e5; border:2px solid #8fb5e8; color:#315b9b; }
+    .react-claim-strip .react-chip.active:not(:last-child)::after { animation:claimLine .8s ease-out both; }
+    .react-claim-strip .react-chip.done:not(:last-child)::after { background:linear-gradient(90deg,#168b57 0%,#55d58d 50%,#168b57 100%); background-size:200% 100%; animation:claimLap .9s linear infinite; }
+    .react-claim-strip .react-claim-repair.visible { animation:claimReveal .22s ease-out both; }
+    @keyframes claimReveal { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:translateY(0); } }
+    .react-claim-strip { animation:claimStripIn .5s ease-out both; }
+    .react-claim-strip .react-chip { opacity:0; animation:claimStageIn .42s ease-out forwards; }
+    .react-claim-strip .react-chip:nth-child(1) { animation-delay:.05s; } .react-claim-strip .react-chip:nth-child(2) { animation-delay:.12s; } .react-claim-strip .react-chip:nth-child(3) { animation-delay:.19s; } .react-claim-strip .react-chip:nth-child(4) { animation-delay:.26s; } .react-claim-strip .react-chip:nth-child(5) { animation-delay:.33s; } .react-claim-strip .react-chip:nth-child(6) { animation-delay:.40s; } .react-claim-strip .react-chip:nth-child(7) { animation-delay:.47s; } .react-claim-strip .react-chip:nth-child(8) { animation-delay:.54s; }
+    @keyframes claimStripIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes claimStageIn { from { opacity:0; transform:translateY(8px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes activeStageBlink { 0%,100% { background:#1976e8; } 50% { background:#19a96b; } }
+    @keyframes claimLap { from { background-position:200% 0; } to { background-position:-20% 0; } }
+    @media(prefers-reduced-motion:reduce){.react-claim-strip,.react-claim-strip .react-chip,.react-claim-strip .react-chip.active .react-chip-dot{animation:none;opacity:1;}}
+    .react-bottom { display:grid; grid-template-columns:1.1fr .9fr; gap:16px; } .react-photo-stage { height:280px; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:10px; background:#eaf0f8; } .react-photo-stage img { width:100%; height:100%; object-fit:contain; } .react-thumbs { display:flex; gap:8px; overflow-x:auto; margin-top:10px; } .react-thumb { width:68px; height:48px; padding:0; border:2px solid transparent; border-radius:7px; overflow:hidden; cursor:pointer; } .react-thumb.active { border-color:#1976e8; } .react-thumb img { width:100%; height:100%; object-fit:cover; }
+    .react-photo-stage { position:relative; } .react-photo-stage:hover { cursor:pause; } .react-photo-stage img.react-photo-auto { animation:reactPhotoIn .45s ease-out both; } @keyframes reactPhotoIn { from { opacity:.25; transform:scale(1.03) translateX(14px); } to { opacity:1; transform:scale(1) translateX(0); } }
+    .react-timeline-row { display:grid; grid-template-columns:18px 1fr auto; gap:10px; padding:8px 0 14px; } .react-timeline-dot { width:18px; height:18px; border-radius:50%; background:#cbd7e5; } .react-timeline-row.done .react-timeline-dot { background:#2d9d62; } .react-timeline-row.active .react-timeline-dot { background:#1976e8; } .react-timeline-row b { color:#1c3557; font-size:13px; } .react-timeline-row small { color:#718096; }
+    @media(max-width:900px){.react-grid3,.react-bottom{grid-template-columns:1fr}.react-hero-top{flex-wrap:wrap}.react-delivery{margin-left:auto}} @media(max-width:600px){.react-job{font-size:24px}.react-hero-top{display:block}.react-status{display:inline-block;margin-top:10px}}
+    main { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; }
+    main > section, main > div.card { grid-column:1/-1; min-width:0; }
+    #trackingReactRoot { box-sizing:border-box; } #trackingReactRoot .react-details-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:10px; } #trackingReactRoot .react-details-grid > *:only-child { grid-column:1 / -1; } #trackingReactRoot .react-card { padding:14px; } #trackingReactRoot .react-card h2 { margin-bottom:10px; }
+    #trackingReactRoot .react-details-grid > .react-bottom { display:block; width:100%; min-width:0; }
+    @media(max-width:800px){#trackingReactRoot .react-details-grid{grid-template-columns:1fr;gap:10px}#trackingReactRoot .react-card{padding:12px}}
+    main > div.card:nth-of-type(1) { grid-column:span 7; }
+    main > div.card:nth-of-type(2) { grid-column:span 5; }
+    main > section.repair-timeline { grid-column:span 6; }
+    main > div.card:nth-of-type(3) { grid-column:span 6; }
+    main > div.card:nth-of-type(4) { grid-column:1/-1; }
+    .card, .workshop-section-card { border-radius:12px; box-shadow:0 4px 16px rgba(30,56,93,.07); }
+    .summary { border:1px solid #e4ebf5; }
+    .summary-head { padding:22px 26px 20px; background:linear-gradient(110deg,#fff,#f8fbff); color:#102955; border-bottom:1px solid #e5edf7; }
+    .summary-head .muted { color:#60718b; } .summary-head h1 { font-size:30px; letter-spacing:.01em; } .summary-status { text-transform:uppercase; border:1px solid #66c790; background:#effcf4; color:#15914c; }
+    .summary-body { display:grid; grid-template-columns:1.2fr 1.2fr 1fr; gap:14px; padding:18px; background:#f8fbff; }
+    .summary-block { margin:0; padding:16px; border:1px solid #e2eaf5; border-radius:10px; background:#fff; }
+    .summary-block h3 { font-size:16px; color:#102955; } .summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .summary-tile { padding:10px; border:0; border-bottom:1px solid #edf1f6; border-radius:0; } .summary-tile .value { color:#102955; }
+    .workshop-section-card { margin-bottom:16px; border:1px solid #e1e9f3; }
+    .claim-progress-strip { background:#fff; padding:20px 24px 18px; }
+    .workshop-stage-strip { padding-bottom:4px; } .workshop-stage { min-width:125px; }
+    .viewer-stage { height:min(42vw,390px); } .viewer-thumbs { gap:10px; }
+    .repair-timeline { padding:0; overflow:hidden; } .repair-timeline h2 { margin:0; padding:16px 20px; border-bottom:1px solid #e3ebf5; font-size:17px; color:#102955; }
+    .repair-timeline-list { padding:12px 20px 16px; } .repair-timeline-row { position:relative; display:grid; grid-template-columns:22px 1fr auto; gap:11px; padding:7px 0 13px; }
+    .repair-timeline-row:not(:last-child)::before { content:""; position:absolute; left:9px; top:25px; bottom:0; width:2px; background:#dce6f2; }
+    .repair-timeline-dot { position:relative; z-index:1; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:50%; color:#fff; background:#cbd7e5; font-size:11px; font-weight:800; }
+    .repair-timeline-row.done .repair-timeline-dot { background:#2d9d62; } .repair-timeline-row.active .repair-timeline-dot { background:#1d70e8; box-shadow:0 0 0 4px #dceaff; }
+    .repair-timeline-label { color:#1c3557; font-weight:800; font-size:13px; } .repair-timeline-status { color:#718096; font-size:12px; }
+    main > .card:nth-of-type(2) { }
+    @media(max-width:900px){main > div.card:nth-of-type(1),main > div.card:nth-of-type(2),main > section.repair-timeline,main > div.card:nth-of-type(3){grid-column:1/-1}.summary-body{grid-template-columns:1fr 1fr}.summary-block:last-child{grid-column:1/-1}}
+    @media(max-width:600px){header::after{display:none}header{align-items:flex-start;flex-direction:column}.summary-head{align-items:flex-start;flex-direction:column}.summary-head h1{font-size:23px}.summary-body{display:block;padding:12px}.summary-block{margin-bottom:12px}.summary-block:last-child{margin-bottom:0}}
+    .pill { display:inline-block; margin:3px 4px 0 0; padding:5px 8px; border-radius:999px; background:#eef4ff; color:#315b9b; font-size:12px; }
+    /* Minimal hero refresh */
+    .react-hero { background:#fff; box-shadow:none; border:1px solid #e7ecf4; padding:22px 24px 20px; }
+    .react-hero:hover { transform:none; box-shadow:none; border-color:#e7ecf4; }
+    .react-hero-top { padding-bottom:16px; margin-bottom:16px; border-bottom:1px solid #eef2f8; }
+    .react-hero .react-kicker { color:#8b96a8; font-weight:600; letter-spacing:.06em; }
+    .react-hero .react-job { color:#0f1f38; font-weight:700; font-size:26px; letter-spacing:-.01em; }
+    .react-hero .react-sub { color:#8b96a8; font-weight:500; }
+    .react-hero .react-status { display:inline-flex; align-items:center; gap:6px; background:transparent; border:0; padding:0; color:#1c8a52; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+    .react-hero .react-status::before { content:""; width:7px; height:7px; border-radius:50%; background:#1c8a52; box-shadow:0 0 0 3px rgba(28,138,82,.15); }
+    .react-hero .react-delivery { border:0; border-left:2px solid #e7ecf4; border-radius:0; background:transparent; padding:2px 0 2px 16px; min-width:170px; }
+    .react-hero .react-delivery small { color:#a6b1c2; }
+    .react-hero .react-delivery b { color:#0f1f38; font-weight:700; }
+    .react-hero > .react-grid3 { margin-top:0; gap:0; }
+    .react-hero > .react-grid3 .react-card { background:transparent; border:0; border-radius:0; box-shadow:none; padding:0 20px; }
+    .react-hero > .react-grid3 .react-card:hover { transform:none; }
+    .react-hero > .react-grid3 .react-card:first-child { padding-left:0; }
+    .react-hero > .react-grid3 .react-card:last-child { padding-right:0; }
+    .react-hero > .react-grid3 .react-card:not(:last-child) { border-right:1px solid #eef2f8; }
+    .react-hero > .react-grid3 .react-card h2 { display:block; margin-bottom:8px; font-size:11px; color:#8b96a8; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+    .react-hero > .react-grid3 .react-card h2::before { display:none; content:none; }
+    .react-hero > .react-grid3 .react-value { font-size:16px; font-weight:700; color:#0f1f38; }
+    @media(max-width:900px){ .react-hero > .react-grid3 .react-card { border-right:0; border-bottom:1px solid #eef2f8; padding:12px 0; } .react-hero > .react-grid3 .react-card:first-child { padding-top:0; } .react-hero > .react-grid3 .react-card:last-child { border-bottom:0; padding-bottom:0; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="tracking-brand"><strong>{{ company.company_name|default:'MasterApp Bodyshop' }}</strong><span>Your Vehicle Claim & Repair progress tracking</span></div><div class="tracking-header-job"><small>Customer repair tracking</small><b>{{ job.job_no }}</b><span class="tracking-header-status">{{ job.get_repair_status_display|default:'Repair in progress' }}</span></div><div class="tracking-header-delivery"><small>EXPECTED DELIVERY</small><b>{{ delivery_datetime|date:'d M Y, h:i A'|default:'To be confirmed' }}</b></div></header>
+    <div id="trackingReactRoot"></div>
+    <main id="legacyTracking"> 
+    {% if claim_progress %}
+      <section class="workshop-section-card claim-progress-strip">
+        <div class="workshop-section-title"><i class="fa fa-route" aria-hidden="true"></i> Claim Stages</div>
+        <div class="workshop-stage-strip">
+          {% for stage in claim_progress %}
+            <div class="workshop-stage {% if stage.done %}done{% elif stage.current %}active{% else %}pending{% endif %}{% if stage.number == 8 %} claim-stage-eight{% endif %}">
+              <span class="workshop-stage-dot" aria-label="{% if stage.done %}Completed{% elif stage.current %}In Progress{% else %}Pending{% endif %}">{% if stage.done %}✓{% elif stage.current %}⚒{% else %}{{ stage.number }}{% endif %}</span>
+              <small>{% if stage.done %}Completed{% elif stage.current %}In Progress{% else %}Pending{% endif %}</small>
+              <b>{{ stage.label }}</b>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="workshop-gallery"><div class="workshop-gallery-title">Repair progress photos</div><div class="workshop-gallery-grid">
+          {% for progress in workshop_progress_rows %}{% for photo in progress.photos %}<a class="workshop-gallery-item" href="{{ photo.image.url }}" target="_blank" rel="noopener"><img src="{{ photo.image.url }}" alt="{{ progress.label }}"><span>{{ progress.label }}</span></a>{% endfor %}{% endfor %}
+        </div>{% if not workshop_progress_rows.0.photos and not workshop_progress_rows.1.photos and not workshop_progress_rows.2.photos and not workshop_progress_rows.3.photos and not workshop_progress_rows.4.photos and not workshop_progress_rows.5.photos %}<p class="workshop-gallery-empty">Repair photos will appear here as work progresses.</p>{% endif %}</div>
+      </section>
+    {% endif %}
+    {% if claim and claim.claim_stage == 8 %}
+      <section id="claimWorkshopHover" class="workshop-section-card workshop-hover-panel" aria-hidden="true">
+        <div class="workshop-section-title"><i class="fa fa-route" aria-hidden="true"></i> Workshop Progress <button type="button" class="workshop-hover-close" aria-label="Close Workshop Progress">Close</button></div>
+        <div class="workshop-stage-strip">
+          {% for progress in workshop_progress_rows %}
+            <div class="workshop-stage {% if progress.status == 'Completed' %}done{% elif progress.status == 'In Progress' %}active{% else %}pending{% endif %}"><span class="workshop-stage-dot" aria-label="{{ progress.status }}">{% if progress.status == 'Completed' %}✓{% elif progress.status == 'In Progress' %}⚒{% else %}{{ forloop.counter }}{% endif %}</span><small>{{ progress.status }}</small><b>{{ progress.label }}</b></div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+    <section class="workshop-section-card">
+      <div class="workshop-section-title"><i class="fa fa-route" aria-hidden="true"></i> Workshop Progress</div>
+      <div class="workshop-stage-strip">
+        {% for progress in job_progress_rows %}
+          <div class="workshop-stage {% if progress.status == 'Completed' %}done{% elif progress.status == 'In Progress' %}active{% elif progress.status == 'Pending' %}pending{% endif %}{% if progress.label == 'Repair work' and progress.status == 'In Progress' %} workshop-hover-trigger{% endif %}">
+            <span class="workshop-stage-dot" aria-label="{{ progress.status }}">
+              {% if progress.status == 'Completed' %}✓{% elif progress.status == 'In Progress' %}⚒{% else %}{{ forloop.counter }}{% endif %}
+            </span>
+            <small>{{ progress.status }}</small>
+            <b>{{ progress.label }}</b>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="workshop-gallery"><div class="workshop-gallery-title">Repair progress photos</div><div class="workshop-gallery-grid">
+          {% for progress in workshop_progress_rows %}{% for photo in progress.photos %}<a class="workshop-gallery-item" href="{{ photo.image.url }}" target="_blank" rel="noopener"><img src="{{ photo.image.url }}" alt="{{ progress.label }}"><span>{{ progress.label }}</span></a>{% endfor %}{% endfor %}
+        </div>{% if not workshop_progress_rows.0.photos and not workshop_progress_rows.1.photos and not workshop_progress_rows.2.photos and not workshop_progress_rows.3.photos and not workshop_progress_rows.4.photos and not workshop_progress_rows.5.photos %}<p class="workshop-gallery-empty">Repair photos will appear here as work progresses.</p>{% endif %}</div>
+      </section>
+    {% if not claim %}
+      <section id="workshopDetailHover" class="workshop-section-card workshop-hover-panel" aria-hidden="true">
+        <div class="workshop-section-title"><i class="fa fa-route" aria-hidden="true"></i> Workshop Progress <button type="button" class="workshop-hover-close" aria-label="Close Workshop Progress">Close</button></div>
+        <div class="workshop-stage-strip">
+          {% for progress in workshop_progress_rows %}
+            <div class="workshop-stage {% if progress.status == 'Completed' %}done{% elif progress.status == 'In Progress' %}active{% else %}pending{% endif %}"><span class="workshop-stage-dot" aria-label="{{ progress.status }}">{% if progress.status == 'Completed' %}✓{% elif progress.status == 'In Progress' %}⚒{% else %}{{ forloop.counter }}{% endif %}</span><small>{{ progress.status }}</small><b>{{ progress.label }}</b></div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+    <section class="card summary"><div class="summary-head"><div><div class="muted">Customer repair tracking</div><h1>{{ job.job_no }}</h1></div><span class="summary-status">{{ job.get_repair_status_display }}</span></div><div class="summary-body"><div class="summary-block"><h3>Vehicle &amp; claim</h3><div class="summary-grid"><div class="summary-tile"><div class="label">Vehicle</div><div class="value">{{ vehicle.registration_no|default:'-' }}</div></div><div class="summary-tile"><div class="label">Model</div><div class="value">{{ vehicle.model|default:'-' }}</div></div><div class="summary-tile"><div class="label">Claim No.</div><div class="value">{{ claim.claim_no|default:'Service Job' }}</div></div><div class="summary-tile"><div class="label">Customer</div><div class="value">{{ customer.name|default:'Customer' }}</div></div></div></div><div class="summary-block"><h3>Vehicle details</h3><div class="summary-grid"><div class="summary-tile"><div class="label">Current KM</div><div class="value">{{ job.km|default:'-' }} km</div></div><div class="summary-tile"><div class="label">Fuel level</div><div class="value">{{ inventory.fuel_percent|default:'0' }}%</div></div><div class="summary-tile"><div class="label">CNG level</div><div class="value">{{ inventory.cng_percent|default:'0' }}%</div></div><div class="summary-tile"><div class="label">Expected delivery</div><div class="value">{{ delivery_datetime|date:'d M Y, h:i A'|default:'To be confirmed' }}</div></div></div></div><div class="bar"><span></span></div><p class="muted" style="margin:12px 0 0">Your vehicle is currently being handled by our workshop team. This page updates as work progresses.</p></div></section>
+    <div class="card"><h2>Vehicle inspection photos (360°)</h2>{% if inspection_photos %}<div id="trackingViewer" class="viewer-stage" tabindex="0"><img id="trackingViewerImage" src="{{ inspection_photos.0.image.url }}" alt="{{ inspection_photos.0.caption }}"><div id="trackingViewerCaption" class="viewer-caption">{{ inspection_photos.0.caption }}</div><div class="viewer-help">Drag left/right to rotate · Click to enlarge</div></div><div id="trackingViewerThumbs" class="viewer-thumbs">{% for photo in inspection_photos %}<button class="viewer-thumb{% if forloop.first %} active{% endif %}" type="button" data-index="{{ forloop.counter0 }}"><img src="{{ photo.image.url }}" alt="{{ photo.caption }}"></button>{% endfor %}</div>{% else %}<p class="muted">Inspection photos will appear here after they are uploaded.</p>{% endif %}</div>
+    <div class="card"><h2>Vehicle inventory</h2>{% if inventory %}<span class="pill">Mud flaps: {{ inventory.mud_flap_count }}</span><span class="pill">Floor mats: {{ inventory.floor_mat_count }}</span>{% if inventory.lh_mirror %}<span class="pill">LH mirror</span>{% endif %}{% if inventory.rh_mirror %}<span class="pill">RH mirror</span>{% endif %}{% if inventory.spare_wheel %}<span class="pill">Spare wheel</span>{% endif %}{% if inventory.jack %}<span class="pill">Jack</span>{% endif %}{% if inventory.tool_kit %}<span class="pill">Tool kit</span>{% endif %}{% if inventory.accessories %}<span class="pill">Accessories</span>{% endif %}{% else %}<p class="muted">Inventory details are not available yet.</p>{% endif %}</div>
+    <section class="card repair-timeline"><h2>Repair Timeline</h2><div class="repair-timeline-list">{% for progress in job_progress_rows %}<div class="repair-timeline-row {% if progress.status == 'Completed' %}done{% elif progress.status == 'In Progress' %}active{% endif %}"><span class="repair-timeline-dot">{% if progress.status == 'Completed' %}✓{% elif progress.status == 'In Progress' %}⚒{% else %}{{ forloop.counter }}{% endif %}</span><div><div class="repair-timeline-label">{{ progress.label }}</div><div class="repair-timeline-status">{{ progress.status }}{% if progress.start_time %} · {{ progress.start_time|date:'d M Y, h:i A' }}{% endif %}</div></div><small class="muted">{% if progress.finish_time %}{{ progress.finish_time|date:'d M Y, h:i A' }}{% endif %}</small></div>{% endfor %}</div></section>
+    <div class="card"><h2>Cost &amp; delivery summary</h2><div class="grid"><div><div class="label">Parts</div><div class="value">₹ {{ parts_total|floatformat:2 }}</div></div><div><div class="label">Labour</div><div class="value">₹ {{ labour_total|floatformat:2 }}</div></div><div><div class="label">Estimated total</div><div class="value">₹ {{ grand_total|floatformat:2 }}</div></div><div><div class="label">Delivery</div><div class="value">{{ delivery_datetime|date:'d M Y, h:i A'|default:'To be confirmed' }}</div></div></div><p class="muted" style="margin:14px 0 0">Final amount and delivery time may change if additional damage is found during repair. Any changes will be communicated for approval.</p></div>
+    <div class="card"><h2>Need help?</h2><p class="muted">Please contact your service advisor for questions about your repair or expected delivery.</p></div>
+  </main>
+  <div id="trackingPhotoModal" class="modal-viewer" role="dialog" aria-modal="true"><button class="modal-close" type="button" aria-label="Close">×</button><img id="trackingModalImage" alt="Inspection photo"></div>
+  {{ inspection_photo_data|json_script:"inspectionPhotosData" }}
+  {{ tracking_react_data|json_script:"trackingReactData" }}
+  <script>window.__BODYSHOP_PROGRESS__ = JSON.parse(document.getElementById('trackingReactData').textContent);</script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script>
+    (() => {
+      const data = JSON.parse(document.getElementById('trackingReactData').textContent);
+      const h = React.createElement;
+      function chips(rows,onStage8Enter,onStage8Leave,title) {
+        const list=rows||[], activeIndex=list.findIndex(p=>p.status==='In Progress'), activeRow=list.find(p=>p.current===true||p.status==='In Progress'), numberedStep=activeRow&&Number.isFinite(Number(activeRow.number))?Number(activeRow.number)-1:activeIndex, currentStep=numberedStep<0?list.length-1:Math.min(numberedStep,Math.max(0,list.length-1)), width=list.length>1?(currentStep/(list.length-1))*84:0;
+        const steps=list.map((p,i)=>h('div',{key:i,className:'step',onMouseEnter:i===7?onStage8Enter:undefined,onMouseLeave:i===7?onStage8Leave:undefined,onFocus:i===7?onStage8Enter:undefined,onBlur:i===7?onStage8Leave:undefined},[
+          h('div',{className:'step-circle '+(i<currentStep?'completed':i===currentStep?'active':'')+(i===7&&onStage8Enter?' react-claim-stage8':'')},i<currentStep?'✓':i===currentStep?'⚒':i+1),
+          h('div',{className:'step-title'},p.label),
+          h('div',{className:'step-status '+(i<currentStep?'done':i===currentStep?'current':'')},i<currentStep?'COMPLETED':i===currentStep?'IN PROGRESS':'PENDING')
+        ]));
+        return h('div',{className:'progress-card'},[
+          h('div',{className:'progress-wrapper'},[h('div',{className:'progress-line'}),h('div',{className:'progress-line-active',style:{width:width+'%',left:'8%'}}),h('div',{className:'moving-car',style:{left:(8+width)+'%'}},'🚗'),h('div',{className:'steps'},steps)])
+        ]);
+      }
+      function App(){
+        const [photo,setPhoto]=React.useState(0), [jobPhoto,setJobPhoto]=React.useState(null), [showRepair,setShowRepair]=React.useState(false), [paused,setPaused]=React.useState(false), photos=data.photos||[], progress=data.progress||[], repair=data.repair_progress||[], claim=(data.claim_progress||[]).map(p=>({...p,status:p.done?'Completed':p.current?'In Progress':'Pending'}));
+        React.useEffect(()=>{ if(photos.length<2 || paused) return; const timer=setInterval(()=>setPhoto(current=>(current+1)%photos.length),3000); return ()=>clearInterval(timer); },[photos.length,paused]);
+        const active=progress.find(p=>p.status==='In Progress'), next=progress.find(p=>p.status==='Pending');
+        const photoView=photos.length ? h('img',{src:photos[photo].url,alt:photos[photo].caption||'Inspection photo'}) : h('span',{className:'react-sub'},'Inspection photos will appear here');
+        const thumbs=photos.map((p,i)=>h('button',{key:i,className:'react-thumb '+(i===photo?'active':''),onClick:()=>setPhoto(i)},[h('img',{src:p.url,alt:p.caption||'Inspection photo'})]));
+        const info=h('div',{className:'react-grid3'},[
+          h('section',{className:'react-card',key:'claim'},[h('h2',null,'Vehicle & Claim Details'),h('div',{className:'react-label'},'Vehicle No.'),h('div',{className:'react-value'},data.vehicle),h('div',{className:'react-meta'},[h('span',null,data.model),h('span',null,data.customer)]),h('div',{className:'react-label',style:{marginTop:'18px'}},'Claim No.'),h('div',{className:'react-value'},data.claim_no)]),
+          h('section',{className:'react-card',key:'info'},[h('h2',null,'Vehicle Information'),h('div',{className:'react-label'},'Current KM'),h('div',{className:'react-value'},data.km+' KM'),h('div',{className:'react-meta'},[h('span',null,'Fuel '+data.fuel+'%'),h('span',null,'CNG '+data.cng+'%')])]),
+          h('section',{className:'react-card',key:'status'},[h('h2',null,'Repair Status'),h('div',{className:'react-label'},'CURRENT STATUS'),h('div',{className:'react-value'},active?active.label:data.status),h('div',{className:'react-meta'},[h('span',null,active?active.status:data.status),h('span',null,'Next step: '+(next?next.label:'Delivery'))])])
+        ]);
+        const bottom=h('div',{className:'react-bottom'},[
+          h('section',{className:'react-card',key:'photos'},[h('h2',null,'Vehicle Inspection 360°'),h('div',{className:'react-photo-stage',onMouseEnter:()=>setPaused(true),onMouseLeave:()=>setPaused(false),onTouchStart:()=>setPaused(true),onTouchEnd:()=>setPaused(false)},photos.length?h('img',{key:photo,className:'react-photo-auto',src:photos[photo].url,alt:photos[photo].caption||'Inspection photo'}):photoView),h('div',{className:'react-thumbs'},thumbs)])
+        ]);
+        const repairPhotos=repair.flatMap(p=>(p.photos||[]).map(photo=>({...photo,label:p.label})));
+        const photoGallery=h('div',{className:'react-job-photos'},repairPhotos.length?repairPhotos.map((photo,i)=>h('button',{key:i,type:'button',className:'react-job-photo',onClick:()=>setJobPhoto(photo)},[h('img',{src:photo.url,alt:photo.caption||photo.label}),h('span',null,photo.label)])):h('span',{className:'react-sub'},'Repair photos will appear here as work progresses.'));
+        const claimStrip=claim.length?h('section',{className:'react-claim-strip'},[chips(claim,()=>setShowRepair(true),undefined,'Claim Stage Progress'),h('div',{className:'react-claim-repair '+(showRepair?'visible':'')},[h('div',{className:'workshop-section-title'},[h('span',null,'Job Progress'),h('button',{type:'button',className:'react-job-close',onClick:()=>setShowRepair(false)},'Close')]),chips(repair,undefined,undefined,'Workshop Progress'),photoGallery])]):h('section',{className:'react-claim-strip'},[chips(repair,undefined,undefined,'Workshop Progress'),photoGallery]);
+        const photoModal=jobPhoto?h('div',{className:'react-photo-modal',onClick:e=>{if(e.target===e.currentTarget)setJobPhoto(null)}},h('div',{className:'react-photo-modal-inner'},[h('button',{type:'button',className:'react-photo-modal-close',onClick:()=>setJobPhoto(null),'aria-label':'Close photo'},'×'),h('img',{src:jobPhoto.url,alt:jobPhoto.caption||jobPhoto.label})])):null;
+        const timeline=h('section',{className:'react-card'},[h('h2',null,'Repair Timeline'),h('div',{className:'react-timeline'},progress.map((p,i)=>h('div',{key:i,className:'react-timeline-row '+(p.status==='Completed'?'done':p.status==='In Progress'?'active':'')},[h('span',{className:'react-timeline-dot'},p.status==='Completed'?'✓':p.status==='In Progress'?'⚒':i+1),h('div',null,[h('div',{className:'react-timeline-label'},p.label),h('div',{className:'react-timeline-status'},p.status)]),h('span',{className:'react-timeline-time'},p.finish_time||p.start_time||'Pending')])))]);
+        const cost=h('section',{className:'react-card'},[h('h2',null,'Cost & Delivery Summary'),h('div',{className:'react-grid3'},[h('div',null,[h('div',{className:'react-label'},'Parts'),h('div',{className:'react-value'},'₹ '+Number(data.parts_total||0).toLocaleString('en-IN',{minimumFractionDigits:2}))]),h('div',null,[h('div',{className:'react-label'},'Labour'),h('div',{className:'react-value'},'₹ '+Number(data.labour_total||0).toLocaleString('en-IN',{minimumFractionDigits:2}))]),h('div',null,[h('div',{className:'react-label'},'Estimated Total'),h('div',{className:'react-value'},'₹ '+Number(data.grand_total||0).toLocaleString('en-IN',{minimumFractionDigits:2}))])]),h('p',{className:'react-sub'},'Final amount and delivery time may change if additional damage is found during repair.')]);
+        const inventoryItems=[['Mud flaps',Number(data.inventory?.mud_flap_count||0)>0],['Floor mats',Number(data.inventory?.floor_mat_count||0)>0],['LH mirror',data.inventory?.lh_mirror],['RH mirror',data.inventory?.rh_mirror],['Center mirror',data.inventory?.center_mirror],['Front wiper',data.inventory?.frt_wiper],['Rear wiper',data.inventory?.rr_wiper],['Accessories',data.inventory?.accessories],['Spare wheel',data.inventory?.spare_wheel],['Jack',data.inventory?.jack],['Tool kit',data.inventory?.tool_kit],['Stereo',data.inventory?.stereo],['Battery',data.inventory?.battery],['Number plate',data.inventory?.number_plate]];
+        const inventory=h('section',{className:'react-card'},[h('h2',null,'Vehicle Inventory'),h('div',{className:'react-inventory-grid'},inventoryItems.map(([label,available])=>h('div',{key:label,className:'react-inventory-item '+(available?'available':'')},[h('span',{className:'inventory-check','aria-label':available?'Available':'Not available'},available?'✓':'×'),h('span',null,label)]))),h('div',{className:'react-tyre-grid'},(data.tyre_inventory||[]).map(t=>h('div',{key:t.position,className:'react-tyre-cell'},[h('strong',null,t.position),h('span',null,(t.make||'-')+' · '+(t.size||'-')),h('span',null,'Depth: '+(t.depth||'-')+' · Cap: '+(t.wheel_cap||'-'))]))) ]);
+        const claimDetails=data.claim_details||{};
+        const claimIntimation=h('section',{className:'react-card'},[h('h2',null,'Claim Intimation & Survey'),h('div',{className:'react-detail-list'},[
+          h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Claim Type'),h('div',{className:'react-value'},claimDetails.claim_type||'Service Job')]),
+          h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Intimation Date'),h('div',{className:'react-value'},claimDetails.intimation_date?new Date(claimDetails.intimation_date).toLocaleString('en-IN'):'Not recorded')]),
+          h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Survey Date'),h('div',{className:'react-value'},claimDetails.survey_date?new Date(claimDetails.survey_date).toLocaleString('en-IN'):'Not recorded')]),
+          h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Surveyor'),h('div',{className:'react-value'},claimDetails.surveyor||'Not assigned')]),
+          h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Survey Status'),h('div',{className:'react-value'},claimDetails.survey_status||'Pending')])
+        ])]);
+        const insuranceApproval=h('section',{className:'react-card'},[
+          h('h2',null,'Insurance Approval Details'),
+          h('div',{className:'react-approval-badge'},[h('span',null,'●'),claimDetails.approval_date?'Approval received':'Approval pending']),
+          h('div',{className:'react-detail-list',style:{marginTop:'14px'}},[
+            h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Insurance Company'),h('div',{className:'react-value'},claimDetails.insurance_company||'Not provided')]),
+            h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Policy No.'),h('div',{className:'react-value'},claimDetails.policy_no||'Not provided')]),
+            h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Insurance Claim No.'),h('div',{className:'react-value'},claimDetails.ic_claim_no||'Not provided')]),
+            h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Approval Date'),h('div',{className:'react-value'},claimDetails.approval_date?new Date(claimDetails.approval_date).toLocaleString('en-IN'):'Not recorded')]),
+            h('div',{className:'react-detail-row'},[h('div',{className:'react-label'},'Approved Amount'),h('div',{className:'react-value'},'₹ '+Number(claimDetails.approval_amount||0).toLocaleString('en-IN',{minimumFractionDigits:2}))])
+          ]),
+          claimDetails.approval_note?h('p',{className:'react-detail-note'},claimDetails.approval_note):null
+        ]);
+        const advisor=data.advisor||{};
+        const advisorPhoto=advisor.photo||'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 rx=%2230%22 fill=%22%23dbeafe%22/%3E%3Ccircle cx=%2230%22 cy=%2223%22 r=%2211%22 fill=%22%236b86a8%22/%3E%3Cpath d=%22M12 54c2-14 34-14 36 0%22 fill=%22%236b86a8%22/%3E%3C/svg%3E';
+        const advisorCard=h('section',{className:'react-card react-advisor'},[h('img',{className:'react-advisor-photo',src:advisorPhoto,alt:advisor.name||'Service Advisor'}),h('div',null,[h('div',{className:'react-advisor-name'},advisor.name||'Service Advisor'),h('div',{className:'react-advisor-role'},'Your service advisor · Available for queries'),h('div',{className:'react-advisor-actions'},[advisor.mobile?h('a',{className:'react-chat-btn whatsapp',href:'https://wa.me/'+String(advisor.mobile).replace(/\D/g,'') ,target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):null,advisor.mobile?h('a',{className:'react-chat-btn call',href:'tel:'+advisor.mobile},'Call'):null,advisor.email?h('a',{className:'react-chat-btn email',href:'mailto:'+advisor.email},'Email'):null])])]);
+        return h(React.Fragment,null,
+          h('header',{className:'react-brandbar'},[h('div',null,[h('strong',null,data.company||'MasterApp Bodyshop'),h('span',null,'Your Vehicle Claim & Repair progress tracking')]),h('nav',{className:'react-brand-links'},[h('a',{href:'https://www.shreejiautomart.com/book-service.html',target:'_blank',rel:'noopener noreferrer'},'Book Appointment'),h('a',{href:'https://www.shreejiautomart.com/insurance.html',target:'_blank',rel:'noopener noreferrer'},'Insurance Renewal'),h('span',null,'Help  ·  Contact')])]),
+          h('section',{className:'react-hero'},[h('div',{className:'react-hero-top'},[h('div',null,[h('div',{className:'react-kicker'},'Customer repair tracking'),h('div',{className:'react-job'},data.job_no),h('div',{className:'react-sub'},data.vehicle+'  •  '+data.model+'  •  '+data.claim_no),h('span',{className:'react-status'},data.status)]),h('div',{className:'react-delivery'},[h('small',null,'EXPECTED DELIVERY'),h('b',null,data.delivery?new Date(data.delivery).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'To be confirmed')])]),info]),
+          claimStrip,
+          h('div',{className:'react-details-grid'},[bottom,inventory]),
+          h('div',{className:'react-details-grid'},[cost]),
+          h('div',{className:'react-details-grid'},[claimIntimation,insuranceApproval]),
+          advisorCard,
+          h('section',{className:'react-card react-help'},'Need help? Please contact your service advisor for questions about your repair.'),
+          photoModal
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('trackingReactRoot')).render(h(App));
+      document.body.classList.add('react-ready');
+    })();
+  </script>
+  <script>
+    (() => {
+      const data = JSON.parse(document.getElementById('inspectionPhotosData')?.textContent || '[]');
+      const stage = document.getElementById('trackingViewer');
+      const image = document.getElementById('trackingViewerImage');
+      const caption = document.getElementById('trackingViewerCaption');
+      const modal = document.getElementById('trackingPhotoModal');
+      const modalImage = document.getElementById('trackingModalImage');
+      if (!stage || !image || !data.length) return;
+      let index = 0, startX = null;
+      const show = (next) => {
+        index = (next + data.length) % data.length;
+        image.src = data[index].url; image.alt = data[index].caption;
+        caption.textContent = `${data[index].caption} · ${index + 1}/${data.length}`;
+        document.querySelectorAll('.viewer-thumb').forEach((el, i) => el.classList.toggle('active', i === index));
+      };
+      stage.addEventListener('pointerdown', e => { startX = e.clientX; stage.setPointerCapture?.(e.pointerId); });
+      stage.addEventListener('pointerup', e => { if (startX === null) return; const delta = e.clientX - startX; startX = null; if (Math.abs(delta) > 25) show(index + (delta < 0 ? 1 : -1)); else { modalImage.src = data[index].url; modal.classList.add('open'); } });
+      document.querySelectorAll('.viewer-thumb').forEach(el => el.addEventListener('click', () => show(Number(el.dataset.index))));
+      modal.addEventListener('click', e => { if (e.target === modal || e.target.classList.contains('modal-close')) modal.classList.remove('open'); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') modal.classList.remove('open'); if (e.key === 'ArrowLeft') show(index - 1); if (e.key === 'ArrowRight') show(index + 1); });
+    })();
+    (() => {
+      const trigger = document.querySelector('.claim-stage-eight, .workshop-hover-trigger');
+      const panel = document.getElementById('claimWorkshopHover') || document.getElementById('workshopDetailHover');
+      const gallery = document.querySelector('.claim-progress-strip > .workshop-gallery') || document.querySelector('main > section:not(.workshop-hover-panel) .workshop-gallery');
+      if (!trigger || !panel) { if (gallery) gallery.style.display = 'none'; return; }
+      if (gallery) panel.appendChild(gallery);
+      trigger.tabIndex = 0;
+      const show = () => { panel.classList.add('visible'); panel.setAttribute('aria-hidden', 'false'); };
+      const hide = () => { panel.classList.remove('visible'); panel.setAttribute('aria-hidden', 'true'); };
+      trigger.addEventListener('mouseenter', show);
+      trigger.addEventListener('focusin', show);
+      panel.querySelector('.workshop-hover-close')?.addEventListener('click', hide);
+    })();
+  </script>
+</body>
+</html>

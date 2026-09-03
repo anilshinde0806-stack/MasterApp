@@ -1,6 +1,6 @@
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import InsuranceCompany, Claim
+from .models import InsuranceCompany, Claim, DriverMaster
 from .models import JobCard
 from .models import Vehicle
 from .models import Customer
@@ -90,6 +90,10 @@ class InsuranceCompanyForm(forms.ModelForm):
 
 
 class VehicleForm(forms.ModelForm):
+    assigned_drivers = forms.ModelMultipleChoiceField(
+        queryset=DriverMaster.objects.none(), required=False,
+        widget=forms.SelectMultiple(attrs={"class": "form-select", "size": 5})
+    )
     class Meta:
         model = Vehicle
         fields = '__all__'
@@ -118,6 +122,31 @@ class VehicleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if "primary_driver" in self.fields:
+            vehicle_id = self.instance.pk if self.instance and self.instance.pk else None
+            self.fields["primary_driver"].queryset = DriverMaster.objects.filter(
+                Q(vehicle_id=vehicle_id) | Q(vehicle__isnull=True), is_active=True
+            ).order_by("name")
+            self.fields["primary_driver"].widget.attrs.update({"class": "form-select"})
+        if self.instance and self.instance.pk:
+            # While editing, show only drivers already assigned to this vehicle.
+            self.fields["assigned_drivers"].queryset = DriverMaster.objects.filter(
+                Q(vehicle=self.instance) | Q(vehicle__isnull=True), is_active=True
+            ).order_by("name")
+        else:
+            # A new vehicle has no related drivers yet; allow assigning active
+            # unassigned drivers during the initial save.
+            self.fields["assigned_drivers"].queryset = DriverMaster.objects.filter(
+                vehicle__isnull=True, is_active=True
+            ).order_by("name")
+        if self.instance and self.instance.pk:
+            self.fields["assigned_drivers"].initial = DriverMaster.objects.filter(vehicle=self.instance)
+
+    def clean_assigned_drivers(self):
+        drivers = self.cleaned_data.get("assigned_drivers")
+        if drivers and len(drivers) > 5:
+            raise forms.ValidationError("A vehicle can have a maximum of 5 drivers.")
+        return drivers
 
         for field in self.fields.values():
             field.widget.attrs.update({'class': 'form-control'})
@@ -131,6 +160,19 @@ class VehicleForm(forms.ModelForm):
             'class': 'form-select',
             'id': 'id_vehicle_insurance_company',
         })
+
+
+class DriverMasterForm(forms.ModelForm):
+    class Meta:
+        model = DriverMaster
+        fields = "__all__"
+        widgets = {
+            "license_valid_until": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "driver_type": forms.Select(attrs={"class": "form-select"}),
+            "vehicle": forms.Select(attrs={"class": "form-select"}),
+            "license_document": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".pdf,image/*"}),
+            "face_photo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
+        }
 
 
 

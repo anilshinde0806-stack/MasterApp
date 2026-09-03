@@ -1,0 +1,164 @@
+.erp-toast-container {
+
+    position: fixed;
+
+    top: 20px;
+
+    right: 20px;
+
+    z-index: 9999999;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 10px;
+
+    width: min(
+        380px,
+        calc(100vw - 40px)
+    );
+
+}
+
+
+.erp-toast {
+
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 15px;
+
+    padding: 14px 16px;
+
+    border-radius: 10px;
+
+    color: #ffffff;
+
+    font-size: 14px;
+
+    font-weight: 500;
+
+    box-shadow:
+        0 10px 30px
+        rgba(0, 0, 0, 0.18);
+
+    animation:
+        erpToastSlideIn
+        0.25s ease-out;
+
+}
+
+
+.erp-toast-message {
+
+    flex: 1;
+
+    line-height: 1.5;
+
+}
+
+
+/* SUCCESS */
+
+.erp-toast-success {
+
+    background: #198754;
+
+}
+
+
+/* ERROR */
+
+.erp-toast-error {
+
+    background: #dc3545;
+
+}
+
+
+/* WARNING */
+
+.erp-toast-warning {
+
+    background: #f59e0b;
+
+    color: #1f2937;
+
+}
+
+
+/* INFO */
+
+.erp-toast-info {
+
+    background: #0d6efd;
+
+}
+
+
+/* CLOSE BUTTON */
+
+.erp-toast-close {
+
+    border: none;
+
+    background: transparent;
+
+    color: inherit;
+
+    font-size: 22px;
+
+    line-height: 18px;
+
+    cursor: pointer;
+
+    padding: 0;
+
+}
+
+
+/* ANIMATION */
+
+@keyframes erpToastSlideIn {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateX(30px);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateX(0);
+
+    }
+
+}
+
+
+/* MOBILE */
+
+@media (max-width: 576px) {
+
+    .erp-toast-container {
+
+        top: 12px;
+
+        right: 12px;
+
+        width:
+            calc(100vw - 24px);
+
+    }
+
+}

@@ -22,7 +22,7 @@ def dashboard_querysets_for_user(user):
     if employee and employee.employee_type in ["STAFF", "RECEPTION"]:
         return all_claims.filter(employee__isnull=True), JobCard.objects.none()
 
-    if employee and (employee.employee_type or "").upper() == "FLOOR SUPERVISOR":
+    if employee and (employee.employee_type or "").strip().upper() == "FLOOR SUPERVISOR":
         return Claim.objects.all(), JobCard.objects.all()
 
     return Claim.objects.none(), JobCard.objects.none()

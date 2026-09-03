@@ -748,6 +748,17 @@ def claim_edit(request, pk=None):
     # =====================================
     # GET
     # =====================================
+    start_intimation = request.GET.get("start_intimation")
+    if claim and start_intimation == "1" and int(claim.claim_stage or 0) == ClaimStageCode.ADVISOR_ASSIGNED:
+        jobcard = JobCard.objects.filter(claim=claim).first()
+        if not jobcard or not jobcard.labours.exists():
+            messages.error(request, "Add at least one Labour line item before sending to Claim Intimation.")
+            return redirect("jobcard_edit", pk=jobcard.id) if jobcard else redirect("claim_edit", pk=claim.id)
+        claim.claim_stage = ClaimStageCode.ESTIMATE_CREATED
+        claim.save(update_fields=["claim_stage"])
+        messages.info(request, "Claim Intimation details are ready for entry.")
+        return redirect("claim_edit", pk=claim.id)
+
     move_stage = request.GET.get("move_stage")
 
     if claim and move_stage:
@@ -759,6 +770,13 @@ def claim_edit(request, pk=None):
         old_stage_before_move = current
 
         if move_stage == "next":
+
+            if current == ClaimStageCode.ADVISOR_ASSIGNED:
+                messages.error(
+                    request,
+                    "Use Send to Claim Intimation from the Job Card before moving to the next claim stage."
+                )
+                return redirect("claim_edit", pk=claim.id)
 
             is_valid, missing = validate_claim_stage_before_next(claim)
 

@@ -1,0 +1,640 @@
+.advisor-mobile {
+  --blue: #0755bd;
+  --ink: #172033;
+  --muted: #718096;
+
+  max-width: 1100px;
+  margin: 0 auto;
+
+  color: var(--ink);
+}
+
+
+/* =========================
+   CARD
+========================= */
+
+.advisor-mobile .am-card {
+  background: #ffffff;
+
+  border: 1px solid #edf0f5;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 5px 18px rgba(35, 55, 90, 0.08);
+}
+
+
+/* =========================
+   WELCOME
+========================= */
+
+.advisor-mobile .am-welcome {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding: 22px;
+
+  margin-bottom: 18px;
+}
+
+
+.advisor-mobile .am-welcome-left {
+  display: flex;
+
+  align-items: center;
+
+  gap: 16px;
+}
+
+
+.advisor-mobile .am-icon {
+  width: 50px;
+
+  height: 50px;
+
+  border-radius: 15px;
+
+  background: #eaf2ff;
+
+  color: var(--blue);
+
+  display: grid;
+
+  place-items: center;
+
+  font-size: 1.4rem;
+
+  flex-shrink: 0;
+}
+
+
+.advisor-mobile .am-welcome h2 {
+  font-size: 1.15rem;
+
+  margin: 3px 0;
+
+  font-weight: 700;
+}
+
+
+.advisor-mobile .am-welcome p {
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 0.85rem;
+}
+
+
+/* =========================
+   DATE
+========================= */
+
+.advisor-mobile .am-date {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+.advisor-mobile .am-date-icon {
+  width: 42px;
+
+  height: 42px;
+
+  border-radius: 12px;
+
+  background: #f3f6fb;
+
+  color: var(--blue);
+
+  display: grid;
+
+  place-items: center;
+}
+
+
+.advisor-mobile .am-date small {
+  display: block;
+
+  margin-top: 3px;
+
+  color: var(--muted);
+
+  font-size: 0.8rem;
+
+  font-weight: 400;
+}
+
+
+/* =========================
+   FEATURE CARDS
+========================= */
+
+.advisor-mobile .am-feature-grid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 14px;
+
+  margin-bottom: 18px;
+}
+
+
+.advisor-mobile .am-feature {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  padding: 22px;
+
+  min-height: 115px;
+
+  text-decoration: none;
+
+  color: var(--ink);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+.advisor-mobile .am-feature:hover {
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 10px 25px rgba(35, 55, 90, 0.12);
+}
+
+
+.advisor-mobile .am-feature.blue {
+  background: #eff5ff;
+}
+
+
+.advisor-mobile .am-feature.green {
+  background: #effbf4;
+}
+
+
+.advisor-mobile .am-feature h3 {
+  font-size: 1.05rem;
+
+  margin: 0 0 7px;
+
+  font-weight: 700;
+}
+
+
+.advisor-mobile .am-feature p {
+  color: var(--muted);
+
+  font-size: 0.85rem;
+
+  margin: 0;
+
+  line-height: 1.5;
+}
+
+
+.advisor-mobile .am-arrow {
+  font-size: 2rem;
+
+  color: #4a5568;
+}
+
+
+/* =========================
+   QUICK TILES
+========================= */
+
+.advisor-mobile .am-tiles {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 12px;
+
+  margin-bottom: 18px;
+}
+
+
+.advisor-mobile .am-tile {
+  padding: 18px 10px;
+
+  text-align: center;
+
+  min-height: 120px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  transition: transform 0.2s ease;
+}
+
+
+.advisor-mobile .am-tile:hover {
+  transform: translateY(-2px);
+}
+
+
+.advisor-mobile .am-tile-icon {
+  font-size: 1.35rem;
+
+  margin-bottom: 8px;
+
+  color: var(--blue);
+}
+
+
+.advisor-mobile .am-tile strong {
+  display: block;
+
+  font-size: 1.6rem;
+
+  margin-bottom: 5px;
+}
+
+
+.advisor-mobile .am-tile span {
+  display: block;
+
+  color: var(--muted);
+
+  font-size: 0.8rem;
+}
+
+
+/* =========================
+   SECTIONS
+========================= */
+
+.advisor-mobile .am-section {
+  padding: 20px 22px;
+
+  margin-bottom: 18px;
+}
+
+
+.advisor-mobile .am-section-head {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 18px;
+}
+
+
+.advisor-mobile .am-section-head h3 {
+  font-size: 1.1rem;
+
+  margin: 0;
+
+  font-weight: 700;
+}
+
+
+.advisor-mobile .am-link {
+  color: var(--blue);
+
+  font-size: 0.85rem;
+
+  text-decoration: none;
+
+  cursor: pointer;
+}
+
+
+.advisor-mobile .am-link:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================
+   TODAY STATUS
+========================= */
+
+.advisor-mobile .am-stats {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 8px;
+}
+
+
+.advisor-mobile .am-stat {
+  padding: 8px 14px;
+
+  border-right:
+    1px solid #edf0f5;
+}
+
+
+.advisor-mobile .am-stat:last-child {
+  border-right: none;
+}
+
+
+.advisor-mobile .am-stat-icon {
+  color: var(--blue);
+
+  font-size: 1.1rem;
+}
+
+
+.advisor-mobile .am-stat strong {
+  display: block;
+
+  font-size: 1.55rem;
+
+  margin: 5px 0;
+}
+
+
+.advisor-mobile .am-stat small {
+  color: var(--muted);
+
+  font-size: 0.75rem;
+}
+
+
+/* =========================
+   PERFORMANCE
+========================= */
+
+.advisor-mobile .am-kpis {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 18px;
+}
+
+
+.advisor-mobile .am-kpi {
+  padding-right: 18px;
+
+  border-right:
+    1px solid #edf0f5;
+}
+
+
+.advisor-mobile .am-kpi:last-child {
+  border-right: none;
+}
+
+
+.advisor-mobile .am-kpi strong {
+  font-size: 1.5rem;
+
+  display: block;
+
+  margin-top: 5px;
+}
+
+
+.advisor-mobile .am-kpi small {
+  color: var(--muted);
+
+  font-size: 0.78rem;
+}
+
+
+/* =========================
+   PROGRESS BAR
+========================= */
+
+.advisor-mobile .am-bar {
+  height: 7px;
+
+  background: #e9eef4;
+
+  border-radius: 10px;
+
+  margin: 12px 0 8px;
+
+  overflow: hidden;
+}
+
+
+.advisor-mobile .am-bar i {
+  display: block;
+
+  height: 100%;
+
+  border-radius: 10px;
+
+  background: #18a56b;
+}
+
+
+.advisor-mobile .am-bar .running-bar {
+  background: #f0ae22;
+}
+
+
+.advisor-mobile .am-bar .pending-bar {
+  background: #3679df;
+}
+
+
+/* =========================
+   RECENT JOBS
+========================= */
+
+.advisor-mobile .am-job {
+  display: grid;
+
+  grid-template-columns:
+    5px
+    1fr
+    auto
+    auto;
+
+  gap: 14px;
+
+  align-items: center;
+
+  padding: 14px 0;
+
+  border-top:
+    1px solid #edf0f5;
+}
+
+
+.advisor-mobile .am-job b {
+  font-size: 0.9rem;
+}
+
+
+.advisor-mobile .am-job small {
+  display: block;
+
+  color: var(--muted);
+
+  margin-top: 4px;
+
+  font-size: 0.75rem;
+}
+
+
+.advisor-mobile .am-dot {
+  width: 5px;
+
+  height: 45px;
+
+  border-radius: 5px;
+
+  background: #18a56b;
+}
+
+
+.advisor-mobile .am-status {
+  padding: 7px 12px;
+
+  border-radius: 7px;
+
+  background: #eaf7ef;
+
+  color: #198754;
+
+  font-size: 0.75rem;
+
+  font-weight: 700;
+}
+
+
+.advisor-mobile .am-empty {
+  color: var(--muted);
+
+  margin: 0;
+
+  padding: 15px 0;
+}
+
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 850px) {
+
+  .advisor-mobile .am-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 650px) {
+
+  .advisor-mobile {
+    padding: 0 5px;
+  }
+
+
+  .advisor-mobile .am-welcome {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+
+  .advisor-mobile .am-date {
+    width: 100%;
+  }
+
+
+  .advisor-mobile .am-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .advisor-mobile .am-tiles {
+    grid-template-columns: repeat(2, 1fr);
+
+    gap: 8px;
+  }
+
+
+  .advisor-mobile .am-stats {
+    grid-template-columns: repeat(2, 1fr);
+
+    gap: 15px;
+  }
+
+
+  .advisor-mobile .am-stat {
+    border-right: none;
+
+    border-bottom:
+      1px solid #edf0f5;
+
+    padding-bottom: 12px;
+  }
+
+
+  .advisor-mobile .am-kpis {
+    grid-template-columns: 1fr;
+
+    gap: 18px;
+  }
+
+
+  .advisor-mobile .am-kpi {
+    border-right: none;
+
+    border-bottom:
+      1px solid #edf0f5;
+
+    padding-bottom: 15px;
+  }
+
+
+  .advisor-mobile .am-job {
+    grid-template-columns:
+      5px
+      1fr
+      auto;
+  }
+
+
+  .advisor-mobile .am-job > div:nth-of-type(2) {
+    display: none;
+  }
+
+
+  .advisor-mobile .am-section {
+    padding: 18px;
+  }
+
+}

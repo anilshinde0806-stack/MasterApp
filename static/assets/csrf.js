@@ -1,0 +1,1 @@
+function e(e){let t=`; ${document.cookie}`.split(`; ${e}=`);return t.length===2?t.pop().split(`;`).shift():``}function t(){return e(`csrftoken`)}export{e as n,t};

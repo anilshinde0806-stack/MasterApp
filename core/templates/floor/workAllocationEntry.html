@@ -534,18 +534,6 @@
             <div class="form-check action-check mb-1">
                 <input class="form-check-input"
                        type="checkbox"
-                       id="markQcDone"
-                       name="mark_qc_done"
-                       value="1"
-                       {% if job.qc_done %}checked{% endif %}>
-                <label class="form-check-label fw-bold" for="markQcDone">
-                    QC Done
-                </label>
-            </div>
-
-            <div class="form-check action-check mb-1">
-                <input class="form-check-input"
-                       type="checkbox"
                        id="markReinspectionDone"
                        name="reinspection_done"
                        value="1"
@@ -1100,17 +1088,16 @@ function initReinspectionImageLimits() {
 
 function initWorkCompletionGate() {
     const workCompleted = document.getElementById("markWorkCompleted");
-    const qcDone = document.getElementById("markQcDone");
     const reinspectionDone = document.getElementById("markReinspectionDone");
     const partEntryComplete = document.getElementById("partEntryComplete");
     const help = document.getElementById("workCompleteGateHelp");
 
-    if (!workCompleted || !qcDone || !reinspectionDone || !partEntryComplete) {
+    if (!workCompleted || !reinspectionDone || !partEntryComplete) {
         return;
     }
 
     function applyGate() {
-        const completedGateReady = qcDone.checked && reinspectionDone.checked && partEntryComplete.checked;
+        const completedGateReady = reinspectionDone.checked && partEntryComplete.checked;
 
         workCompleted.disabled = !completedGateReady && !workCompleted.checked;
 
@@ -1127,7 +1114,7 @@ function initWorkCompletionGate() {
         }
     }
 
-    [qcDone, reinspectionDone, partEntryComplete, workCompleted].forEach(field => {
+    [reinspectionDone, partEntryComplete, workCompleted].forEach(field => {
         field.addEventListener("change", applyGate);
     });
     applyGate();

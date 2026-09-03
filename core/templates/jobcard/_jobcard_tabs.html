@@ -1,0 +1,14 @@
+{# Shared Job Card workspace navigation. Content panes are migrated separately. #}
+<div class="jobcard-tabs mb-2" role="navigation" aria-label="Job Card sections">
+    <ul class="nav nav-tabs border-0" id="jobcardWorkspaceTabs" role="tablist">
+        <li class="nav-item"><button type="button" class="nav-link active" data-jobcard-tab="overview" onclick="window.jobcardActivateTab && window.jobcardActivateTab('overview')">Overview</button></li>
+        {% if claim %}<li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="claim" onclick="window.jobcardActivateTab && window.jobcardActivateTab('claim')">Claim</button></li>{% endif %}
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="quality" onclick="window.jobcardActivateTab && window.jobcardActivateTab('quality')">Quality Check</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="approval" onclick="window.jobcardActivateTab && window.jobcardActivateTab('approval')">Approval</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="parts" onclick="window.jobcardActivateTab && window.jobcardActivateTab('parts')">Parts</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="labour" onclick="window.jobcardActivateTab && window.jobcardActivateTab('labour')">Labour</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="workshop" onclick="window.jobcardActivateTab && window.jobcardActivateTab('workshop')">Workshop</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="inspection" onclick="window.jobcardActivateTab && window.jobcardActivateTab('inspection')">Inspection</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-jobcard-tab="delivery" onclick="window.jobcardActivateTab && window.jobcardActivateTab('delivery')">Close &amp; Delivery</button></li>
+    </ul>
+</div>

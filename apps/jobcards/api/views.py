@@ -1,4 +1,5 @@
 from decimal import Decimal
+import json
 
 from django.db import transaction
 from django.db.models import Q
@@ -8,7 +9,10 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.shortcuts import get_object_or_404
 from apps.common.utils.parser_utils import (
     clean_text,
     decimal_or_zero,
@@ -24,18 +28,24 @@ from apps.jobcards.api.payloads import (
 )
 from apps.jobcards.constants import VEHICLE_CONDITION_PHOTO_CAPTIONS
 from apps.jobcards.services.access import dashboard_querysets_for_user
+from apps.accounts.services.user_context import branch_filter_queryset
 from core.models import (
     Claim,
     ClaimStageCode,
     Employee,
     JobCard,
+    JobCardType,
     JobCardInventory,
     JobCardLabour,
     JobCardPart,
     JobCardTyreInventory,
     JobCardVehicleConditionPhoto,
+    GateInEntry,
+    JobCardPhotoAnnotation,
+    Vehicle,
 )
 from core.numbering import branch_for_claim, branch_for_user
+from core.views import send_jobcard_whatsapp, jobcard_tracking_url
 
 
 def get_optional(model, pk):
@@ -60,7 +70,7 @@ class MobileJobcardListView(APIView):
 
         if queue == "allocation":
             jobcards = jobcards.filter(claim__isnull=False).filter(
-                claim__claim_stage__gte=ClaimStageCode.WORK_ALLOCATION
+                claim__claim_stage=ClaimStageCode.WORK_ALLOCATION
             )
 
         elif queue == "repair":
@@ -152,13 +162,38 @@ class MobileJobcardSaveView(APIView):
         errors = {}
 
         job = JobCard.objects.filter(pk=pk).first() if pk else None
+        created_job = job is None
         if pk and not job:
             return Response({"detail": "Jobcard not found."}, status=status.HTTP_404_NOT_FOUND)
 
         claim_id = data.get("claim") or data.get("claimId")
-        claim = get_optional(Claim, claim_id) if claim_id else (job.claim if job else None)
-        if not claim:
-            errors["claim"] = "Select Claim."
+
+        if claim_id and str(claim_id) != "0":
+            claim = get_optional(Claim, claim_id)
+        else:
+            claim = None
+
+        # A direct mobile Job Card must start from an unused Gate In entry in
+        # the current user's branch. Claim-linked cards retain their claim
+        # vehicle and existing Gate In workflow.
+        direct_vehicle = None
+        direct_gate_entry = None
+        if not claim and not job:
+            vehicle_id = data.get("vehicleId") or data.get("vehicle_id")
+            direct_vehicle = get_optional(Vehicle, vehicle_id)
+            if not direct_vehicle:
+                errors["vehicleId"] = "Select a vehicle from pending Gate In entries."
+            else:
+                direct_gate_entry = branch_filter_queryset(
+                    GateInEntry.objects.filter(
+                        vehicle=direct_vehicle,
+                        status="Pending",
+                        jobcard__isnull=True,
+                    ),
+                    request.user,
+                ).order_by("-gate_in_datetime").first()
+                if not direct_gate_entry:
+                    errors["vehicleId"] = "Vehicle must have a pending Gate In entry for this branch."
 
         if claim and not job and JobCard.objects.filter(claim=claim).exists():
             errors["claim"] = "Jobcard already exists for this claim."
@@ -195,12 +230,19 @@ class MobileJobcardSaveView(APIView):
             errors["secondApprovalStatus"] = "Select valid second approval status."
 
         gate_in_datetime = parse_mobile_datetime(data.get("gateInDateTime"))
+        # The pending Gate In record is authoritative for a direct mobile
+        # Job Card. Use it when the client did not copy the date/KM into the
+        # form (for example after a rotation or screen recreation).
+        if direct_gate_entry:
+            gate_in_datetime = gate_in_datetime or direct_gate_entry.gate_in_datetime
         if not gate_in_datetime:
             errors["gateInDateTime"] = "Gate In Date & Time is required."
         elif gate_in_datetime.date() > timezone.localdate():
             errors["gateInDateTime"] = "Gate In Date & Time cannot be a future date."
 
         km_value = int_or_zero(data.get("km"))
+        if direct_gate_entry and km_value <= 0:
+            km_value = direct_gate_entry.current_km
         if km_value <= 0:
             errors["km"] = "Enter valid Current KM."
 
@@ -212,6 +254,29 @@ class MobileJobcardSaveView(APIView):
                 job = JobCard(claim=claim)
 
             job.claim = claim
+            if direct_vehicle is not None:
+                job.vehicle = direct_vehicle
+                job.branch = direct_gate_entry.branch if direct_gate_entry and direct_gate_entry.branch_id else branch_for_user(request.user)
+            jobcard_type_id = data.get("jobCardType") or data.get("jobcard_type")
+
+            if not jobcard_type_id:
+                errors["jobCardType"] = "Select Job Type."
+            else:
+                try:
+                    jobcard_type_id = int(jobcard_type_id)
+                except (TypeError, ValueError):
+                    jobcard_type_id = None
+
+                if not jobcard_type_id:
+                    errors["jobCardType"] = "Select valid Job Type."
+                else:
+                    jobcard_type = JobCardType.objects.filter(
+                        pk=jobcard_type_id,
+                        is_active=True,
+                    ).first()
+
+                    if not jobcard_type:
+                        errors["jobCardType"] = "Select valid Job Type."
             job.job_no = job_no
             job.advisor = advisor
             job.vehicle_inward_type = vehicle_inward_type
@@ -224,6 +289,7 @@ class MobileJobcardSaveView(APIView):
             job.part_order_date = parse_mobile_date(data.get("partOrderDate"))
             job.part_order_no = clean_text(data.get("partOrderNo"))
             job.repair_status = repair_status_value
+            job.jobcard_type_id = jobcard_type_id
             if "estimatedDelivery" in data:
                 job.estimated_delivery = parse_mobile_datetime(data.get("estimatedDelivery"))
             if "actualDelivery" in data:
@@ -251,6 +317,23 @@ class MobileJobcardSaveView(APIView):
                 data.get("advisorSignatureData"),
             ) or signature_changed
             job.save()
+
+            # Link the mobile-created Job Card to its pending Gate-In entry so
+            # the Gate-In register shows Converted status and the Job Card No.
+            linked_vehicle = job.vehicle or (claim.vehicle if claim and claim.vehicle_id else None)
+            if linked_vehicle:
+                gate_entry_query = GateInEntry.objects.select_for_update().filter(
+                    Q(vehicle=linked_vehicle) | Q(registration_no__iexact=linked_vehicle.registration_no),
+                    status="Pending",
+                    jobcard__isnull=True,
+                )
+                if direct_gate_entry is not None:
+                    gate_entry_query = gate_entry_query.filter(pk=direct_gate_entry.pk)
+                gate_entry = gate_entry_query.order_by("-gate_in_datetime").first()
+                if gate_entry:
+                    gate_entry.jobcard = job
+                    gate_entry.status = "Converted"
+                    gate_entry.save(update_fields=["jobcard", "status", "updated_at"])
 
             if "parts" in data:
                 JobCardPart.objects.filter(job=job).delete()
@@ -348,20 +431,27 @@ class MobileJobcardSaveView(APIView):
                     },
                 )
 
-            if claim.employee_id and claim.claim_stage < ClaimStageCode.INTIMATION:
-                claim.claim_stage = ClaimStageCode.INTIMATION
-                claim.save(update_fields=["claim_stage"])
+
+
+        if created_job:
+            # WhatsApp delivery is best-effort; saving the Job Card must not
+            # fail when Meta credentials or customer contact details are absent.
+            try:
+                send_jobcard_whatsapp(job)
+            except Exception:
+                pass
 
         return Response(
             {
                 "message": "Jobcard saved successfully.",
+                "tracking_url": jobcard_tracking_url(job),
                 "jobcard": mobile_jobcard_payload(
-    request,
     JobCard.objects.prefetch_related(
         "parts",
         "labours",
         "vehicle_condition_photos"
     ).get(pk=job.pk),
+    request,
 ),
             }
         )
@@ -394,12 +484,12 @@ class MobileJobcardSignatureSaveView(APIView):
             {
                 "message": "Signatures saved successfully.",
                 "jobcard": mobile_jobcard_payload(
-    request,
     JobCard.objects.prefetch_related(
         "parts",
         "labours",
         "vehicle_condition_photos"
     ).get(pk=job.pk),
+    request,
 ),
                 "actions": mobile_jobcard_action_payload(request, job),
             }
@@ -466,3 +556,578 @@ class MobileJobcardVehiclePhotoUploadView(APIView):
                 },
             }
         )
+class MobileJobcardPhotoAnnotationSaveView(APIView):
+    """
+    Save manual annotations for one vehicle-condition photo.
+
+    Supported:
+        circle
+        rectangle
+        arrow
+        text
+
+    Coordinates are normalized:
+        0.0 -> 1.0
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, job_id, photo_id):
+
+        # ---------------------------------------------------------
+        # Verify the jobcard belongs to the current user's scope
+        # ---------------------------------------------------------
+
+        _, jobcards = dashboard_querysets_for_user(request.user)
+
+        job = jobcards.filter(
+            pk=job_id
+        ).first()
+
+        if not job:
+            return Response(
+                {
+                    "detail": "Jobcard not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ---------------------------------------------------------
+        # Find the photo AND make sure it belongs to this JobCard
+        # ---------------------------------------------------------
+
+        photo = (
+            JobCardVehicleConditionPhoto.objects
+            .filter(
+                pk=photo_id,
+                job=job,
+            )
+            .first()
+        )
+
+        if not photo:
+            return Response(
+                {
+                    "detail": "Vehicle condition photo not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ---------------------------------------------------------
+        # Read annotations
+        # ---------------------------------------------------------
+
+        annotations = request.data.get("annotations")
+
+        if annotations is None:
+            annotations = []
+
+        if not isinstance(annotations, list):
+            return Response(
+                {
+                    "errors": {
+                        "annotations": (
+                            "annotations must be a list."
+                        )
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        allowed_types = {
+            "circle",
+            "rectangle",
+            "arrow",
+            "text",
+        }
+
+        validated = []
+
+        # ---------------------------------------------------------
+        # Validate each annotation
+        # ---------------------------------------------------------
+
+        for index, item in enumerate(annotations):
+
+            if not isinstance(item, dict):
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Annotation {index + 1} "
+                                "must be an object."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            annotation_type = clean_text(
+                item.get("type")
+            ).lower()
+
+            if annotation_type not in allowed_types:
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Invalid annotation type "
+                                f"'{annotation_type}'. "
+                                f"Allowed: "
+                                f"{', '.join(sorted(allowed_types))}."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # -----------------------------------------------------
+            # Coordinates
+            # -----------------------------------------------------
+
+            # ---------------------------------------------------------
+            # Coordinates
+            # Flutter sends:
+            #
+            # "start": {"x": 0.31, "y": 0.42}
+            # "end":   {"x": 0.47, "y": 0.58}
+            # ---------------------------------------------------------
+
+            start = item.get("start") or {}
+            end = item.get("end")
+
+            if not isinstance(start, dict):
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Invalid start position "
+                                f"for annotation {index + 1}."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if end is not None and not isinstance(end, dict):
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Invalid end position "
+                                f"for annotation {index + 1}."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                start_x = float(start.get("x", 0.0))
+                start_y = float(start.get("y", 0.0))
+
+                end_x = (
+                    float(end["x"])
+                    if end is not None and "x" in end
+                    else None
+                )
+
+                end_y = (
+                    float(end["y"])
+                    if end is not None and "y" in end
+                    else None
+                )
+
+            except (TypeError, ValueError, KeyError):
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Invalid coordinates "
+                                f"for annotation {index + 1}."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # -----------------------------------------------------
+            # Normalized coordinate validation
+            # -----------------------------------------------------
+
+            coordinates = [
+                ("start_x", start_x),
+                ("start_y", start_y),
+            ]
+
+            if end_x is not None:
+                coordinates.append(
+                    ("end_x", end_x)
+                )
+
+            if end_y is not None:
+                coordinates.append(
+                    ("end_y", end_y)
+                )
+
+            invalid_coordinate = False
+
+            for _, value in coordinates:
+                if value < 0.0 or value > 1.0:
+                    invalid_coordinate = True
+                    break
+
+            if invalid_coordinate:
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Coordinates for annotation "
+                                f"{index + 1} must be between "
+                                "0.0 and 1.0."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # -----------------------------------------------------
+            # Text
+            # -----------------------------------------------------
+
+            text = clean_text(
+                item.get("text")
+            )
+
+            if annotation_type == "text" and not text:
+                return Response(
+                    {
+                        "errors": {
+                            "annotations": (
+                                f"Text annotation "
+                                f"{index + 1} cannot be empty."
+                            )
+                        }
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # -----------------------------------------------------
+            # Appearance
+            # -----------------------------------------------------
+
+            color = clean_text(
+                item.get("color")
+            ) or "#FF0000"
+
+            try:
+                stroke_width = float(
+                    item.get("strokeWidth", 4.0)
+                )
+            except (
+                    TypeError,
+                    ValueError,
+            ):
+                stroke_width = 4.0
+
+            try:
+                font_size = float(
+                    item.get("font_size", 18.0)
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                font_size = 18.0
+
+            # -----------------------------------------------------
+            # Store validated data temporarily
+            # -----------------------------------------------------
+
+            validated.append(
+                {
+                    "annotation_type": annotation_type,
+                    "start_x": start_x,
+                    "start_y": start_y,
+                    "end_x": end_x,
+                    "end_y": end_y,
+                    "text": text,
+                    "color": color,
+                    "stroke_width": stroke_width,
+                    "font_size": font_size,
+                    "display_order": index,
+                }
+            )
+
+        # ---------------------------------------------------------
+        # Replace annotations for this photo
+        #
+        # This is intentional.
+        #
+        # Flutter sends the complete current drawing.
+        # Therefore the database becomes an exact copy of the
+        # current annotation canvas.
+        # ---------------------------------------------------------
+
+        JobCardPhotoAnnotation.objects.filter(
+            photo=photo
+        ).delete()
+
+        created = []
+
+        for item in validated:
+
+            annotation = (
+                JobCardPhotoAnnotation.objects.create(
+                    photo=photo,
+                    **item,
+                )
+            )
+
+            created.append(
+                {
+                    "id": annotation.id,
+                    "type": annotation.annotation_type,
+                    "start_x": annotation.start_x,
+                    "start_y": annotation.start_y,
+                    "end_x": annotation.end_x,
+                    "end_y": annotation.end_y,
+                    "text": annotation.text,
+                    "color": annotation.color,
+                    "stroke_width": annotation.stroke_width,
+                    "font_size": annotation.font_size,
+                    "display_order": annotation.display_order,
+                }
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Photo annotations saved successfully."
+                ),
+                "photo": {
+                    "id": photo.id,
+                    "caption": photo.caption,
+                    "url": (
+                        photo.image.url
+                        if photo.image
+                        else ""
+                    ),
+                },
+                "annotations": created,
+                "count": len(created),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @require_POST
+    @login_required
+    def save_jobcard_photo_annotations(request, pk, photo_id):
+        """
+        Save custom annotations drawn on a JobCard vehicle-condition photo.
+
+        Expected JSON:
+        {
+            "annotations": [
+                {
+                    "type": "circle",
+                    "start": {"x": 0.20, "y": 0.30},
+                    "end": {"x": 0.45, "y": 0.50},
+                    "text": "",
+                    "color": "#FF0000",
+                    "strokeWidth": 4.0,
+                    "fontSize": 18.0
+                }
+            ]
+        }
+        """
+
+        job = get_object_or_404(
+            JobCard,
+            pk=pk,
+        )
+
+        photo = get_object_or_404(
+            JobCardVehicleConditionPhoto,
+            pk=photo_id,
+            job=job,
+        )
+
+        try:
+            payload = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid JSON payload.",
+                },
+                status=400,
+            )
+
+        annotations = payload.get("annotations")
+
+        if not isinstance(annotations, list):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "annotations must be a list.",
+                },
+                status=400,
+            )
+
+        # Replace the existing annotations for this photo.
+        photo.annotations.all().delete()
+
+        objects = []
+
+        for index, item in enumerate(annotations):
+            if not isinstance(item, dict):
+                continue
+
+            annotation_type = str(
+                item.get("type", "")
+            ).strip().lower()
+
+            if annotation_type not in {
+                "circle",
+                "rectangle",
+                "arrow",
+                "text",
+            }:
+                continue
+
+            start = item.get("start") or {}
+            end = item.get("end")
+
+            try:
+                start_x = float(start.get("x", 0.0))
+                start_y = float(start.get("y", 0.0))
+            except (TypeError, ValueError):
+                start_x = 0.0
+                start_y = 0.0
+
+            end_x = None
+            end_y = None
+
+            if isinstance(end, dict):
+                try:
+                    end_x = float(end.get("x"))
+                except (TypeError, ValueError):
+                    end_x = None
+
+                try:
+                    end_y = float(end.get("y"))
+                except (TypeError, ValueError):
+                    end_y = None
+
+            text = str(
+                item.get("text", "")
+            ).strip()
+
+            color = str(
+                item.get("color", "#FF0000")
+            ).strip()
+
+            try:
+                stroke_width = float(
+                    item.get("strokeWidth", 4.0)
+                )
+            except (
+                    TypeError,
+                    ValueError,
+            ):
+                stroke_width = 4.0
+
+            try:
+                font_size = float(
+                    item.get("fontSize", 18.0)
+                )
+            except (
+                    TypeError,
+                    ValueError,
+            ):
+                font_size = 18.0
+
+            # Keep normalized coordinates safely inside the image.
+            start_x = max(0.0, min(1.0, start_x))
+            start_y = max(0.0, min(1.0, start_y))
+
+            if end_x is not None:
+                end_x = max(0.0, min(1.0, end_x))
+
+            if end_y is not None:
+                end_y = max(0.0, min(1.0, end_y))
+
+            objects.append(
+                JobCardPhotoAnnotation(
+                    photo=photo,
+                    annotation_type=annotation_type,
+                    start_x=start_x,
+                    start_y=start_y,
+                    end_x=end_x,
+                    end_y=end_y,
+                    text=text,
+                    color=color,
+                    stroke_width=stroke_width,
+                    font_size=font_size,
+                    display_order=index,
+                )
+            )
+
+        if objects:
+            JobCardPhotoAnnotation.objects.bulk_create(objects)
+
+        saved = photo.annotations.order_by(
+            "display_order",
+            "id",
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "photo_id": photo.id,
+                "annotation_count": saved.count(),
+                "annotations": [
+                    {
+                        "id": annotation.id,
+                        "type": annotation.annotation_type,
+                        "start": {
+                            "x": annotation.start_x,
+                            "y": annotation.start_y,
+                        },
+                        "end": (
+                            None
+                            if annotation.end_x is None
+                               or annotation.end_y is None
+                            else {
+                                "x": annotation.end_x,
+                                "y": annotation.end_y,
+                            }
+                        ),
+                        "text": annotation.text,
+                        "color": annotation.color,
+                        "strokeWidth": annotation.stroke_width,
+                        "fontSize": annotation.font_size,
+                        "displayOrder": annotation.display_order,
+                    }
+                    for annotation in saved
+                ],
+            }
+        )
+# core/views.py
+
+def mobile_jobcard_types(request):
+    types = JobCardType.objects.filter(
+        is_active=True
+    ).order_by("display_order", "name")
+
+    return JsonResponse({
+        "jobCardTypes": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "description": item.description or "",
+            }
+            for item in types
+        ]
+    })

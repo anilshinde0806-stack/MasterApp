@@ -886,10 +886,16 @@
                             {% endif %}
 
                             {% if claim.claim_stage < 14 and not is_claim_locked %}
+                            {% if claim.claim_stage == 2 %}
+                            <button class="btn btn-secondary btn-sm w-50" type="button" disabled title="Use Send to Claim Intimation from the Job Card screen first.">
+                                Next →
+                            </button>
+                            {% else %}
                             <a class="btn btn-primary btn-sm w-50"
                                href="{% url 'claim_edit' claim.id %}?move_stage=next" id="nextStageBtn">
                                 Next →
                             </a>
+                            {% endif %}
                             {% endif %}
 
                         </div>
@@ -1408,7 +1414,7 @@
 
     border-radius:20px;
 
-    background:#198754;
+    background:#7c9589;
 
     opacity:.25;
 
@@ -2279,31 +2285,55 @@ if (document.readyState === "loading") {
 
                 let partHtml = "";
 
-                data.parts.forEach(p => {
-                    partHtml += `
-                        <tr>
-                            <td>${p.part_no}</td>
-                            <td>${p.description}</td>
-                            <td class="text-end">${p.amount}</td>
-                            <td>
-                                <select class="form-select form-select-sm part-decision" data-id="${p.id}">
-                                        <option value="Reject" ${p.decision === "Reject" ? "selected" : ""}>Reject</option>
-                                        <option value="New" ${p.decision === "New" ? "selected" : ""}>New</option>
-                                        <option value="Repair" ${p.decision === "Repair" ? "selected" : ""}>Repair</option>
-                                        <option value="KO" ${p.decision === "KO" ? "selected" : ""}>KO</option>
-                                </select>
-                            </td>
-                            <td>
-                                <input type="number"
-                                       class="form-control form-control-sm text-end part-revised"
-                                       data-id="${p.id}"
-                                       value="${p.revised_amount || p.amount}">
-                            </td>
-                        </tr>
-                    `;
-                });
+data.parts.forEach(p => {
+    partHtml += `
+        <tr>
+            <td>${p.part_no}</td>
+            <td>${p.description}</td>
+            <td class="text-end">${p.amount}</td>
 
-                document.getElementById("assessmentPartsBody").innerHTML = partHtml;
+            <td>
+                <select
+                    class="form-select form-select-sm part-decision"
+                    data-id="${p.id}"
+                >
+                    <option value="Reject"
+                        ${p.decision === "Reject" ? "selected" : ""}>
+                        Reject
+                    </option>
+
+                    <option value="New"
+                        ${p.decision === "New" ? "selected" : ""}>
+                        New
+                    </option>
+
+                    <option value="Repair"
+                        ${p.decision === "Repair" ? "selected" : ""}>
+                        Repair
+                    </option>
+
+                    <option value="KO"
+                        ${p.decision === "KO" ? "selected" : ""}>
+                        KO
+                    </option>
+                </select>
+            </td>
+
+            <td>
+                <input
+                    type="number"
+                    class="form-control form-control-sm text-end part-revised"
+                    data-id="${p.id}"
+                    value="${p.revised_amount === null || p.revised_amount === undefined || p.revised_amount === "" || Number(p.revised_amount) === 0 ? p.amount : p.revised_amount}"
+                    min="0"
+                    step="1"
+                >
+            </td>
+        </tr>
+    `;
+});
+
+document.getElementById("assessmentPartsBody").innerHTML = partHtml;
 
                 let labourHtml = "";
 
@@ -3494,9 +3524,24 @@ function addAssessmentLabourRow() {
     const partId = select.dataset.id;
     const decision = select.value;
 
-    if (decision !== "Repair") return;
+    const row = select.closest("tr");
+    const revisedInput = row.querySelector(".part-revised");
 
-   addAssessmentLabourRow()
+    if (revisedInput) {
+        const originalAmount =
+            parseFloat(row.children[2].textContent.trim()) || 0;
+
+        if (decision === "New" ) {
+            revisedInput.value = originalAmount;
+        } else {
+            revisedInput.value = 0;
+        }
+    }
+
+    // Existing Repair logic
+    if (decision === "Repair") {
+        addAssessmentLabourRow();
+    }
 });
 
 function initClaimReinspectionImageLimits() {
@@ -3803,5 +3848,13 @@ if (document.readyState === "loading") {
 }
 </script>
 
+<script>
+if (new URLSearchParams(window.location.search).get("open_assessment") === "1") {
+    window.addEventListener("load", function () {
+        const jobId = new URLSearchParams(window.location.search).get("job_id");
+        if (jobId && typeof openAssessmentModal === "function") openAssessmentModal(Number(jobId));
+    });
+}
+</script>
 
 {% endblock %}

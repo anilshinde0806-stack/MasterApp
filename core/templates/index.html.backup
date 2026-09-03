@@ -1,0 +1,745 @@
+{% extends "registration/auth_base.html" %}
+
+{% block title %}
+Dashboard
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .dashboard-hero{display:flex;align-items:center;justify-content:space-between;padding:.35rem 0 1rem}
+    .dashboard-hero h1{font-size:1.45rem;font-weight:700;margin:0;color:#14213d}.dashboard-hero p{margin:.2rem 0 0;color:#61708a;font-size:.85rem}
+    .dashboard-chip{border:1px solid #dce4ef;background:#fff;border-radius:10px;padding:.65rem 1rem;color:#32435f;font-size:.85rem}
+    .dashboard-filter{border:1px solid #e2e8f0!important;border-radius:14px!important;background:#fff}.dashboard-filter .card-body{padding:1rem!important}.dashboard-filter .form-label{font-size:.72rem;color:#67758d;margin-bottom:.3rem}.dashboard-filter .form-control,.dashboard-filter .form-select{border-color:#dce3ed;border-radius:8px;font-size:.82rem;height:38px}.dashboard-filter .btn{border-radius:8px;height:38px;font-size:.82rem}
+    .dashboard-page .card,.container-fluid>.card,.container-fluid .card{border:1px solid #e4e9f0!important;border-radius:14px!important;box-shadow:0 4px 14px rgba(30,52,82,.06)!important}.dashboard-page .card-header,.container-fluid .card-header{border-bottom:1px solid #edf0f5;padding:1rem 1.15rem;color:#17233b}.container-fluid .table{font-size:.82rem}.container-fluid .table thead th{background:#f8fafc;color:#68758c;font-size:.73rem;border-bottom:1px solid #edf0f5}.container-fluid .table td{border-color:#edf0f5}.dashboard-page .progress,.container-fluid .progress{background:#edf1f6;border-radius:20px}.container-fluid .badge{font-weight:500;border-radius:6px}
+    @media(max-width:768px){.dashboard-hero{align-items:flex-start;gap:.75rem;flex-direction:column}.dashboard-chip{width:100%}}
+</style>
+<div class="dashboard-hero">
+    <div><h1>Dashboard</h1><p>Welcome back, {% if request.user.get_full_name %}{{ request.user.get_full_name }}{% else %}{{ request.user.username }}{% endif %}!</p></div>
+    {% if dashboard_branch %}<div class="dashboard-chip">{{ dashboard_branch.code }} - {{ dashboard_branch.name }}</div>{% endif %}
+</div>
+
+<div class="container-fluid py-3">
+
+{% if advisor_dashboard %}
+{% include "dashboard/advisor_dashboard_header.html" %}
+{% endif %}
+
+{% if dashboard_branch and not advisor_dashboard %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+        <h4 class="mb-0">Dashboard</h4>
+        <small class="text-muted">Branch scoped dashboard</small>
+    </div>
+    <span class="badge bg-primary px-3 py-2">
+        {{ dashboard_branch.code }} - {{ dashboard_branch.name }}
+    </span>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm mb-3 dashboard-filter">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            {% if dashboard_is_admin %}
+            <div class="col-md-2">
+                <label class="form-label">Branch</label>
+                <select class="form-select" name="branch_id">
+                    <option value="">All Branches</option>
+                    {% for branch in dashboard_branches %}
+                    <option value="{{ branch.id }}"
+                            {% if dashboard_branch_id == branch.id|stringformat:"s" %}selected{% endif %}>
+                        {{ branch.code }} - {{ branch.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input class="form-control"
+                       type="date"
+                       name="from_date"
+                       value="{{ filter_from_date }}">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input class="form-control"
+                       type="date"
+                       name="to_date"
+                       value="{{ filter_to_date }}">
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Status For</label>
+                <select class="form-select" name="status_scope" id="statusScope">
+                    <option value="" {% if not filter_status_scope %}selected{% endif %}>All</option>
+                    <option value="claim" {% if filter_status_scope == "claim" %}selected{% endif %}>Claim</option>
+                    <option value="jobcard" {% if filter_status_scope == "jobcard" %}selected{% endif %}>Jobcard</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Main Status</label>
+                <select class="form-select" name="main_status" id="mainStatus">
+                    <option value="">All</option>
+                    {% for value, label in claim_status_choices %}
+                    <option value="{{ value }}"
+                            data-scope="claim"
+                            {% if filter_main_status == value and filter_status_scope == "claim" %}selected{% endif %}>
+                        Claim - {{ label }}
+                    </option>
+                    {% endfor %}
+                    {% for value, label in jobcard_status_choices %}
+                    <option value="{{ value }}"
+                            data-scope="jobcard"
+                            {% if filter_main_status == value and filter_status_scope == "jobcard" %}selected{% endif %}>
+                        Jobcard - {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label">Advisor</label>
+                {% if advisor_dashboard %}
+                <select class="form-select" disabled aria-label="Advisor fixed for this login">
+                    <option selected>{{ logged_emp.name }}</option>
+                </select>
+                {% else %}
+                <select class="form-select" name="advisor">
+                    <option value="">All</option>
+                    {% for advisor in advisor_options %}
+                    <option value="{{ advisor.id }}"
+                            {% if filter_advisor == advisor.id|stringformat:"s" %}selected{% endif %}>
+                        {{ advisor.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </div>
+
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" type="submit">
+                    Apply Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===================================== -->
+<!-- MANAGER / ADMIN DASHBOARD -->
+<!-- ===================================== -->
+
+{% if show_manager_dashboard %}
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong>Financial Overview</strong>
+        <small class="text-muted">Selected branch and date period</small>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Estimate</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.estimate|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Surveyor Approved</small>
+                <h5 class="mb-0 text-success">₹ {{ dashboard_financial.approved|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Liability / DO</small>
+                <h5 class="mb-0 text-success">₹ {{ dashboard_financial.liability|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Invoice</small>
+                <h5 class="mb-0 text-primary">₹ {{ dashboard_financial.invoice|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Recorded Collection</small>
+                <h5 class="mb-0 text-success">₹ {{ dashboard_financial.collection|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Outstanding</small>
+                <h5 class="mb-0 text-danger">₹ {{ dashboard_financial.outstanding|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Invoice Parts</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.parts|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Invoice Labour</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.labour|floatformat:2 }}</h5>
+            </div>
+            <div class="col-md-3 col-6">
+                <small class="text-muted">Average Invoice</small>
+                <h5 class="mb-0">₹ {{ dashboard_financial.average_job_value|floatformat:2 }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+
+    <div class="col-md-3">
+        <div class="dash-card bg-warning text-dark">
+            <small>Total Pending Claims No</small>
+            <h3>{{ pending_claims }}</h3>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-info text-dark stage-summary-card">
+            <small>Stage Wise Pending Claims</small>
+            <div class="stage-mini-list">
+                {% for s in stage_counts %}
+                {% if s.claim_stage != 14 %}
+                <span>
+                    {{ s.current_stage_label }}
+                    <b>{{ s.total }}</b>
+                </span>
+                {% endif %}
+                {% empty %}
+                <span>No Pending Stage <b>0</b></span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-success">
+            <small>Closed Claims</small>
+            <h3>{{ closed_claims }}</h3>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="dash-card bg-primary">
+            <small>Total Claims</small>
+            <h3>{{ total_claims }}</h3>
+        </div>
+    </div>
+
+</div>
+
+<div class="row g-3">
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header">
+Stage Wise Pending Claims
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-bordered">
+
+<thead>
+
+<tr>
+<th>Pending Stage</th>
+<th>Current Completed Stage</th>
+<th>Total</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for s in stage_counts %}
+{% if s.claim_stage != 14 %}
+
+<tr>
+
+<td>
+    {{ s.pending_stage_label }}
+</td>
+
+<td>
+    {{ s.current_stage_label }}
+</td>
+
+<td>
+{{ s.total }}
+</td>
+
+</tr>
+
+{% endif %}
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header">
+
+Advisor Workload
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-bordered">
+
+<thead>
+
+<tr>
+
+<th>Advisor</th>
+
+<th>Branch</th>
+
+<th>Claims</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for a in advisor_counts %}
+
+<tr>
+
+<td>
+
+{{ a.employee__name|default:"-" }}
+
+</td>
+
+<td>
+
+{% if a.employee__branch__name %}
+    {{ a.employee__branch__code }} - {{ a.employee__branch__name }}
+{% else %}
+    -
+{% endif %}
+
+</td>
+
+<td>
+
+{{ a.total }}
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endif %}
+
+
+
+<!-- ===================================== -->
+<!-- ADVISOR DASHBOARD -->
+<!-- ===================================== -->
+
+{% if advisor_dashboard %}
+{% include "dashboard/advisor_dashboard.html" %}
+{% endif %}
+
+{% if False %}
+
+<div class="row g-3">
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header bg-primary text-white">
+
+My Claims
+
+<span class="badge bg-light text-dark float-end">
+
+{{ claims.count }}
+
+</span>
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-hover">
+
+<thead>
+
+<tr>
+
+<th>Claim</th>
+
+<th>Vehicle</th>
+
+<th>Stage</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for c in claims %}
+
+<tr>
+
+<td>
+
+{{ c.claim_no }}
+
+</td>
+
+<td>
+
+{{ c.vehicle.registration_no }}
+
+</td>
+
+<td>
+
+<span class="badge bg-success">
+
+{{ c.get_claim_stage_display }}
+
+</span>
+
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+<td colspan="3"
+class="text-center">
+
+No Claims
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<div class="col-lg-6">
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header bg-success text-white">
+
+My Job Cards
+
+<span class="badge bg-light text-dark float-end">
+
+{{ jobcards.count }}
+
+</span>
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-hover">
+
+<thead>
+
+<tr>
+
+<th>Job No</th>
+
+<th>Vehicle</th>
+
+<th>Status</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for j in jobcards %}
+
+<tr>
+
+<td>
+
+{{ j.job_no }}
+
+</td>
+
+<td>
+
+{{ j.claim.vehicle.registration_no }}
+
+</td>
+
+<td>
+
+{{ j.repair_status }}
+
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+<td colspan="3"
+class="text-center">
+
+No Job Cards
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endif %}
+
+
+
+<!-- ===================================== -->
+<!-- RECEPTION / STAFF -->
+<!-- ===================================== -->
+
+{% if logged_emp.employee_type == "RECEPTION" or logged_emp.employee_type == "STAFF" %}
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-header">
+
+Unassigned Claims
+
+</div>
+
+<div class="card-body p-2">
+
+<table class="table table-sm table-bordered">
+
+<thead>
+
+<tr>
+
+<th>Claim No</th>
+
+<th>Vehicle</th>
+
+<th>Customer</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for c in claims %}
+
+<tr>
+
+<td>
+
+{{ c.claim_no }}
+
+</td>
+
+<td>
+
+{{ c.vehicle.registration_no }}
+
+</td>
+
+<td>
+
+{{ c.vehicle.customer.name }}
+
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+<td colspan="3"
+class="text-center">
+
+No Records
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+{% endif %}
+
+</div>
+
+
+
+<style>
+
+.dash-card{
+
+padding:18px;
+
+border-radius:14px;
+
+color:white;
+
+box-shadow:
+0 2px 12px
+rgba(0,0,0,.12);
+
+}
+
+.dash-card h3{
+
+margin:0;
+
+font-weight:700;
+
+}
+
+.stage-summary-card{
+padding:12px 14px;
+}
+
+.stage-mini-list{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:4px 10px;
+margin-top:6px;
+font-size:11px;
+}
+
+.stage-mini-list span{
+display:flex;
+justify-content:space-between;
+gap:8px;
+border-bottom:1px solid rgba(0,0,0,.08);
+}
+
+.card-header{
+
+font-weight:600;
+
+}
+
+.table{
+
+font-size:13px;
+
+}
+
+.dashboard-filter .form-label{
+font-size:12px;
+font-weight:600;
+margin-bottom:3px;
+}
+
+.dashboard-filter .form-control,
+.dashboard-filter .form-select,
+.dashboard-filter .btn{
+min-height:34px;
+font-size:13px;
+}
+
+</style>
+
+<script>
+function syncDashboardStatusOptions() {
+    const scope = document.getElementById("statusScope");
+    const status = document.getElementById("mainStatus");
+
+    if (!scope || !status) {
+        return;
+    }
+
+    const selectedScope = scope.value;
+
+    status.querySelectorAll("option[data-scope]").forEach(option => {
+        const show = !selectedScope || option.dataset.scope === selectedScope;
+        option.hidden = !show;
+        option.disabled = !show;
+    });
+
+    if (status.selectedOptions.length && status.selectedOptions[0].disabled) {
+        status.value = "";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const scope = document.getElementById("statusScope");
+
+    syncDashboardStatusOptions();
+
+    if (scope) {
+        scope.addEventListener("change", syncDashboardStatusOptions);
+    }
+});
+</script>
+
+{% endblock %}
