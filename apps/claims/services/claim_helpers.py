@@ -167,6 +167,8 @@ def desktop_claim_list_payload(claim):
         "created_at": claim.created_at,
         "has_jobcard": bool(jobcard),
         "jobcard_id": jobcard.id if jobcard else None,
+        "branch_id": claim.branch_id,
+        "branch_name": claim.branch.name if claim.branch_id else "",
     }
 
 

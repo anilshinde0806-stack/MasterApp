@@ -1,0 +1,1423 @@
+/* ============================================================
+   REPAIR PROGRESS
+   BODYSHOP JOB CARD
+   ============================================================ */
+
+.repair-progress-page {
+  width: 100%;
+  min-height: 100%;
+  padding: 22px;
+  background: #f6f8fb;
+  color: #172033;
+  box-sizing: border-box;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.rp-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.rp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.rp-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eaf2ff;
+  color: #2563eb;
+}
+
+.rp-header-left h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.3px;
+}
+
+.rp-header-left p {
+  margin: 4px 0 0;
+  color: #718096;
+  font-size: 13px;
+}
+
+.rp-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rp-job-mini-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  background: #ffffff;
+  border: 1px solid #e4e9f0;
+  border-radius: 10px;
+}
+
+.rp-job-mini-card svg {
+  color: #2563eb;
+}
+
+.rp-job-mini-card div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rp-job-mini-card span {
+  font-size: 10px;
+  color: #8a94a6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rp-job-mini-card strong {
+  font-size: 13px;
+  color: #202938;
+}
+
+.rp-registration {
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: #202938;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+/* ============================================================
+   SUMMARY
+   ============================================================ */
+
+.rp-summary-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.rp-summary-card {
+  background: #ffffff;
+  border: 1px solid #e4e9f0;
+  border-radius: 13px;
+  padding: 16px;
+  min-height: 126px;
+  box-sizing: border-box;
+}
+
+.rp-summary-card.overall {
+  min-width: 0;
+}
+
+.rp-summary-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rp-summary-card-top > span {
+  color: #687386;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rp-summary-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #edf3ff;
+  color: #2563eb;
+}
+
+.rp-summary-icon.success {
+  background: #eaf9f0;
+  color: #159447;
+}
+
+.rp-summary-icon.active {
+  background: #fff5e7;
+  color: #d97706;
+}
+
+.rp-summary-icon.pending {
+  background: #f0f2f5;
+  color: #7b8494;
+}
+
+.rp-overall-number {
+  margin-top: 10px;
+  font-size: 27px;
+  line-height: 1;
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.rp-overall-number span {
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+.rp-summary-number {
+  margin-top: 13px;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.rp-summary-label {
+  margin-top: 8px;
+  color: #8a94a6;
+  font-size: 11px;
+}
+
+.rp-summary-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+}
+
+.rp-summary-footer span {
+  font-size: 10px;
+  color: #8a94a6;
+}
+
+.rp-summary-footer strong {
+  font-size: 10px;
+  color: #526072;
+}
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+
+.rp-progress-bar {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #edf0f4;
+  margin-top: 7px;
+}
+
+.rp-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 0.3s ease;
+}
+
+.rp-progress-bar.compact {
+  height: 5px;
+  margin-top: 0;
+}
+
+.rp-progress-bar.compact .rp-progress-fill {
+  background: #3b82f6;
+}
+
+/* ============================================================
+   SECTION
+   ============================================================ */
+
+.rp-section {
+  background: #ffffff;
+  border: 1px solid #e4e9f0;
+  border-radius: 13px;
+  padding: 18px;
+  margin-bottom: 18px;
+  box-sizing: border-box;
+}
+
+.rp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 17px;
+}
+
+.rp-section-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.rp-section-header p {
+  margin: 4px 0 0;
+  color: #8993a4;
+  font-size: 11px;
+}
+
+.rp-stage-counter {
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ============================================================
+   STAGE PROGRESS
+   ============================================================ */
+
+.rp-stage-wrapper {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.rp-stage-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e5eaf0;
+  border-radius: 11px;
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.rp-stage-item:hover {
+  border-color: #b9c8e5;
+  box-shadow: 0 3px 12px rgba(24, 39, 75, 0.06);
+}
+
+.rp-stage-item.selected {
+  border-color: #3b82f6;
+  background: #f7faff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.08);
+}
+
+.rp-stage-item.completed .rp-stage-circle {
+  color: #149447;
+  background: #eaf8f0;
+}
+
+.rp-stage-item.in-progress .rp-stage-circle {
+  color: #2563eb;
+  background: #eaf2ff;
+}
+
+.rp-stage-item.pending .rp-stage-circle {
+  color: #8b95a5;
+  background: #f1f3f6;
+}
+
+.rp-stage-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 11px;
+}
+
+.rp-stage-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.rp-stage-name {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rp-stage-progress-text {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rp-stage-mini-progress {
+  width: 100%;
+  margin-top: 9px;
+}
+
+.rp-stage-arrow {
+  display: none;
+}
+
+/* ============================================================
+   CURRENT WORK
+   ============================================================ */
+
+.rp-current-section {
+  margin-bottom: 18px;
+}
+
+.rp-current-card {
+  background: #ffffff;
+  border: 1px solid #dfe6ef;
+  border-radius: 13px;
+  overflow: hidden;
+}
+
+.rp-current-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 19px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.rp-current-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rp-current-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eaf2ff;
+  color: #2563eb;
+}
+
+.rp-current-title-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.rp-current-title h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.rp-current-title p {
+  margin: 4px 0 0;
+  color: #8993a4;
+  font-size: 11px;
+}
+
+.rp-current-percentage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.rp-current-percentage strong {
+  color: #2563eb;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.rp-current-percentage span {
+  margin-top: 4px;
+  color: #8a94a6;
+  font-size: 10px;
+}
+
+.rp-current-progress {
+  padding: 18px 19px 0;
+}
+
+.rp-progress-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #a0a8b5;
+  font-size: 9px;
+  margin-top: 5px;
+}
+
+.rp-current-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin: 18px 19px 0;
+  border: 1px solid #edf0f4;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.rp-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  background: #fafbfd;
+  border-right: 1px solid #edf0f4;
+}
+
+.rp-detail-item:last-child {
+  border-right: 0;
+}
+
+.rp-detail-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #eef2f7;
+}
+
+.rp-detail-item div:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rp-detail-item span {
+  color: #929baa;
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+
+.rp-detail-item strong {
+  color: #374151;
+  font-size: 11px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-current-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 18px 19px;
+}
+
+.rp-btn {
+  height: 36px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.1s ease;
+}
+
+.rp-btn:active {
+  transform: translateY(1px);
+}
+
+.rp-btn.primary {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.rp-btn.primary:hover {
+  background: #1d4ed8;
+}
+
+.rp-btn.success {
+  color: #ffffff;
+  background: #159447;
+}
+
+.rp-btn.success:hover {
+  background: #117b3b;
+}
+
+.rp-btn.warning {
+  color: #ffffff;
+  background: #d97706;
+}
+
+.rp-btn.warning:hover {
+  background: #b95f04;
+}
+
+.rp-btn.secondary {
+  color: #475569;
+  background: #ffffff;
+  border-color: #dce2e9;
+}
+
+.rp-btn.secondary:hover {
+  background: #f8fafc;
+  border-color: #c9d2df;
+}
+
+/* ============================================================
+   DETAILS PANEL
+   ============================================================ */
+
+.rp-details-panel {
+  border-top: 1px solid #edf0f4;
+  padding: 17px 19px 19px;
+  background: #fafbfd;
+}
+
+.rp-details-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rp-details-panel-header h4 {
+  margin: 0;
+  color: #374151;
+  font-size: 12px;
+}
+
+.rp-details-panel-header span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.rp-details-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.rp-details-grid > div {
+  padding: 11px;
+  background: #ffffff;
+  border: 1px solid #e7ebf0;
+  border-radius: 8px;
+}
+
+.rp-details-grid label,
+.rp-remarks label {
+  display: block;
+  color: #929baa;
+  font-size: 9px;
+  margin-bottom: 4px;
+}
+
+.rp-details-grid strong {
+  color: #3f4a5a;
+  font-size: 11px;
+}
+
+.rp-remarks {
+  margin-top: 10px;
+  padding: 11px;
+  background: #ffffff;
+  border: 1px solid #e7ebf0;
+  border-radius: 8px;
+}
+
+.rp-remarks p {
+  margin: 0;
+  color: #596579;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   UPDATE PROGRESS
+   ============================================================ */
+
+.rp-update-value {
+  padding: 7px 12px;
+  color: #2563eb;
+  background: #edf4ff;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.rp-slider-wrapper {
+  padding: 4px 3px 0;
+}
+
+.rp-slider {
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 20px;
+  background: #e5eaf0;
+  outline: none;
+  cursor: pointer;
+}
+
+.rp-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+}
+
+.rp-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+}
+
+.rp-slider-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 7px;
+  color: #a0a8b5;
+  font-size: 9px;
+}
+
+/* ============================================================
+   STATUS BADGE
+   ============================================================ */
+
+.rp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 4px 7px;
+  border-radius: 20px;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rp-status-badge.completed {
+  color: #148344;
+  background: #eaf8f0;
+}
+
+.rp-status-badge.in-progress {
+  color: #2563eb;
+  background: #eaf2ff;
+}
+
+.rp-status-badge.paused {
+  color: #b45309;
+  background: #fff3df;
+}
+
+.rp-status-badge.pending {
+  color: #7b8494;
+  background: #eef1f4;
+}
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+
+.rp-outline-btn {
+  height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dce2e9;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #596579;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.rp-outline-btn:hover {
+  background: #f8fafc;
+}
+
+.rp-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e6ebf0;
+  border-radius: 10px;
+}
+
+.rp-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+.rp-table thead {
+  background: #f8fafc;
+}
+
+.rp-table th {
+  padding: 11px 12px;
+  text-align: left;
+  color: #7b8494;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid #e5eaf0;
+}
+
+.rp-table td {
+  padding: 12px;
+  color: #596579;
+  font-size: 10px;
+  border-bottom: 1px solid #edf0f4;
+  white-space: nowrap;
+}
+
+.rp-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.rp-table tbody tr:hover {
+  background: #fafcff;
+}
+
+.rp-activity-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rp-activity-name strong {
+  color: #374151;
+  font-size: 11px;
+}
+
+.rp-activity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+
+.rp-technician-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.rp-avatar {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eef2f7;
+  color: #536174;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.rp-table-progress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 110px;
+}
+
+.rp-table-progress .rp-progress-bar {
+  flex: 1;
+}
+
+.rp-table-progress > span {
+  min-width: 28px;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.rp-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e0e6ed;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.rp-icon-btn:hover {
+  color: #2563eb;
+  border-color: #bcd0f3;
+  background: #f7faff;
+}
+
+/* ============================================================
+   PARTS
+   ============================================================ */
+
+.rp-parts-summary {
+  padding: 6px 10px;
+  border-radius: 7px;
+  color: #15803d;
+  background: #ebf8ef;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rp-parts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 11px;
+}
+
+.rp-part-card {
+  padding: 13px;
+  border: 1px solid #e5eaf0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.rp-part-card.completed {
+  border-left: 3px solid #16a34a;
+}
+
+.rp-part-card.in-progress {
+  border-left: 3px solid #2563eb;
+}
+
+.rp-part-card.pending {
+  border-left: 3px solid #cbd5e1;
+}
+
+.rp-part-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.rp-part-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.rp-part-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f0f3f7;
+  color: #64748b;
+}
+
+.rp-part-card.completed .rp-part-icon {
+  color: #159447;
+  background: #eaf8f0;
+}
+
+.rp-part-card.in-progress .rp-part-icon {
+  color: #2563eb;
+  background: #eaf2ff;
+}
+
+.rp-part-title h4 {
+  margin: 0;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.rp-part-title span {
+  display: block;
+  margin-top: 3px;
+  color: #929baa;
+  font-size: 9px;
+}
+
+.rp-part-technician {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 13px;
+  color: #7b8494;
+  font-size: 9px;
+}
+
+.rp-part-progress {
+  margin-top: 12px;
+}
+
+.rp-part-progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.rp-part-progress-header span {
+  color: #929baa;
+  font-size: 9px;
+}
+
+.rp-part-progress-header strong {
+  color: #596579;
+  font-size: 9px;
+}
+
+/* ============================================================
+   INFORMATION BANNER
+   ============================================================ */
+
+.rp-information-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 15px;
+  margin-bottom: 20px;
+  border: 1px solid #dbe7f8;
+  border-radius: 10px;
+  background: #f5f9ff;
+}
+
+.rp-information-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #e6f0ff;
+  color: #2563eb;
+}
+
+.rp-information-banner strong {
+  display: block;
+  color: #334155;
+  font-size: 11px;
+}
+
+.rp-information-banner p {
+  margin: 4px 0 0;
+  color: #718096;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   RESPONSIVE - 1200
+   ============================================================ */
+
+@media (max-width: 1200px) {
+  .rp-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rp-stage-wrapper {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .rp-parts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE - 900
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .repair-progress-page {
+    padding: 15px;
+  }
+
+  .rp-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rp-header-right {
+    width: 100%;
+  }
+
+  .rp-job-mini-card {
+    flex: 1;
+  }
+
+  .rp-stage-wrapper {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rp-current-details {
+    grid-template-columns: 1fr;
+  }
+
+  .rp-detail-item {
+    border-right: 0;
+    border-bottom: 1px solid #edf0f4;
+  }
+
+  .rp-detail-item:last-child {
+    border-bottom: 0;
+  }
+
+  .rp-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE - 650
+   ============================================================ */
+
+@media (max-width: 650px) {
+  .repair-progress-page {
+    padding: 11px;
+  }
+
+  .rp-summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+
+  .rp-summary-card {
+    padding: 12px;
+    min-height: 110px;
+  }
+
+  .rp-summary-card.overall {
+    grid-column: 1 / -1;
+  }
+
+  .rp-summary-number {
+    font-size: 23px;
+  }
+
+  .rp-overall-number {
+    font-size: 24px;
+  }
+
+  .rp-stage-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .rp-stage-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .rp-stage-circle {
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .rp-stage-content {
+    flex: 1;
+  }
+
+  .rp-stage-mini-progress {
+    width: 100px;
+    margin-top: 0;
+  }
+
+  .rp-current-header {
+    padding: 14px;
+  }
+
+  .rp-current-percentage {
+    display: none;
+  }
+
+  .rp-current-progress {
+    padding: 14px 14px 0;
+  }
+
+  .rp-current-details {
+    margin: 14px 14px 0;
+  }
+
+  .rp-current-actions {
+    padding: 14px;
+  }
+
+  .rp-btn {
+    flex: 1;
+    min-width: 135px;
+  }
+
+  .rp-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rp-parts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rp-section {
+    padding: 13px;
+  }
+
+  .rp-section-header {
+    align-items: flex-start;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE - 450
+   ============================================================ */
+
+@media (max-width: 450px) {
+  .rp-header-right {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rp-registration {
+    text-align: center;
+  }
+
+  .rp-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rp-summary-card.overall {
+    grid-column: auto;
+  }
+
+  .rp-stage-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .rp-stage-mini-progress {
+    width: 70px;
+  }
+
+  .rp-current-title h3 {
+    font-size: 15px;
+  }
+
+  .rp-current-actions {
+    flex-direction: column;
+  }
+
+  .rp-btn {
+    width: 100%;
+  }
+
+  .rp-section-header {
+    flex-direction: column;
+  }
+
+  .rp-stage-counter,
+  .rp-parts-summary {
+    align-self: flex-start;
+  }
+}
+/* ============================================================
+   READ-ONLY REPAIR STAGE PROGRESS STRIP
+   ============================================================ */
+
+.rp-stage-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scrollbar-width: thin;
+}
+
+.rp-stage-item {
+  position: relative;
+  flex: 1 0 180px;
+  min-width: 180px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  border: 1px solid #e5eaf0;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.rp-stage-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  width: 24px;
+  height: 2px;
+  right: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #dce3eb;
+}
+
+.rp-stage-item.completed:not(:last-child)::after {
+  background: #9bd5b1;
+}
+
+.rp-stage-circle {
+  flex: 0 0 36px;
+  margin-bottom: 0;
+}
+
+.rp-stage-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+}
+
+.rp-stage-name {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.rp-stage-progress-text {
+  font-size: 10px;
+}
+
+.rp-stage-mini-progress,
+.rp-stage-arrow {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .rp-stage-wrapper {
+    display: flex;
+    grid-template-columns: none;
+  }
+
+  .rp-stage-item {
+    flex: 0 0 210px;
+  }
+}
+
+/* ============================================================
+   STAGE-WISE ACTIVITY PHOTOS
+   ============================================================ */
+
+.rp-photo-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #e8edf2;
+}
+
+.rp-photo-section > label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.rp-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 12px;
+}
+
+.rp-photo-card {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.rp-photo-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #eef2f6;
+}
+
+.rp-photo-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.rp-photo-meta strong {
+  overflow: hidden;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-photo-empty {
+  padding: 13px 14px;
+  border: 1px dashed #d7dee7;
+  border-radius: 9px;
+  background: #fafbfc;
+  color: #94a3b8;
+  font-size: 12px;
+}

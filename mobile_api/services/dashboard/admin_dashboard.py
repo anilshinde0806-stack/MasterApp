@@ -1,3 +1,6 @@
+from apps import workshop
+from apps.claims.services.jobcard_pipeline_service import JobcardPipelineService
+
 from .advisor_ranking_service import TopAdvisorService
 from .base_dashboard import BaseDashboardService
 from .admin_kpi_service import AdminKPIService
@@ -8,6 +11,9 @@ from .technician_ranking_service import TopTechnicianService
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Q
+from mobile_api.services.dashboard.workshop_performance_service import (
+    WorkshopPerformanceService
+)
 
 class AdminDashboardService(BaseDashboardService):
 
@@ -20,7 +26,121 @@ class AdminDashboardService(BaseDashboardService):
 
         self.start_date = start_date
         self.end_date = end_date
+        self._resolve_period_dates()
 
+    def _resolve_period_dates(self):
+
+        today = timezone.localdate()
+
+
+        # =====================================
+        # TODAY
+        # =====================================
+
+        if self.period == "today":
+
+            self.start_date = today
+            self.end_date = today
+
+            return
+
+
+        # =====================================
+        # YESTERDAY
+        # =====================================
+
+        if self.period == "yesterday":
+
+            yesterday = today - timedelta(days=1)
+
+            self.start_date = yesterday
+            self.end_date = yesterday
+
+            return
+
+
+        # =====================================
+        # THIS WEEK
+        # =====================================
+
+        if self.period == "this_week":
+
+            self.start_date = today - timedelta(
+                days=today.weekday()
+            )
+
+            self.end_date = today
+
+            return
+
+
+        # =====================================
+        # THIS MONTH
+        # =====================================
+
+        if self.period == "this_month":
+
+            self.start_date = today.replace(day=1)
+
+            self.end_date = today
+
+            return
+
+
+        # =====================================
+        # LAST MONTH
+        # =====================================
+
+        if self.period == "last_month":
+
+            first_day_this_month = today.replace(day=1)
+
+            last_day_last_month = (
+                first_day_this_month
+                - timedelta(days=1)
+            )
+
+            self.start_date = last_day_last_month.replace(
+                day=1
+            )
+
+            self.end_date = last_day_last_month
+
+            return
+
+
+        # =====================================
+        # THIS YEAR
+        # =====================================
+
+        if self.period == "this_year":
+
+            self.start_date = today.replace(
+                month=1,
+                day=1,
+            )
+
+            self.end_date = today
+
+            return
+
+
+        # =====================================
+        # CUSTOM
+        # =====================================
+
+        # Keep user-provided dates unchanged
+        if self.period == "custom":
+
+            return
+
+
+        # =====================================
+        # ALL / DEFAULT
+        # =====================================
+
+        self.start_date = None
+        self.end_date = None
     def get(self):
 
         work = self._get_work_queryset(
@@ -80,6 +200,32 @@ class AdminDashboardService(BaseDashboardService):
             end_date=self.end_date,
         )
 
+        workshop = WorkshopPerformanceService(jobcards=work)
+     
+
+        # ==========================================
+        # WORKSHOP DASHBOARD
+        # ==========================================
+
+        workshop_data = workshop.get()
+
+        print("\n========== WORKSHOP DASHBOARD DEBUG ==========")
+
+        print(workshop_data)
+
+        print("==============================================\n")
+
+        jobcard_data = JobcardPipelineService(
+            branch=self.branch,
+            start_date=self.start_date,
+            end_date=self.end_date,
+        ).get()
+
+        print("\n========== RAW JOBCARD DATA ==========")
+        print(jobcard_data)
+        print("TYPE:", type(jobcard_data))
+        print("PIPELINE:", jobcard_data.get("pipeline", []))
+        print("======================================\n")
         data.update({
             "dashboard_type": "ADMIN",
 
@@ -98,11 +244,30 @@ class AdminDashboardService(BaseDashboardService):
             "branch_performance": branches.get(),
 
             "pipeline": kpi._get_pipeline(),
-
+            "workshop_dashboard": workshop_data,
+            "jobcard_pipeline": jobcard_data.get(
+                        "pipeline",
+                        []
+                    ),
             "actions": [],
 
             "recent_work": [],
         })
+
+        
+        print("\n========== FINAL ADMIN DASHBOARD KEYS ==========")
+
+        print(data.keys())
+
+        print("\nHAS WORKSHOP DASHBOARD:")
+
+        print("workshop_dashboard" in data)
+        print("HAS JOBCARD PIPELINE:")
+        print(jobcard_data.get(
+                        "pipeline",
+                        []
+                    ))
+        print("===============================================\n")
 
         return data
     def _filter_work_by_period(self, work):

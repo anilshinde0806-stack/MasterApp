@@ -1,0 +1,1532 @@
+/* ==========================================
+   OVERVIEW DASHBOARD
+========================================== */
+
+.overview-dashboard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  padding: 4px 0 20px;
+}
+
+
+/* ==========================================
+   MAIN PANEL
+========================================== */
+
+.overview-panel {
+  background: #ffffff;
+  border: 1px solid #e5eaf1;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.05);
+
+  min-width: 0;
+  overflow: hidden;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+.overview-panel:hover {
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+
+/* ==========================================
+   PANEL HEADER
+========================================== */
+
+.overview-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  padding-bottom: 15px;
+  margin-bottom: 16px;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+
+.overview-panel-header h2 {
+  margin: 0;
+
+  font-size: 17px;
+  font-weight: 700;
+
+  color: #1e293b;
+
+  letter-spacing: -0.2px;
+}
+
+
+.overview-panel-header p {
+  margin: 5px 0 0;
+
+  font-size: 11px;
+
+  color: #94a3b8;
+}
+
+
+/* ==========================================
+   HEADER ICON
+========================================== */
+
+.panel-header-icon {
+  width: 38px;
+  height: 38px;
+
+  border-radius: 11px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.operation-header-icon {
+  color: #2563eb;
+
+  background: #eff6ff;
+}
+
+
+.performance-header-icon {
+  color: #059669;
+
+  background: #ecfdf5;
+}
+
+/* ==========================================
+   MANAGEMENT ATTENTION
+========================================== */
+
+.attention-header-icon {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+
+.attention-panel {
+  grid-column: 1 / -1;
+
+  border-top: 3px solid #dc2626;
+}
+
+
+.attention-tile {
+  background: linear-gradient(
+    135deg,
+    #ffffff,
+    #fafafa
+  );
+}
+/* ==========================================
+   TILES GRID
+========================================== */
+
+.overview-tiles {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 12px;
+}
+
+
+/* ==========================================
+   TILE
+========================================== */
+
+.overview-tile {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  min-height: 88px;
+
+  padding: 14px;
+
+  background: #ffffff;
+
+  border: 1px solid #e8edf3;
+
+  border-radius: 13px;
+
+  overflow: hidden;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+
+/* Colored accent */
+
+.overview-tile::before {
+
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 3px;
+
+  background: var(--tile-color);
+
+}
+
+
+.overview-tile:hover {
+
+  transform: translateY(-3px);
+
+  border-color:
+    color-mix(
+      in srgb,
+      var(--tile-color) 35%,
+      #e5e7eb
+    );
+
+  box-shadow:
+    0 8px 20px
+    rgba(15, 23, 42, 0.08);
+
+}
+
+
+/* ==========================================
+   TILE ICON
+========================================== */
+
+.tile-icon {
+
+  width: 42px;
+  height: 42px;
+
+  min-width: 42px;
+
+  border-radius: 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--tile-color);
+
+  background:
+    color-mix(
+      in srgb,
+      var(--tile-color) 10%,
+      white
+    );
+
+}
+
+
+/* ==========================================
+   TILE CONTENT
+========================================== */
+
+.tile-content {
+
+  display: flex;
+
+  flex-direction: column;
+
+  min-width: 0;
+
+}
+
+
+.tile-label {
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+  color: #64748b;
+
+  margin-bottom: 4px;
+
+}
+
+
+.tile-value {
+
+  font-size: 23px;
+
+  line-height: 1;
+
+  font-weight: 750;
+
+  color: #1e293b;
+
+}
+
+
+.tile-subtitle {
+
+  margin-top: 5px;
+
+  font-size: 10px;
+
+  color: #94a3b8;
+
+}
+
+
+/* ==========================================
+   SKELETON / LOADING STATE
+========================================== */
+
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  color: transparent !important;
+  background: #eef1f5;
+  border-radius: 6px;
+}
+
+.skeleton-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.65),
+    transparent
+  );
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+.skeleton-tile {
+  pointer-events: none;
+}
+
+.skeleton-tile::before {
+  background: #e2e6ec;
+}
+
+.skeleton-tile .tile-icon.skeleton-block {
+  border-radius: 12px;
+}
+
+.skeleton-line-short {
+  width: 60px;
+  height: 10px;
+  margin-bottom: 6px;
+}
+
+.skeleton-line-long {
+  width: 44px;
+  height: 18px;
+}
+
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block::after {
+    animation: none;
+  }
+}
+
+
+/* ==========================================
+   EMPTY STATE
+========================================== */
+
+.overview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
+  padding: 36px 20px;
+  gap: 10px;
+
+  border: 1px dashed #dde3ea;
+  border-radius: 13px;
+  background: #fafbfc;
+}
+
+.overview-empty-icon {
+  width: 40px;
+  height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 11px;
+
+  color: #94a3b8;
+  background: #eef1f5;
+}
+
+.overview-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+
+/* ==========================================
+   OPERATION PANEL
+========================================== */
+
+.operation-panel {
+
+  border-top: 3px solid #2563eb;
+
+}
+
+
+/* ==========================================
+   PERFORMANCE PANEL
+========================================== */
+
+.performance-panel {
+
+  border-top: 3px solid #059669;
+
+}
+
+
+/* ==========================================
+   TABLET
+========================================== */
+
+@media (max-width: 1100px) {
+
+  .overview-dashboard {
+
+    grid-template-columns: 1fr;
+
+  }
+
+}
+
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media (max-width: 600px) {
+
+  .overview-dashboard {
+
+    gap: 14px;
+
+  }
+
+
+  .overview-panel {
+
+    padding: 14px;
+
+    border-radius: 14px;
+
+  }
+
+
+  .overview-tiles {
+
+    grid-template-columns: 1fr;
+
+  }
+
+
+  .overview-tile {
+
+    min-height: 76px;
+
+  }
+
+
+  .tile-value {
+
+    font-size: 21px;
+
+  }
+
+  .overview-empty {
+
+    padding: 28px 16px;
+
+  }
+
+}
+
+
+/* ==========================================
+   SMALL MOBILE
+========================================== */
+
+@media (max-width: 380px) {
+
+  .overview-tile {
+
+    padding: 12px;
+
+    gap: 10px;
+
+  }
+
+  .tile-icon {
+
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+
+  }
+
+  .tile-value {
+
+    font-size: 19px;
+
+  }
+
+}
+/* ==========================================
+   CLICKABLE DASHBOARD TILES
+========================================== */
+
+.clickable-tile {
+  cursor: pointer;
+}
+
+
+.clickable-tile:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--tile-color) 40%,
+      transparent
+    );
+
+  outline-offset: 3px;
+}
+
+
+.clickable-tile:active {
+  transform: translateY(-1px);
+}
+/* ==========================================
+   CLAIMS OVERVIEW
+========================================== */
+
+.claims-summary-panel {
+  border-top-color: #1976d2;
+}
+
+
+/* ==========================================
+   TOTAL CLAIMS BADGE
+========================================== */
+
+.claims-total-badge {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 9px 13px;
+
+  border-radius: 12px;
+
+  color: #1976d2;
+
+  background: #eff6ff;
+
+}
+
+
+.claims-total-badge > div {
+
+  display: flex;
+
+  flex-direction: column;
+
+}
+
+
+.claims-total-badge span {
+
+  font-size: 10px;
+
+  font-weight: 600;
+
+  color: #64748b;
+
+}
+
+
+.claims-total-badge strong {
+
+  font-size: 21px;
+
+  line-height: 1;
+
+  font-weight: 750;
+
+  color: #1976d2;
+
+}
+
+
+/* ==========================================
+   CLAIM STAGE LIST
+========================================== */
+
+.claim-stage-list {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+
+}
+
+
+/* ==========================================
+   CLAIM STAGE ROW
+========================================== */
+
+.claim-stage-row {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  min-height: 44px;
+
+  padding: 10px 13px;
+
+  background: #fafbfc;
+
+  border: 1px solid #e8edf3;
+
+  border-radius: 11px;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+
+}
+
+
+.clickable-claim-stage {
+
+  cursor: pointer;
+
+}
+
+
+.claim-stage-row:hover {
+
+  background: #ffffff;
+
+  transform: translateX(3px);
+
+  box-shadow:
+    0 5px 14px
+    rgba(15, 23, 42, 0.06);
+
+}
+
+
+/* ==========================================
+   CLAIM STAGE LEFT
+========================================== */
+
+.claim-stage-info {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+}
+
+
+.claim-stage-dot {
+
+  width: 9px;
+
+  height: 9px;
+
+  min-width: 9px;
+
+  border-radius: 50%;
+
+  background: var(--stage-color);
+
+  box-shadow:
+    0 0 0 4px
+    color-mix(
+      in srgb,
+      var(--stage-color) 12%,
+      white
+    );
+
+}
+
+
+.claim-stage-title {
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: #475569;
+
+}
+
+
+/* ==========================================
+   CLAIM STAGE COUNT
+========================================== */
+
+.claim-stage-count {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-width: 30px;
+
+  height: 30px;
+
+  padding: 0 9px;
+
+  border-radius: 9px;
+
+  font-size: 14px;
+
+  font-weight: 750;
+
+  color: var(--stage-color);
+
+  background:
+    color-mix(
+      in srgb,
+      var(--stage-color) 10%,
+      white
+    );
+
+}
+/* ==========================================
+   CLAIMS DONUT OVERVIEW
+========================================== */
+
+.claims-summary-panel {
+  border-top-color: #1976d2;
+}
+
+
+/* ==========================================
+   TOTAL CLAIMS BOX
+========================================== */
+
+.claims-total-box {
+
+  min-width: 105px;
+
+  padding: 9px 14px;
+
+  text-align: center;
+
+  border-radius: 12px;
+
+  background: #eff6ff;
+
+}
+
+
+.claims-total-box span {
+
+  display: block;
+
+  font-size: 10px;
+
+  font-weight: 600;
+
+  color: #64748b;
+
+}
+
+
+.claims-total-box strong {
+
+  display: block;
+
+  margin-top: 3px;
+
+  font-size: 25px;
+
+  line-height: 1;
+
+  font-weight: 750;
+
+  color: #1976d2;
+
+}
+
+
+/* ==========================================
+   MAIN CONTENT
+========================================== */
+
+.claims-chart-content {
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(240px, 1fr)
+    minmax(260px, 1fr);
+
+  gap: 18px;
+
+  align-items: center;
+
+}
+
+
+/* ==========================================
+   DONUT
+========================================== */
+
+.claims-donut-wrapper {
+
+  position: relative;
+
+  width: 100%;
+
+  min-width: 0;
+
+}
+
+
+.claims-donut-center {
+
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  pointer-events: none;
+
+}
+
+
+.claims-donut-center strong {
+
+  font-size: 38px;
+
+  line-height: 1;
+
+  font-weight: 800;
+
+  color: #1e293b;
+
+}
+
+
+.claims-donut-center span {
+
+  margin-top: 7px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: #64748b;
+
+  white-space: nowrap;
+
+}
+
+
+
+
+.claims-legend-stage span:last-child {
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: #475569;
+
+}
+
+/* ==========================================
+   CLAIMS TOOLTIP
+========================================== */
+
+.claims-tooltip {
+
+  min-width: 190px;
+
+  padding: 13px 15px;
+
+  border: 1px solid #e5eaf1;
+
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 12px 30px
+    rgba(15, 23, 42, 0.14);
+
+}
+
+
+.claims-tooltip > strong {
+
+  display: block;
+
+  margin-bottom: 12px;
+
+  font-size: 13px;
+
+  color: #1e293b;
+
+}
+
+
+.claims-tooltip-dot {
+
+  display: inline-block;
+
+  width: 9px;
+
+  height: 9px;
+
+  margin-right: 8px;
+
+  border-radius: 50%;
+
+}
+
+
+.claims-tooltip-row {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 25px;
+
+  padding: 5px 0;
+
+  font-size: 12px;
+
+}
+
+
+.claims-tooltip-row span {
+
+  color: #64748b;
+
+}
+
+
+.claims-tooltip-row b {
+
+  color: #1e293b;
+
+  font-weight: 700;
+
+}
+/* ==========================================
+   CLAIMS DONUT + LEGEND LAYOUT
+========================================== */
+
+.claims-chart-layout {
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(320px, 1.3fr)
+    minmax(220px, 1fr);
+
+  align-items: center;
+
+  gap: 24px;
+
+  width: 100%;
+
+}
+
+
+/* ==========================================
+   DONUT
+========================================== */
+
+.claims-donut-wrapper {
+
+  position: relative;
+
+  width: 100%;
+
+  min-width: 0;
+
+}
+
+
+.claims-donut-center {
+
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  pointer-events: none;
+
+}
+
+
+.claims-donut-center strong {
+
+  font-size: 34px;
+
+  font-weight: 800;
+
+  line-height: 1;
+
+  color: #1e293b;
+
+}
+
+
+.claims-donut-center span {
+
+  margin-top: 6px;
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+  color: #94a3b8;
+
+}
+
+
+/* ==========================================
+   STAGE LEGEND
+========================================== */
+
+.claims-stage-legend {
+
+  min-width: 0;
+
+  padding-left: 22px;
+
+  border-left:
+    1px solid #edf0f4;
+
+}
+
+
+.claims-stage-legend h3 {
+
+  margin:
+    0 0 14px;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.6px;
+
+  color: #64748b;
+
+}
+
+
+.claims-stage-list {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 9px;
+
+}
+
+
+.claims-stage-item {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  min-width: 0;
+
+}
+
+
+.claims-stage-name {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  min-width: 0;
+
+}
+
+
+.claims-stage-dot {
+
+  width: 9px;
+
+  height: 9px;
+
+  min-width: 9px;
+
+  border-radius: 50%;
+
+}
+
+
+.claims-stage-title {
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  font-size: 12px;
+
+  font-weight: 500;
+
+  color: #475569;
+
+}
+
+
+.claims-stage-count {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-width: 26px;
+
+  height: 24px;
+
+  padding: 0 7px;
+
+  border-radius: 7px;
+
+  background: #f1f5f9;
+
+  color: #1e293b;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+}
+@media (max-width: 900px) {
+
+  .claims-chart-layout {
+
+    grid-template-columns: 1fr;
+
+  }
+
+
+  .claims-stage-legend {
+
+    padding-left: 0;
+
+    padding-top: 18px;
+
+    border-left: none;
+
+    border-top:
+      1px solid #edf0f4;
+
+  }
+
+
+  .claims-stage-list {
+
+    display: grid;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    gap: 10px 18px;
+
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .claims-stage-list {
+
+    grid-template-columns: 1fr;
+
+  }
+
+}
+/* ==========================================
+   CLICKABLE CLAIMS PANEL
+========================================== */
+
+.clickable-panel {
+  cursor: pointer;
+}
+
+.clickable-panel:hover {
+  transform: translateY(-2px);
+}
+
+/* ==========================================
+   FOOTER
+========================================== */
+
+.claims-distribution-footer {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  margin-top: 18px;
+
+  padding: 13px 15px;
+
+  border-radius: 11px;
+
+  color: #64748b;
+
+  background: #f8fafc;
+
+}
+
+
+.claims-distribution-footer span {
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+}
+
+
+/* ==========================================
+   LOADING
+========================================== */
+
+.claims-chart-loading {
+
+  height: 330px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+}
+
+
+.claims-donut-skeleton {
+
+  width: 230px;
+
+  height: 230px;
+
+  border-radius: 50%;
+
+}
+
+
+/* ==========================================
+   RESPONSIVE
+========================================== */
+
+@media (max-width: 1200px) {
+
+  .claims-chart-content {
+
+    grid-template-columns: 1fr;
+
+  }
+
+
+  .claims-donut-wrapper {
+
+    max-width: 430px;
+
+    margin: auto;
+
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .claims-total-box {
+
+    min-width: 80px;
+
+  }
+
+
+  .claims-chart-content {
+
+    gap: 8px;
+
+  }
+
+
+  .claims-legend-stage span:last-child {
+
+    font-size: 11px;
+
+  }
+
+
+  .claims-donut-center strong {
+
+    font-size: 32px;
+
+  }
+
+}
+/* ==========================================
+   JOBCARD OVERVIEW
+========================================== */
+
+.jobcard-overview-panel {
+  border-top: 3px solid #8b5cf6;
+}
+
+
+.jobcard-header-icon {
+  color: #8b5cf6;
+  background: #f5f3ff;
+}
+
+
+/* ==========================================
+   PIPELINE CHART LAYOUT
+========================================== */
+
+.pipeline-chart-layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 24px;
+
+  min-width: 0;
+}
+
+
+/* ==========================================
+   DONUT
+========================================== */
+
+.pipeline-donut-wrapper {
+  position: relative;
+
+  width: 58%;
+  min-width: 220px;
+}
+
+
+.pipeline-center-label {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate(-50%, -50%);
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+
+  text-align: center;
+
+  pointer-events: none;
+}
+
+
+.pipeline-center-label strong {
+  font-size: 30px;
+  font-weight: 750;
+
+  line-height: 1;
+
+  color: #1e293b;
+}
+
+
+.pipeline-center-label span {
+  margin-top: 7px;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  color: #94a3b8;
+
+  white-space: nowrap;
+}
+
+
+/* ==========================================
+   LEGEND
+========================================== */
+
+.pipeline-legend {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 12px;
+
+  flex: 1;
+
+  min-width: 0;
+}
+
+
+.pipeline-legend-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  min-width: 0;
+}
+
+
+.pipeline-legend-dot {
+  width: 9px;
+  height: 9px;
+
+  min-width: 9px;
+
+  border-radius: 50%;
+}
+
+
+.pipeline-legend-title {
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: #475569;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+
+/* ==========================================
+   RESPONSIVE
+========================================== */
+
+@media (max-width: 700px) {
+
+  .pipeline-chart-layout {
+    flex-direction: column;
+  }
+
+
+  .pipeline-donut-wrapper {
+    width: 100%;
+  }
+
+
+  .pipeline-legend {
+    width: 100%;
+  }
+
+}

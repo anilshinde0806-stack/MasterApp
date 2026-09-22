@@ -1120,7 +1120,7 @@
         0 20px 50px
         rgba(15, 23, 42, 0.20);
 
-    overflow: hidden;
+    overflow: visible;
 
     z-index: 9999999 !important;
 }
@@ -1204,4 +1204,157 @@
 
     color: #dc2626;
 
+}
+
+/* =========================================================
+   100% DESKTOP / HEADER WIDTH FIX
+   Keeps company, menu and right controls in one row.
+   ========================================================= */
+
+.erp-react-header {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    overflow: visible;
+}
+
+.erp-header-company {
+    flex: 0 1 275px;
+    width: 275px;
+    min-width: 245px;
+    max-width: 300px;
+    padding-left: 18px;
+    padding-right: 12px;
+    gap: 9px;
+    box-sizing: border-box;
+}
+
+.erp-company-logo {
+    width: 62px;
+    height: 44px;
+    flex: 0 0 62px;
+}
+
+.erp-company-name {
+    font-size: 17px;
+    letter-spacing: .25px;
+}
+
+.erp-company-subtitle {
+    font-size: 10px;
+    letter-spacing: 4px;
+}
+
+.erp-header-menu {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    display: flex;
+    align-items: center;
+    overflow: visible;
+}
+
+.erp-header-menu > * {
+    width: 100%;
+    min-width: 0;
+}
+
+.erp-header-right {
+    flex: 0 0 auto;
+    min-width: 0;
+    gap: 6px;
+    padding-right: 12px;
+    box-sizing: border-box;
+}
+
+.erp-branch-selector {
+    padding: 9px 11px;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.erp-top-icon-btn,
+.erp-notification-btn,
+.erp-header-icon-btn {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+}
+
+.erp-employee-profile {
+    gap: 7px;
+    padding: 5px 6px;
+    white-space: nowrap;
+}
+
+.erp-employee-avatar {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+}
+
+.erp-employee-name {
+    font-size: 12px;
+}
+
+.erp-employee-type {
+    font-size: 10px;
+}
+
+.erp-logout-btn {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+}
+
+@media (max-width: 1250px) {
+    .erp-header-company {
+        flex-basis: 235px;
+        width: 235px;
+        min-width: 215px;
+    }
+
+    .erp-company-name {
+        font-size: 15px;
+    }
+
+    .erp-header-right {
+        gap: 4px;
+    }
+
+    .erp-employee-details {
+        display: none;
+    }
+}
+
+@media (max-width: 1050px) {
+    .erp-header-company {
+        flex-basis: 205px;
+        width: 205px;
+        min-width: 190px;
+    }
+
+    .erp-company-logo {
+        width: 52px;
+        flex-basis: 52px;
+    }
+
+    .erp-company-name {
+        font-size: 14px;
+    }
+
+    .erp-company-subtitle {
+        font-size: 9px;
+        letter-spacing: 3px;
+    }
+
+    .erp-branch-selector span {
+        display: none;
+    }
+
+    .erp-branch-selector {
+        padding: 8px 9px;
+    }
 }

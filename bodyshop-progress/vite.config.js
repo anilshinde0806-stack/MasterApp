@@ -39,6 +39,26 @@ export default defineConfig({
     "src/toast-main.jsx"
   ),
 
+  claim: resolve(
+    __dirname,
+    "src/claim-main.jsx"
+  ),
+  assessment: resolve(__dirname, "src/assessment-main.jsx"),
+  claimList: resolve(__dirname, "src/claim-list-main.jsx"),
+  jobCards: resolve(__dirname, "src/jobcards-main.jsx"),
+  insurance: resolve(
+    __dirname,
+    "src/insurance-main.jsx"
+  ),
+  jobcard: resolve(
+    __dirname,
+    "src/jobcard-main.jsx"
+  ),
+  quality: resolve(
+    __dirname,
+    "src/quality-main.jsx"
+  )
+
 },
 
       output: {

@@ -109,3 +109,62 @@ class DashboardLookupRepository:
         return jobcards.select_related(
             "claim", "claim__vehicle", "advisor"
         ).order_by("-id")[:limit]
+
+
+
+import json
+
+from django.db import connection
+
+
+import json
+
+from django.db import connection
+
+
+class JobcardPipelineRepository:
+
+    @classmethod
+    def get(
+        cls,
+        branch_id=None,
+        start_date=None,
+        end_date=None,
+    ):
+        print("\n========== JOBCARD REPOSITORY FILTER ==========")
+        print("BRANCH ID:", branch_id)
+        print("START DATE:", start_date)
+        print("END DATE:", end_date)
+        print("===============================================\n")
+        with connection.cursor() as cursor:
+
+            cursor.execute(
+                """
+                SELECT public.fn_jobcard_pipeline(
+                    %s::bigint,
+                    %s::date,
+                    %s::date
+                )
+                """,
+                [
+                    branch_id,
+                    start_date,
+                    end_date,
+                ]
+            )
+
+            row = cursor.fetchone()
+
+        if not row or row[0] is None:
+            return {
+                "active_job_cards": 0,
+                "pipeline": [],
+            }
+
+        result = row[0]
+
+        # PostgreSQL JSONB may be returned as string
+        if isinstance(result, str):
+            result = json.loads(result)
+
+        return result

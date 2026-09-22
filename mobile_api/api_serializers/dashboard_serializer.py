@@ -224,9 +224,35 @@ class DashboardSerializer(serializers.Serializer):
 
     recent_work = RecentWorkSerializer(many=True)
 
+
+    # ==========================================
+    # CLAIM PIPELINE
+    # ==========================================
+
     pipeline = DashboardPipelineSerializer(many=True)
 
-    pending_actions = PendingActionsSerializer(required=False)
+
+    # ==========================================
+    # JOBCARD PIPELINE
+    # ==========================================
+
+    active_job_cards = serializers.IntegerField(
+        required=False,
+        default=0
+    )
+
+    jobcard_pipeline = serializers.ListField(
+        required=False,
+        default=list
+    )
 
 
+    pending_actions = PendingActionsSerializer(
+        required=False
+    )
 
+
+    workshop_dashboard = serializers.DictField(
+        required=False,
+        default=dict
+    )

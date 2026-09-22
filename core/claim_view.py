@@ -4,12 +4,15 @@ This module keeps claim screens and claim APIs out of core.views. Shared
 workflow helpers still live in core.views until the next cleanup pass.
 """
 from requests import get
+import json
 
 from .views import *  # noqa: F401,F403
 from .forms import advisor_queryset_for_user
 from apps.claims.repositories.claim_queries import ClaimQueryService
 from apps.claims.services.claim_helpers import desktop_claim_list_payload
 from apps.claims.services.claim_upsert_service import ClaimUpsertService
+from core.whatsapp import send_advisor_assigned_whatsapp
+from .models import ClaimStageHistory
 
 
 def protect_entry_page_response(view_func):
@@ -158,6 +161,14 @@ def claim_page(request):
 
     current_stage = 1
     pending_days = 0
+    stage_steps = [
+        (ClaimStageCode.CLAIM_CREATED, "Claim Created"),
+        (ClaimStageCode.ADVISOR_ASSIGNED, "Advisor Assigned"),
+        (ClaimStageCode.INTIMATION, "Claim Intimation"),
+        (ClaimStageCode.SURVEY, "Survey"),
+        (ClaimStageCode.INSURANCE_APPROVAL, "Approval"),
+        (ClaimStageCode.CLOSED, "Closed"),
+    ]
 
     claim_form = ClaimForm(initial={
         'claim_no': generate_claim_no_for_user(request.user),
@@ -165,6 +176,15 @@ def claim_page(request):
     }, user=request.user)
 
     vehicle_form = VehicleForm()
+    logged_emp = Employee.objects.filter(user=request.user).first()
+    can_filter_scope = bool(request.user.is_superuser or request.user.is_staff or (logged_emp and str(logged_emp.employee_type).upper() in {"ADMIN", "MANAGER", "ADMINISTRATOR"}))
+    user_branch = branch_for_user(request.user)
+    advisor_queryset = Employee.objects.filter(
+        employee_type__iexact="Advisor",
+        is_active=True,
+    ).order_by("name")
+    if user_branch:
+        advisor_queryset = advisor_queryset.filter(branch=user_branch)
 
     # =====================================
     # CONTEXT
@@ -173,10 +193,34 @@ def claim_page(request):
     context = {
         "form": claim_form,
         "vehicle_form": vehicle_form,
+        "claim_list_scope_filters": can_filter_scope,
+        "claim_list_branches": list(Branch.objects.filter(is_active=True).values("id", "name").order_by("name")) if can_filter_scope else [],
+        "claim_list_advisors": list(Employee.objects.filter(employee_type__iexact="Advisor", is_active=True).values("id", "name").order_by("name")) if can_filter_scope else [],
+        "claim_list_branches_json": json.dumps(list(Branch.objects.filter(is_active=True).values("id", "name").order_by("name"))) if can_filter_scope else "[]",
+        "claim_list_advisors_json": json.dumps(list(Employee.objects.filter(employee_type__iexact="Advisor", is_active=True).values("id", "name").order_by("name"))) if can_filter_scope else "[]",
+        "claim_list_current_advisor_json": json.dumps({"id": logged_emp.id, "name": logged_emp.name}) if logged_emp and str(logged_emp.employee_type).lower() == "advisor" else "null",
         "logged_emp": logged_emp,
         "can_change_advisor": can_change_advisor,
         "current_stage": current_stage,
         "pending_days": pending_days,
+        "react_claim_entry": {
+            "pendingDays": pending_days,
+            "currentStage": current_stage,
+            "canChangeAdvisor": can_change_advisor,
+            "submitUrl": "/claim/save/",
+            "values": {
+                "claim_no": claim_form["claim_no"].value() or "",
+                "claim_type": "",
+                "status": "Open",
+                "claim_created_date": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
+            },
+            "stages": [{"number": int(no), "label": label} for no, label in stage_steps],
+            "options": {
+                "claimTypes": [{"id": value, "name": label} for value, label in Claim.CLAIM_TYPE_CHOICES],
+                "vehicles": [{"id": vehicle.id, "name": f"{vehicle.registration_no} - {vehicle.model.name if vehicle.model_id else ''}", "model": vehicle.model.name if vehicle.model_id else "", "customer": vehicle.customer.name if vehicle.customer_id else "", "image": vehicle.vehicle_image.url if vehicle.vehicle_image else ""} for vehicle in Vehicle.objects.select_related("model", "customer").order_by("registration_no")[:500]],
+                "employees": [{"id": employee.id, "name": employee.name} for employee in advisor_queryset],
+            },
+        },
         "claim_document_slots": get_claim_document_slots(None),
         "claims": claims,
         "prefill_registration_no": (request.GET.get("registration_no") or "").strip().upper(),
@@ -203,7 +247,7 @@ def claim_page(request):
 
     return render(
         request,
-        "claim/claimEntry.html",
+        "claim/claimEntry_react.html",
         context
     )
 
@@ -218,10 +262,21 @@ def claimList_page(request):
     }, user=request.user)
 
     vehicle_form = VehicleForm()
+    logged_emp = Employee.objects.filter(user=request.user).first()
+    can_filter_scope = bool(request.user.is_superuser or request.user.is_staff or (logged_emp and str(logged_emp.employee_type).upper() in {"ADMIN", "MANAGER", "ADMINISTRATOR"}))
+    logged_emp = Employee.objects.filter(user=request.user).first()
+    can_filter_scope = bool(request.user.is_superuser or request.user.is_staff or (logged_emp and str(logged_emp.employee_type).upper() in {"ADMIN", "MANAGER", "ADMINISTRATOR"}))
 
     context = {
         "form": claim_form,
         "vehicle_form": vehicle_form,
+        "claim_list_scope_filters": can_filter_scope,
+        "claim_list_branches_json": json.dumps(list(Branch.objects.filter(is_active=True).values("id", "name").order_by("name"))) if can_filter_scope else "[]",
+        "claim_list_advisors_json": json.dumps(list(Employee.objects.filter(employee_type__iexact="Advisor", is_active=True).values("id", "name").order_by("name"))) if can_filter_scope else "[]",
+        "claim_list_current_advisor_json": json.dumps({"id": logged_emp.id, "name": logged_emp.name}) if logged_emp and str(logged_emp.employee_type).lower() == "advisor" else "null",
+        "claim_list_scope_filters": can_filter_scope,
+        "claim_list_branches_json": json.dumps(list(Branch.objects.filter(is_active=True).values("id", "name").order_by("name"))) if can_filter_scope else "[]",
+        "claim_list_advisors_json": json.dumps(list(Employee.objects.filter(employee_type__iexact="Advisor", is_active=True).values("id", "name").order_by("name"))) if can_filter_scope else "[]",
 
         "breadcrumbs": [
             {
@@ -364,10 +419,12 @@ def claim_list_api(request):
         advisor_blank=request.GET.get("advisor_blank") == "1",
         advisor_assigned=request.GET.get("advisor_assigned") == "1",
     )
-    return JsonResponse(
-        [desktop_claim_list_payload(claim) for claim in claims],
-        safe=False,
-    )
+    if request.GET.get("advisor"):
+        claims = claims.filter(employee_id=request.GET.get("advisor"))
+    data = [desktop_claim_list_payload(claim) for claim in claims]
+    if request.GET.get("format") == "react":
+        return JsonResponse({"data": data, "summary": {"total": len(data), "in_progress": sum(1 for item in data if item.get("status") != "Closed"), "pending": sum(1 for item in data if not item.get("employee__name")), "overdue": sum(1 for item in data if int(item.get("claim_stage") or 0) < 4)}})
+    return JsonResponse(data, safe=False)
 
 
 
@@ -564,6 +621,23 @@ def claim_edit(request, pk=None):
             )
 
             obj.save()
+
+            last_stage_history = (
+                ClaimStageHistory.objects
+                .filter(claim=obj)
+                .order_by("-changed_at", "-id")
+                .first()
+            )
+
+            if (
+                last_stage_history is None
+                or int(last_stage_history.stage) != int(obj.claim_stage)
+            ):
+                ClaimStageHistory.objects.create(
+                    claim=obj,
+                    stage=obj.claim_stage,
+                    changed_by=logged_emp,
+                )
             jobcard = JobCard.objects.filter(claim=obj).first()
             save_claim_documents(request, obj)
             if jobcard and obj.self_survey:
@@ -673,11 +747,11 @@ def claim_edit(request, pk=None):
                 notify_title = "New Claim Assigned"
                 notify_message = f"Claim {obj.claim_no} assigned to you"
                 whatsapp_result = send_advisor_assigned_whatsapp(obj)
-                if not get("success"):
+                if not (whatsapp_result or {}).get("success"):
                     messages.warning(
                         request,
                         "Claim saved, but WhatsApp advisor message was not sent: "
-                        + str(get("response", ""))[:180]
+                        + str((whatsapp_result or {}).get("response", ""))[:180]
                     )
                 else:
                     messages.success(request, "WhatsApp advisor message sent to customer.")
@@ -748,6 +822,18 @@ def claim_edit(request, pk=None):
     # =====================================
     # GET
     # =====================================
+    is_admin_user = (
+        request.user.is_superuser
+        or request.user.is_staff
+        or request.user.groups.filter(name__iexact="Admin").exists()
+        or (
+            logged_emp
+            and str(logged_emp.employee_type).upper() in {
+                "ADMIN",
+                "ADMINISTRATOR",
+            }
+        )
+        )
     start_intimation = request.GET.get("start_intimation")
     if claim and start_intimation == "1" and int(claim.claim_stage or 0) == ClaimStageCode.ADVISOR_ASSIGNED:
         jobcard = JobCard.objects.filter(claim=claim).first()
@@ -774,9 +860,9 @@ def claim_edit(request, pk=None):
             if current == ClaimStageCode.ADVISOR_ASSIGNED:
                 messages.error(
                     request,
-                    "Use Send to Claim Intimation from the Job Card before moving to the next claim stage."
+                    "Use Send to Claiclaim_editm Intimation from the Job Card before moving to the next claim stage."
                 )
-                return redirect("claim_edit", pk=claim.id)
+                return redirect("", pk=claim.id)
 
             is_valid, missing = validate_claim_stage_before_next(claim)
 
@@ -809,7 +895,7 @@ def claim_edit(request, pk=None):
         elif move_stage == "back":
             if (
                 current >= ClaimStageCode.REPAIR_IN_PROGRESS
-                and claim_has_repair_progress_data(claim)
+                and claim_has_repair_progress_data(claim) and not is_admin_user
             ):
                 messages.error(
                     request,
@@ -927,12 +1013,163 @@ def claim_edit(request, pk=None):
     is_manager = request.user.groups.filter(
         name__iexact="Manager"
     ).exists()
+    edit_vehicle_options = []
+    for vehicle in Vehicle.objects.select_related("model", "customer").order_by("registration_no")[:500]:
+        edit_vehicle_options.append({
+            "id": vehicle.id,
+            "name": f"{vehicle.registration_no} - {vehicle.model.name if vehicle.model_id else ''}",
+            "model": vehicle.model.name if vehicle.model_id else "",
+            "customer": vehicle.customer.name if vehicle.customer_id else "",
+            "image": vehicle.vehicle_image.url if vehicle.vehicle_image else "",
+        })
+    # React Phase 5: expose the linked Job Card and final claim workflow state.
+    
+    react_jobcard_workflow = {
+        "exists": bool(jobcard),
+        "id": jobcard.id if jobcard else None,
+        "jobNo": jobcard.job_no if jobcard else "",
+        "repairStatus": jobcard.repair_status if jobcard else "",
+        "partsTotal": float(jobcard.parts_total or 0) if jobcard else 0,
+        "labourTotal": float(jobcard.labour_total or 0) if jobcard else 0,
+        "grandTotal": float(jobcard.grand_total or 0) if jobcard else 0,
+        "qcDone": bool(jobcard.qc_done) if jobcard else False,
+        "reinspectionDone": bool(jobcard.reinspection_done) if jobcard else False,
+        "roadTestDone": bool(jobcard.road_test_done) if jobcard else False,
+        "washingDone": bool(jobcard.washing_done) if jobcard else False,
+        "readyForDelivery": bool(jobcard.ready_for_delivery) if jobcard else False,
+        "hasRepairProgressStarted": bool(has_repair_progress_started),
+        "repairCompleted": bool(jobcard and jobcard.repair_status in {"Completed", "Closed"}),
+        "expectedDelivery": datetime_local_value(jobcard.expected_delivery_datetime) if jobcard and jobcard.expected_delivery_datetime else "",
+        "actualDelivery": datetime_local_value(jobcard.actual_delivery) if jobcard and jobcard.actual_delivery else "",
+    }
+    react_jobcard_workflow["reinspectionPhotoCount"] = jobcard.reinspection_photos.count() if jobcard else 0
+    react_claim_workflow = {
+        "claimNo": claim.claim_no or "",
+        "approvedAmount": float(claim.approved_amount or 0),
+        "estimatedAmount": float(claim.estimated_amount or 0),
+        "deductible": float(getattr(claim, "deductible", 0) or 0),
+        "liabilityDocumentUrl": claim.liability_document.url if claim.liability_document else "",
+        "status": claim.status or "Open",
+    }
+    stage_history_rows = []
+
+    for item in (
+        ClaimStageHistory.objects
+        .filter(claim=claim)
+        .select_related("changed_by")
+        .order_by("changed_at", "id")
+    ):
+        stage_number = int(item.stage)
+
+        # Ignore consecutive duplicate stage records.
+        if stage_history_rows and stage_history_rows[-1]["stage"] == stage_number:
+            continue
+
+        stage_history_rows.append({
+            "stage": stage_number,
+            "label": item.get_stage_display(),
+            "changedAt": item.changed_at.strftime("%d-%m-%Y %I:%M %p"),
+            "changedBy": item.changed_by.name if item.changed_by else "System",
+        })
+    react_claim_edit = {
+        "isAdminUser": is_admin_user,
+        "isEdit": True,
+        "claimId": claim.id,
+        "jobcardId": jobcard.id if jobcard else None,
+        "hasRepairProgressData": has_repair_progress_data,
+        "hasRepairProgressStarted": has_repair_progress_started,
+        "pendingDays": pending_days,
+        "currentStage": current_stage,
+        "canChangeAdvisor": can_change_advisor,
+        "isLocked": is_claim_locked,
+        "jobcardWorkflow": react_jobcard_workflow,
+        "claimWorkflow": react_claim_workflow,
+        "paymentModes": [{"value": value, "label": label} for value, label in Claim.PAYMENT_MODE_CHOICES],
+        "submitUrl": f"/claim/{claim.id}/edit/",
+        "stageUrls": {"next": f"/claim/{claim.id}/edit/?move_stage=next", "back": f"/claim/{claim.id}/edit/?move_stage=back"},
+        "nextStageLabel": next_stage_label,
+        "stageHistory": stage_history_rows,
+        "assessment": {
+            "labours": [{"id": item.id, "name": item.labour.description, "code": item.labour.job_code, "decision": item.decision, "amount": str(item.revised_amount or item.labour.amount)} for item in (jobcard.assessment_labours.select_related("labour") if jobcard else [])],
+            "parts": [{"id": item.id, "name": item.part.description, "partNo": item.part.part_no, "decision": item.decision, "amount": str(item.revised_amount or item.part.amount)} for item in (jobcard.assessment_parts.select_related("part") if jobcard else [])],
+        },
+        "values": {
+            "claim_no": claim.claim_no or "",
+            "claim_type": claim.claim_type or "",
+            "status": claim.status or "Open",
+            "claim_created_date": claim_created_date_value,
+            "accident_date": claim.accident_date.strftime("%Y-%m-%d") if claim.accident_date else "",
+            "vehicle": claim.vehicle_id or "",
+            "employee": claim.employee_id or "",
+            "survey_date": datetime_local_value(claim.survey_date) if claim.survey_date else "",
+            "surveyor": claim.surveyor_id or "",
+            "survey_status": claim.survey_status or "",
+            "survey_agency": claim.survey_agency or "",
+            "survey_reference_no": claim.survey_reference_no or "",
+            "survey_type": claim.survey_type or "Physical Survey",
+            "damage_type": claim.damage_type or "",
+            "salvage_applicable": claim.salvage_applicable or "No",
+            "recommended_action": claim.recommended_action or "Approve Repair",
+            "survey_remarks": claim.survey_remarks or "",
+            "survey_notes": claim.survey_notes or "",
+            "intimation_date": datetime_local_value(claim.intimation_date) if claim.intimation_date else "",
+            "insurance_company": claim.insurance_company_id or "",
+            "policy_no": claim.policy_no or "",
+            "ic_claim_no": claim.ic_claim_no or "",
+            "insurance_approval_date": datetime_local_value(claim.insurance_approval_date) if claim.insurance_approval_date else "",
+            "insurance_note": claim.insurance_note or "",
+            "assessment_file": claim.assessment_file.url if claim.assessment_file else "",
+            "liability_received_at": datetime_local_value(claim.liability_received_at) if claim.liability_received_at else "",
+            "liability_do_amount": claim.liability_do_amount or "",
+           "deductible": getattr(claim, "deductible", 0) or 0,
+            "invoice_datetime": datetime_local_value(claim.invoice_datetime) if claim.invoice_datetime else "",
+            "invoice_amount": claim.invoice_amount or "",
+            "invoice_parts_amount": claim.invoice_parts_amount or "",
+            "invoice_labour_amount": claim.invoice_labour_amount or "",
+            "customer_difference_amount": claim.customer_difference_amount or "",
+            "payment_mode": claim.payment_mode or "",
+            "payment_details": claim.payment_details or "",
+            "delivery_datetime": datetime_local_value(claim.delivery_datetime) if claim.delivery_datetime else "",
+            "delivered_by": claim.delivered_by_id or "",
+            "delivered_to": claim.delivered_to or "",
+            "delivery_driver_name": claim.delivery_driver_name or "",
+            "delivery_remarks": claim.delivery_remarks or "",
+            "reinspection_done": bool(jobcard.reinspection_done) if jobcard else False,
+            "reinspection_date": datetime_local_value(jobcard.reinspection_date) if jobcard and jobcard.reinspection_date else "",
+            "reinspection_done_by": jobcard.reinspection_done_by if jobcard else "",
+        },
+        "stages": [{"number": int(no), "label": label} for no, label in [
+            (ClaimStageCode.CLAIM_CREATED, "Claim Created"),
+            (ClaimStageCode.ADVISOR_ASSIGNED, "Advisor Assigned"),
+            (ClaimStageCode.ESTIMATE_CREATED, "Job Estimation"),
+            (ClaimStageCode.INTIMATION, "Claim Intimation"),
+            (ClaimStageCode.SURVEY, "Survey"),
+            (ClaimStageCode.INSURANCE_APPROVAL, "Approval"),
+            (ClaimStageCode.WORK_ALLOCATION, "Work Allocation"),
+            (ClaimStageCode.REPAIR_IN_PROGRESS, "Repair Work"),
+            (ClaimStageCode.WORK_COMPLETED, "Work Completed"),
+            (ClaimStageCode.RE_INSPECTION, "Re Inspection"),
+            (ClaimStageCode.LIABILITY, "Liability"),
+            (ClaimStageCode.INVOICED, "Invoiced"),
+            (ClaimStageCode.DELIVERY, "Delivery"),
+            (ClaimStageCode.CLOSED, "Closed"),
+        ]],
+        "options": {
+            "claimTypes": [{"id": value, "name": label} for value, label in Claim.CLAIM_TYPE_CHOICES],
+            "vehicles": edit_vehicle_options,
+            "employees": [{"id": employee.id, "name": employee.name} for employee in form.fields["employee"].queryset],
+            "surveyors": [{"id": employee.id, "name": employee.name} for employee in form.fields["surveyor"].queryset],
+            "insuranceCompanies": [{"id": company.id, "name": company.ins_co_name} for company in form.fields["insurance_company"].queryset],
+            "documentSlots": [{"documentType": slot["document_type"], "inputName": slot["input_name"], "documents": [{"url": document.file.url} for document in slot["documents"] if document.file]} for slot in get_claim_document_slots(claim)],
+        },
+    }
     return render(
         request,
-        "claim/claimEntry.html",
+        "claim/claimEntry_react.html",
         {
             "form": form,
             "claim": claim,
+            "react_claim_entry": react_claim_edit,
             "logged_emp": logged_emp,
             "can_change_advisor": can_change_advisor,
             "current_stage": current_stage,
@@ -1080,5 +1317,39 @@ def check_open_claim(request):
     return JsonResponse({
         "exists": False
     })
+
+
+@login_required
+@require_POST
+def delete_claim_assessment_file(request, pk):
+    claim = get_object_or_404(Claim, pk=pk)
+    if claim.assessment_file:
+        claim.assessment_file.delete(save=False)
+        claim.assessment_file = None
+        claim.save(update_fields=["assessment_file"])
+    return JsonResponse({"status": "success"})
+
+
+
+
+@login_required
+@require_POST
+def delete_claim_approval_document(request, pk):
+    claim = get_object_or_404(Claim, pk=pk)
+    field_name = request.POST.get("field")
+    allowed_fields = {
+        "approval_letter",
+        "repair_authorization",
+        "approved_estimate",
+        "additional_approval_document",
+    }
+    if field_name not in allowed_fields:
+        return JsonResponse({"status": "error", "message": "Invalid approval document."}, status=400)
+    document = getattr(claim, field_name)
+    if document:
+        document.delete(save=False)
+        setattr(claim, field_name, None)
+        claim.save(update_fields=[field_name])
+    return JsonResponse({"status": "success"})
 
 

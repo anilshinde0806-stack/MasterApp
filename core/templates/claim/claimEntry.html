@@ -1,8 +1,17 @@
 {% extends "registration/auth_base.html" %}
+{% load static %}
 
 {% block title %}Claim Entry{% endblock %}
 
 {% block content %}
+{% if react_claim_entry %}
+<div id="claim-react-root"></div>
+<form id="claim-csrf-form" style="display:none">{% csrf_token %}</form>
+{{ react_claim_entry|json_script:"claim-entry-data" }}
+<script>window.__CLAIM_ENTRY__ = JSON.parse(document.getElementById("claim-entry-data").textContent);</script>
+<link rel="stylesheet" href="{% static 'assets/claim.css' %}">
+<script type="module" src="{% static 'assets/claim.js' %}"></script>
+{% else %}
 
 <div class="container-fluid py-3">
 
@@ -1947,6 +1956,38 @@ body{
 </style>
 
 <script>
+    function getCookie(name) {
+
+    let cookieValue = null;
+
+    if (document.cookie && document.cookie !== "") {
+
+        const cookies = document.cookie.split(";");
+
+        for (let i = 0; i < cookies.length; i++) {
+
+            const cookie = cookies[i].trim();
+
+            if (
+                cookie.substring(
+                    0,
+                    name.length + 1
+                ) === (name + "=")
+            ) {
+
+                cookieValue = decodeURIComponent(
+                    cookie.substring(
+                        name.length + 1
+                    )
+                );
+
+                break;
+            }
+        }
+    }
+
+    return cookieValue;
+}
 function scrollCurrentStageIntoView() {
     const currentStage = document.querySelector(".step-bar .current-stage");
 
@@ -2577,7 +2618,84 @@ function saveAssessment() {
 
     submitAssessmentPayload(payload);
 }
+function printAssessmentReport(
+    printWindow,
+    payload
+) {
 
+    if (!printWindow) {
+
+        console.error("Print window not available");
+
+        return;
+
+    }
+
+
+    printWindow.document.open();
+
+
+    printWindow.document.write(`
+
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+
+            <title>Assessment Report</title>
+
+            <style>
+
+                body {
+                    font-family: Arial, sans-serif;
+                    padding: 30px;
+                }
+
+                h1 {
+                    text-align: center;
+                }
+
+            </style>
+
+        </head>
+
+
+        <body>
+
+            <h1>Assessment Report</h1>
+
+            <hr>
+
+            <p>
+                <strong>Job Number:</strong>
+                ${payload.job_no || "-"}
+            </p>
+
+            <p>
+                Assessment saved successfully.
+            </p>
+
+        </body>
+
+        </html>
+
+    `);
+
+
+    printWindow.document.close();
+
+
+    printWindow.focus();
+
+
+    setTimeout(() => {
+
+        printWindow.print();
+
+    }, 500);
+
+}
 function confirmDmsJobNoAndSaveAssessment() {
     const input = document.getElementById("dmsJobNoInput");
     const error = document.getElementById("dmsJobNoError");
@@ -2600,59 +2718,96 @@ function confirmDmsJobNoAndSaveAssessment() {
 }
 
 function submitAssessmentPayload(payload) {
+
     const assessmentPrintWindow = window.open("", "_blank");
 
-    if (assessmentPrintWindow) {
-        assessmentPrintWindow.document.write(
-            "<!doctype html><title>Assessment Report</title><p>Saving assessment...</p>"
+    if (!assessmentPrintWindow) {
+
+        showToast(
+            "Please allow popups to print the assessment",
+            "danger"
         );
+
+        return;
     }
 
+    assessmentPrintWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Assessment Report</title>
+            </head>
+            <body>
+                <p>Saving assessment...</p>
+            </body>
+        </html>
+    `);
+
+    assessmentPrintWindow.document.close();
+
+
     fetch(`/api/jobcard/${currentJobId}/assessment/save/`, {
+
         method: "POST",
+
         headers: {
             "Content-Type": "application/json",
             "X-CSRFToken": getCookie("csrftoken")
         },
+
         body: JSON.stringify(payload)
+
     })
+
     .then(res => res.json())
+
     .then(data => {
+
+        console.log("SAVE RESPONSE:", data);
+
         if (data.status === "success") {
-            if (payload.job_no) {
-                currentJobNo = payload.job_no;
-            }
+
             showToast("Assessment saved successfully");
-            printAssessmentReport(assessmentPrintWindow);
-            setTimeout(function () {
-                location.reload();
-            }, 500);
+
+            // PASS the window here
+            printAssessmentReport(
+                assessmentPrintWindow,
+                payload
+            );
+
         } else {
-            if (assessmentPrintWindow) assessmentPrintWindow.close();
-            showToast(data.message || "Assessment save failed", "danger");
+
+            assessmentPrintWindow.close();
+
+            showToast(
+                data.message || "Assessment save failed",
+                "danger"
+            );
+
         }
+
     })
-    .catch(() => {
-        if (assessmentPrintWindow) assessmentPrintWindow.close();
-        showToast("Assessment save failed", "danger");
+
+    .catch(error => {
+
+        console.error(error);
+
+        assessmentPrintWindow.close();
+
+        showToast(
+            "Assessment save failed",
+            "danger"
+        );
+
     });
+
 }
+console.log("Calling printAssessmentReport...");
 
-function printAssessmentReport(targetWindow) {
-    if (!currentJobId) {
-        showToast("Please open assessment first", "warning");
-        return;
-    }
+printAssessmentReport(assessmentPrintWindow);
 
-    const reportUrl = `/jobCard/${currentJobId}/assessment-print/`;
-
-    if (targetWindow) {
-        targetWindow.location.href = reportUrl;
-        return;
-    }
-
-    window.open(reportUrl, "_blank");
-}
+// TEMPORARILY REMOVE RELOAD
+// location.reload();
 
 
 
@@ -3857,4 +4012,5 @@ if (new URLSearchParams(window.location.search).get("open_assessment") === "1") 
 }
 </script>
 
+{% endif %}
 {% endblock %}

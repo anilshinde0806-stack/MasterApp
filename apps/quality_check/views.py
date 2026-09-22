@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -388,6 +388,84 @@ def _desktop_qc_action(request, quality_check):
 
 
 @login_required
+def _quality_check_json(request, quality_check):
+    jobcard = quality_check.jobcard
+    vehicle = getattr(jobcard, "vehicle", None)
+    customer = getattr(vehicle, "customer", None) if vehicle else None
+
+    def user_name(user):
+        if not user:
+            return ""
+        return user.get_full_name() or getattr(user, "username", "")
+
+    def image_url(field):
+        try:
+            return request.build_absolute_uri(field.url) if field else ""
+        except (ValueError, AttributeError):
+            return ""
+
+    items = []
+    for item in quality_check.items.select_related("checked_by").all():
+        items.append({
+            "id": item.id,
+            "item_key": item.item_key,
+            "item_name": item.item_name,
+            "category": item.category,
+            "status": item.status,
+            "status_display": item.get_status_display(),
+            "remarks": item.remarks or "",
+            "checked_by": user_name(item.checked_by),
+            "checked_at": item.checked_at.isoformat() if item.checked_at else None,
+        })
+
+    evidence_photos = []
+    for photo in quality_check.evidence_photos.all():
+        evidence_photos.append({
+            "id": photo.id,
+            "image_url": image_url(photo.image),
+            "caption": photo.caption or "",
+            "uploaded_by": user_name(photo.uploaded_by),
+            "created_at": photo.created_at.isoformat() if photo.created_at else None,
+        })
+
+    signatures = []
+    for signature in quality_check.inspector_signatures.select_related("inspector").all():
+        signatures.append({
+            "id": signature.id,
+            "image_url": image_url(signature.image),
+            "inspector": user_name(signature.inspector),
+            "signed_at": signature.signed_at.isoformat() if signature.signed_at else None,
+        })
+
+    return {
+        "quality_check": {
+            "id": quality_check.id,
+            "jobcard_id": jobcard.id,
+            "result": quality_check.result,
+            "completion_percentage": quality_check.completion_percentage,
+            "checked_items": quality_check.checked_items,
+            "total_items": quality_check.total_items,
+            "ok_items": quality_check.ok_items,
+            "not_ok_items": quality_check.not_ok_items,
+            "pending_items": quality_check.pending_items,
+            "completed": quality_check.completed,
+            "completed_at": quality_check.completed_at.isoformat() if quality_check.completed_at else None,
+            "remarks": quality_check.remarks or "",
+            "inspector": user_name(quality_check.inspector),
+            "jobcard": {
+                "id": jobcard.id,
+                "job_no": getattr(jobcard, "job_no", ""),
+                "vehicle": str(vehicle) if vehicle else "",
+                "registration_no": getattr(vehicle, "registration_no", "") if vehicle else "",
+                "customer": getattr(customer, "name", "") if customer else "",
+            },
+            "items": items,
+            "evidence_photos": evidence_photos,
+            "inspector_signatures": signatures,
+        }
+    }
+
+
 def quality_check_detail(request, jobcard_id):
     employee = Employee.objects.filter(user=request.user).first()
     if (
@@ -407,9 +485,24 @@ def quality_check_detail(request, jobcard_id):
         return redirect("quality_inspector_dashboard")
 
     quality_check = get_quality_check(jobcard_id)
+
+    wants_json = (
+        request.GET.get("format") == "json"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
     if request.method == "POST":
         _desktop_qc_action(request, quality_check)
+        if wants_json:
+            # Re-fetch so the React client receives the latest checklist,
+            # completion state, evidence and signatures after every action.
+            quality_check = get_quality_check(jobcard_id)
+            return JsonResponse(_quality_check_json(request, quality_check))
         return redirect("quality_check_detail", jobcard_id=jobcard_id)
+
+    if wants_json:
+        return JsonResponse(_quality_check_json(request, quality_check))
+
     return render(
         request,
         "quality_check/detail.html",

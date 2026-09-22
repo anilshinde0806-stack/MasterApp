@@ -1,0 +1,11 @@
+{% extends "registration/auth_base.html" %}
+{% load static %}
+{% block title %}Claim Entry{% endblock %}
+{% block content %}
+<div id="claim-react-root"></div>
+<form id="claim-csrf-form" style="display:none">{% csrf_token %}</form>
+{{ react_claim_entry|json_script:"claim-entry-data" }}
+<script>window.__CLAIM_ENTRY__ = JSON.parse(document.getElementById("claim-entry-data").textContent);</script>
+<link rel="stylesheet" href="{% static 'assets/claim.css' %}">
+<script type="module" src="{% static 'assets/claim.js' %}"></script>
+{% endblock %}

@@ -46,4 +46,18 @@ class NewMobileDashboardView(APIView):
             end_date= end_date,
         ).get_dashboard()
         serializer = DashboardSerializer(instance=data)
+        print("\n========== API VIEW DEBUG ==========")
+
+        print("API KEYS:")
+        print(data.keys())
+
+        print(
+            "\nHAS WORKSHOP:",
+            "workshop_dashboard" in data
+        )
+
+        print("\nWORKSHOP DATA:")
+        print(data.get("workshop_dashboard"))
+
+        print("====================================\n")
         return Response(serializer.data)

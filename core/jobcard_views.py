@@ -8,7 +8,7 @@ until the next cleanup pass.
 import json
 
 from .views import *  # noqa: F401,F403
-from .models import JobCardQualityCheck, CustomerApprovalAttachment, CustomerApprovalPhotoAnnotation, JobCardDamageAISuggestion, JobCardVehicleConditionPhoto
+from .models import JobCardQualityCheck, CustomerApprovalAttachment, CustomerApprovalPhotoAnnotation, JobCardDamageAISuggestion, JobCardVehicleConditionPhoto, JobCardType
 from django.utils import timezone
 from django.urls import reverse
 # core/views.py
@@ -89,7 +89,16 @@ def jobcard_create(request, claim_id=None):
     gate_entry = latest_pending_gate_entry_for_claim(claim)
     job_branch = branch_for_claim(claim) if claim else branch_for_user(request.user)
     job_no = generate_job_no_for_claim(claim) if claim else generate_job_no_for_user(request.user)
-    initial_jobcard_type = claim.claim_type if claim and claim.claim_type in dict(JobCard.JOBCARD_TYPE_CHOICES) else "Paid"
+    requested_jobcard_type = claim.claim_type if claim else "Paid"
+    initial_jobcard_type = JobCardType.objects.filter(
+        name__iexact=requested_jobcard_type,
+        is_active=True,
+    ).values_list("id", flat=True).first()
+    if initial_jobcard_type is None:
+        initial_jobcard_type = JobCardType.objects.filter(
+            name__iexact="Paid",
+            is_active=True,
+        ).values_list("id", flat=True).first()
 
     form = JobCardForm(initial={
         "job_no": job_no,
@@ -365,10 +374,16 @@ def jobcard_create(request, claim_id=None):
             "errors": form.errors
         })
 
+    empty_job = JobCard(
+        grand_total=0,
+        parts_total=0,
+        labour_total=0,
+    )
     return render(request, "jobcard/jobcardEntry.html", {
         "form": form,
         "claim": claim,
-        "job": None,
+        "job": empty_job,
+        "is_job_edit": False,
         "gate_entry": gate_entry,
         "job_created_date_value": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
         **get_inventory_context(None),
@@ -428,6 +443,13 @@ def jobcard_edit(request, pk):
     from django.utils.dateparse import parse_date
 
     job = get_object_or_404(JobCard, pk=pk)
+    react_latest_approval = {}
+    react_approval_history = {}
+    react_approval_parts = []
+    react_approval_labours = []
+    react_approval_editor_photos = []
+    react_approval_attachments = []
+    react_phase3_urls = []
     claim = job.claim
     job_branch = branch_for_claim(claim) if claim else (job.branch or branch_for_user(request.user))
     insurance_companies = InsuranceCompany.objects.all()
@@ -522,6 +544,8 @@ def jobcard_edit(request, pk):
         part_line.assessment_by_value = getattr(assessment, "assessment_by", None) if assessment else None
         part_line.updated_by_value = getattr(assessment, "updated_by", None) if assessment else None
         part_line.updated_date_time_value = getattr(assessment, "updated_date_time", None) if assessment else None
+        part_line.is_additional = (getattr(assessment, "is_additional", False) if assessment else False)
+
     assessment_labour_by_id = {item.labour_id: item for item in assessment_labours}
     approval_labours = list(job.labours.all())
     for labour_line in approval_labours:
@@ -859,7 +883,7 @@ def jobcard_edit(request, pk):
             )
 
     else:
-        form = JobCardForm(instance=job, user=request.user)
+            form = JobCardForm(instance=job, user=request.user)
 
     if is_jobcard_locked:
         for field in form.fields.values():
@@ -894,7 +918,14 @@ def jobcard_edit(request, pk):
             ),
             "employee": progress.employee.name if progress and progress.employee else "",
             "remarks": progress.remarks if progress else "",
-            "photos": list(progress.photos.all()) if progress else [],
+            "photos": [
+    {
+        "id": photo.id,
+        "url": photo.image.url if photo.image else "",
+        "name": photo.image.name if photo.image else "",
+    }
+    for photo in progress.photos.all()
+   ] if progress else [],
             "status": (
                 "Completed" if progress and progress.finish_time
                 else "In Progress" if progress and progress.start_time
@@ -1018,10 +1049,571 @@ def jobcard_edit(request, pk):
             "remarks": event.remarks if event else "",
         })
     photo_data = get_vehicle_condition_photo_slots(job)
+    # React Job Card data source
+    vehicle = claim.vehicle if claim and claim.vehicle_id else job.vehicle
+
+    customer = None
+    if vehicle and getattr(vehicle, "customer_id", None):
+       customer = vehicle.customer
+        # ==========================================================
+    # REACT JOB CARD ENTRY PAYLOAD
+    # ==========================================================
+    
+  # JOB CARD REACT — INSPECTION PAYLOAD PATCH
+    # Add this immediately before your `react_jobcard_entry = { ... }` dictionary.
+    # `photo_data = get_vehicle_condition_photo_slots(job)` already exists in jobcard_edit().
+
+    inventory_context = get_inventory_context(job)
+
+    react_rotation_photos = []
+    for item in photo_data.get("rotation_photos", []):
+        photo = item.get("photo") if isinstance(item, dict) else None
+        if photo and photo.image:
+            react_rotation_photos.append({
+                "id": photo.id,
+                "url": photo.image.url,
+                "caption": photo.caption or "",
+            })
+
+    react_vehicle_photo_slots = []
+    for slot in photo_data.get("slots", []):
+        photo = slot.get("photo")
+        react_vehicle_photo_slots.append({
+            "index": slot.get("index"),
+            "caption": slot.get("caption", ""),
+            "inputName": slot.get("input_name", ""),
+            "photoId": photo.id if photo else None,
+            "url": photo.image.url if photo and photo.image else "",
+        })
+
+    # Then add these keys INSIDE the existing `react_jobcard_entry` dictionary:
+
+    # IMPORTANT:
+    # Keep your existing top-level keys too. They are used by the current React component.
+    # If you already have these, do not duplicate them; just make sure their values are populated:
+    #   "fuelPercent"
+    #   "cngPercent"
+    #   "mudFlapCount"
+    #   "floorMatCount"
+    #   "lhMirror", "rhMirror", "centerMirror", "jack", "toolKit"
+    #   "frtWiper", "rrWiper", "accessories"
+    #   "damageMarks"
+    #   "tyres"
+    # AI suggestions used by the Estimate Builder.
+    react_damage_ai_suggestions = [
+        {
+            "id": item.id,
+            "photo_id": item.photo_id,
+            "photo_caption": item.photo.caption if item.photo_id else "",
+            "category": item.get_category_display(),
+            "confidence": float(item.confidence),
+            "x": float(item.x),
+            "y": float(item.y),
+            "width": float(item.width),
+            "height": float(item.height),
+            "note": item.note or "Potential damage detected",
+            "status": item.status,
+        }
+        for item in damage_ai_suggestions
+    ]
+        # Delivery / closure state used by React.
+    react_close_ready_status = {
+    "work_completed": bool(close_ready_status.get("work_completed")),
+    "qc_done": bool(close_ready_status.get("qc_done")),
+    "ri_done": bool(close_ready_status.get("ri_done")),
+    "part_entry_complete": bool(close_ready_status.get("part_entry_complete")),
+    "labour_entry_complete": bool(close_ready_status.get("labour_entry_complete")),
+    "road_test_done": bool(close_ready_status.get("road_test_done")),   }
+
+    # Existing part requisitions -> JSON-safe React rows.
+    react_part_requisitions = []
+    for requisition in job.part_requisitions.all().order_by("-requested_at", "-id"):
+        react_part_requisitions.append({
+            "id": requisition.id,
+            "requisition_no": requisition.requisition_no or "",
+            "requested_at": requisition.requested_at.isoformat() if requisition.requested_at else "",
+            "requested_at_display": requisition.requested_at.strftime("%d-%m-%Y %H:%M") if requisition.requested_at else "",
+            "priority": requisition.priority or "Normal",
+            "status": requisition.status or "Submitted",
+            "line_count": requisition.lines.count(),
+            "detail_url": reverse("part_requisition_detail", args=[requisition.id]),
+            "print_url": reverse("part_requisition_print", args=[requisition.id]),
+        })
+
+    base_total = job.grand_total or 0
+    react_gst_amount = base_total * Decimal("18") / Decimal("100")
+    react_net_total = base_total + react_gst_amount
+    react_approval_history = []
+    for event in approval_history:
+            react_approval_history.append({
+                "id": event.id,
+                "status": event.status or "Pending",
+                "customer_name": event.customer_name or "",
+                "mobile_no": event.mobile_no or "",
+                "communication_type": event.communication_type or "",
+                "message_reference": event.message_reference or "",
+                "approval_date": event.approval_date.isoformat() if event.approval_date else "",
+                "approval_date_display": event.approval_date.strftime("%d-%m-%Y %H:%M") if event.approval_date else "",
+                "created_at": event.created_at.isoformat() if event.created_at else "",
+                "created_at_display": event.created_at.strftime("%d-%m-%Y %H:%M") if event.created_at else "",
+                "remarks": event.remarks or "",
+            })
+
+       
+
+    if latest_approval:
+            react_latest_approval = {
+                "id": latest_approval.id,
+                "status": latest_approval.status or "Pending",
+                "customer_name": latest_approval.customer_name or "",
+                "mobile_no": latest_approval.mobile_no or "",
+                "communication_type": latest_approval.communication_type or "",
+                "message_reference": latest_approval.message_reference or "",
+                "approval_date": (
+                    latest_approval.approval_date.isoformat()
+                    if latest_approval.approval_date
+                    else ""
+                ),
+                "approval_date_display": (
+                    latest_approval.approval_date.strftime("%d-%m-%Y %H:%M")
+                    if latest_approval.approval_date
+                    else ""
+                ),
+                "remarks": latest_approval.remarks or "",
+            }
+
+    react_approval_parts = []
+    for line in approval_parts:
+            react_approval_parts.append({
+                "id": line.id,
+                "part_no": line.part_no or "",
+                "description": line.description or "",
+                "qty": line.qty or 0,
+                "amount": float(line.amount or 0),
+                "approval_decision": getattr(line, "approval_decision", "Pending") or "Pending",
+                "approval_revised_amount": float(getattr(line, "approval_revised_amount", 0) or 0),
+                "approval_remarks": getattr(line, "approval_remarks", "") or "",
+                "approval_date": (
+                    getattr(line, "approval_date_value", None).isoformat()
+                    if getattr(line, "approval_date_value", None) else ""
+                ),
+                "is_additional": getattr(line, "is_additional", False) or False,
+            })
+
+    react_approval_labours = []
+    for line in approval_labours:
+            react_approval_labours.append({
+                "id": line.id,
+                "job_code": line.job_code or "",
+                "description": line.description or "",
+                "labour_hrs": float(line.labour_hrs or 0),
+                "amount": float(line.amount or 0),
+                "approval_decision": getattr(line, "approval_decision", "Pending") or "Pending",
+                "approval_revised_amount": float(getattr(line, "approval_revised_amount", 0) or 0),
+                "approval_remarks": getattr(line, "approval_remarks", "") or "",
+                "approval_date": (
+                    getattr(line, "approval_date_value", None).isoformat()
+                    if getattr(line, "approval_date_value", None) else ""
+                ),
+            })
+
+    react_approval_editor_photos = []
+    for row in approval_editor_photo_rows:
+            react_approval_editor_photos.append({
+                "id": row.get("id"),
+                "url": row.get("url") or "",
+                "caption": row.get("caption") or "",
+                "annotations": row.get("annotations") or [],
+            })
+
+    react_approval_attachments = []
+    for item in approval_attachments:
+            react_approval_attachments.append({
+                "id": item.id,
+                "url": item.file.url if item.file else "",
+                "caption": item.caption or "",
+                "evidence_type": item.evidence_type or "Other",
+                "uploaded_at": item.uploaded_at.isoformat() if item.uploaded_at else "",
+                "uploaded_at_display": item.uploaded_at.strftime("%d-%m-%Y %H:%M") if item.uploaded_at else "",
+            })
+
+    react_phase3_urls = {
+            "sendPaidApprovalUrl": reverse("send_paid_jobcard_approval", args=[job.id]),
+            "customerConsentLineDecisionUrl": reverse("update_customer_consent_line_decision", args=[job.id]),
+            "uploadApprovalEvidenceUrl": reverse("upload_customer_approval_evidence", args=[job.id]),
+            "damageAiAnalyzeUrl": reverse("run_damage_ai_analysis", args=[job.id, 0]),
+            "damageAiReviewUrl": reverse("review_damage_ai_suggestion", args=[job.id, 0]),
+            "manualCustomerApprovalUrl": manual_customer_approval_url or approval_link or "",
+            "approvalLink": approval_link or "",
+            "manualWhatsappPhone": manual_whatsapp_phone or "",
+            "manualCustomerName": manual_customer_name or "",
+            "manualVehicleRegistration": manual_vehicle_registration or "",
+        }
+
+        # Add/merge these keys inside `react_jobcard_entry = {...}`:
+       
+
+    
+    react_jobcard_entry = {
+        "jobId": job.id,
+        "submitUrl": request.path,
+
+        "job": {
+            "id": job.id,
+            "job_no": job.job_no or "",
+            "repair_status": job.repair_status or "",
+            "job_date": (
+                job.job_date.isoformat()
+                if job.job_date else ""
+            ),
+            "job_date_display": (
+                job.job_date.strftime("%d-%m-%Y")
+                if job.job_date else ""
+            ),
+            "gate_in": (
+                job.gate_in_datetime.isoformat()
+                if job.gate_in_datetime else ""
+            ),
+            "vehicle_inward_by": job.vehicle_inward_by or "",
+            "advisor_name": (
+                job.advisor.name
+                if getattr(job, "advisor", None)
+                else ""
+            ),
+            "expected_delivery": (
+                job.expected_delivery_datetime.isoformat()
+                if job.expected_delivery_datetime
+                else ""
+            ),
+            "parts_total": float(job.parts_total or 0),
+            "labour_total": float(job.labour_total or 0),
+            "grand_total": float(job.grand_total or 0),
+           "gst_amount": float(
+                (job.grand_total or 0) * Decimal("18") / Decimal("100")
+            ),
+            "net_total": float(
+                (job.grand_total or 0)
+                + ((job.grand_total or 0) * Decimal("18") / Decimal("100"))
+            ),
+            "repair_instructions": [
+                line
+                for line in (job.repair_instructions or "").splitlines()
+                if line.strip()
+            ],
+        },
+
+        "vehicle": {
+            "id": vehicle.id if vehicle else None,
+            "registration_no": (
+                vehicle.registration_no
+                if vehicle else ""
+            ),
+            "model": (
+                vehicle.model.name
+                if vehicle and getattr(vehicle, "model", None)
+                else ""
+            ),
+            "variant": (
+                vehicle.variant.name
+                if vehicle and getattr(vehicle, "variant", None)
+                else ""
+            ),
+            "chassis_no": (
+                getattr(vehicle, "chassis_no", "") or ""
+                if vehicle else ""
+            ),
+            "engine_no": (
+                getattr(vehicle, "engine_no", "") or ""
+                if vehicle else ""
+            ),
+            "color": (
+                getattr(vehicle, "color", "") or ""
+                if vehicle else ""
+            ),
+            "vehicle_image": (
+    vehicle.vehicle_image.url
+    if vehicle
+    and getattr(vehicle, "vehicle_image", None)
+    and vehicle.vehicle_image
+    else ""
+),
+        },
+
+        "customer": {
+            "id": customer.id if customer else None,
+            "name": customer.name if customer else "",
+            "mobile_no": (
+                customer.mobile_no
+                if customer else ""
+            ),
+            "whatsapp_no": (
+                customer.whatsapp_no
+                if customer else ""
+            ),
+            "email": (
+                getattr(customer, "email", "") or ""
+                if customer else ""
+            ),
+        },
+
+        "claim": (
+            {
+                "id": claim.id,
+                "claim_no": claim.claim_no or "",
+                "claim_type": (
+                    getattr(claim, "claim_type", "") or ""
+                ),
+                "claim_stage": int(claim.claim_stage or 0),
+                "policy_no": claim.policy_no or "",
+                "insurance_company": (
+                    claim.insurance_company.ins_co_name
+                    if getattr(claim, "insurance_company", None)
+                    else ""
+                ),
+                "estimated_amount": float(
+                    claim.estimated_amount or 0
+                ),
+                "approved_amount": float(
+                    getattr(claim, "approved_amount", 0) or 0
+                ),
+            }
+            if claim
+            else None
+        ),
+
+        # -------------------------
+        # PARTS
+        # -------------------------
+        "parts": [
+            {
+                "id": part.id,
+                "part_no": part.part_no or "",
+                "description": part.description or "",
+                "qty": float(part.qty or 0),
+                "rate": float(part.rate or 0),
+                "amount": float(part.amount or 0),
+            }
+            for part in approval_parts
+        ],
+
+        # -------------------------
+        # LABOUR
+        # -------------------------
+        "labours": [
+            {
+                "id": labour.id,
+                "job_code": labour.job_code or "",
+                "description": labour.description or "",
+                "hrs": float(labour.labour_hrs or 0),
+                "rate": float(labour.rate or 0),
+                "amount": float(labour.amount or 0),
+                "paint_panel_type": (
+                    labour.paint_panel_type or ""
+                ),
+            }
+            for labour in approval_labours
+        ],
+
+        # -------------------------
+        # INVENTORY
+        # -------------------------
+        "inventory": {
+            "fuel_percent": float(
+                inventory_context.get("fuel_percent") or 0
+            ),
+            "cng_percent": float(
+                inventory_context.get("cng_percent") or 0
+            ),
+
+            "fuel_label": (
+                inventory_context.get("fuel_label") or ""
+            ),
+            "cng_label": (
+                inventory_context.get("cng_label") or ""
+            ),
+
+            "lh_mirror": inventory_context.get("lh_mirror") or "",
+            "rh_mirror": inventory_context.get("rh_mirror") or "",
+            "center_mirror": (
+                inventory_context.get("center_mirror") or ""
+            ),
+            "jack": inventory_context.get("jack") or "",
+            "tool_kit": inventory_context.get("tool_kit") or "",
+            "floor_mat_count": (
+                inventory_context.get("floor_mat_count") or ""
+            ),
+            "mud_flap_count": (
+                inventory_context.get("mud_flap_count") or ""
+            ),
+            "stereo": inventory_context.get("stereo") or "",
+            "battery": inventory_context.get("battery") or "",
+            "number_plate": (
+                inventory_context.get("number_plate") or ""
+            ),
+            "frt_wiper": (
+                inventory_context.get("frt_wiper") or ""
+            ),
+            "rr_wiper": (
+                inventory_context.get("rr_wiper") or ""
+            ),
+            "accessories": (
+                inventory_context.get("accessories") or ""
+            ),
+            "remarks": (
+                inventory_context.get("inventory_remarks") or ""
+            ),
+
+            "damage_marks": (
+                inventory_context.get("damage_marks") or []
+            ),
+
+            "tyres": (
+                inventory_context.get("tyre_inventory") or []
+            ),
+        },
+
+        # -------------------------
+        # PROGRESS
+        # -------------------------
+        "jobProgress": [
+            {
+                "label": row.get("label", ""),
+                "status": row.get("status", "Pending"),
+                "employee": row.get("employee", ""),
+                "remarks": row.get("remarks", ""),
+                "start_timestamp": row.get(
+                    "start_timestamp", ""
+                ),
+                "finish_timestamp": row.get(
+                    "finish_timestamp", ""
+                ),
+                  "photos": row.get("photos", []),
+            }
+            for row in job_progress_rows
+        ],
+
+        # -------------------------
+        # PERMISSIONS
+        # -------------------------
+        "permissions": {
+            "canEdit": bool(can_edit_jobcard_entries),
+            "canClose": bool(can_close_current_jobcard),
+            "canReopen": bool(can_reopen_jobcard),
+            "isLocked": bool(is_jobcard_locked),
+        },
+
+        "directJobcard": False,
+
+        "directVehicle": (
+            vehicle.id if vehicle else None
+        ),
+
+        "isCngVehicle": bool(is_cng_vehicle),
+
+        "repairInstructionRows": [
+            line
+            for line in (job.repair_instructions or "").splitlines()
+            if line.strip()
+        ] or [""],
+            "rotationPhotos": react_rotation_photos,
+                "vehiclePhotoSlots": react_vehicle_photo_slots,
+                "vehiclePhotoViewUrl": reverse("vehicle_condition_photo_view", args=[job.id]),
+                "damageImage": f"{settings.STATIC_URL.rstrip('/')}/images/sidan car.jpg",
+            # These are the exact legacy AI URL patterns used by the old template.
+                "damageAiAnalyzeUrl": reverse("run_damage_ai_analysis", args=[job.id, 0]),
+                "damageAiReviewUrl": reverse("review_damage_ai_suggestion", args=[job.id, 0]),
+                "damageAiSuggestions": react_damage_ai_suggestions,
+
+                "estimatePrintUrl": reverse("estimate_print", args=[job.id]),
+
+                "partRequisitions": react_part_requisitions,
+
+                "inventory": {
+                    "fuel_percent": float(inventory_context.get("fuel_percent") or 0),
+                    "cng_percent": float(inventory_context.get("cng_percent") or 0),
+                    "fuel_label": inventory_context.get("fuel_label") or "",
+                    "cng_label": inventory_context.get("cng_label") or "",
+                    "lh_mirror": bool(inventory_context.get("lh_mirror")),
+                    "rh_mirror": bool(inventory_context.get("rh_mirror")),
+                    "center_mirror": bool(inventory_context.get("center_mirror")),
+                    "jack": bool(inventory_context.get("jack")),
+                    "tool_kit": bool(inventory_context.get("tool_kit")),
+                    "floor_mat_count": inventory_context.get("floor_mat_count") or 0,
+                    "mud_flap_count": inventory_context.get("mud_flap_count") or 0,
+                    "frt_wiper": bool(inventory_context.get("frt_wiper")),
+                    "rr_wiper": bool(inventory_context.get("rr_wiper")),
+                    "accessories": bool(inventory_context.get("accessories")),
+                    "stereo": bool(inventory_context.get("stereo")),
+                    "battery": bool(inventory_context.get("battery")),
+                    "number_plate": bool(inventory_context.get("number_plate")),
+                    "remarks": inventory_context.get("inventory_remarks") or "",
+                    "damage_marks": inventory_context.get("damage_marks") or [],
+                    "tyres": inventory_context.get("tyre_inventory") or [],
+                },
+                 "latestApproval": react_latest_approval,
+                 "approvalHistory": react_approval_history,
+                 "approvalParts": react_approval_parts,
+                 "approvalLabours": react_approval_labours,
+                 "approvalEditorPhotos": react_approval_editor_photos,
+                 "approvalAttachments": react_approval_attachments,
+                 **react_phase3_urls,
+                "canCloseJobcard": bool(can_close_current_jobcard),
+                "canReopenJobcard": bool(can_reopen_jobcard),
+                "closeReadyStatus": react_close_ready_status,
+                "repairCompleted": bool(react_close_ready_status["work_completed"]),
+                "qualityCompleted": bool(react_close_ready_status["qc_done"]),
+                "reinspectionDone": bool(react_close_ready_status["ri_done"]),
+                "roadTestDone": bool(job.road_test_done),
+                "washingDone": bool(job.washing_done),
+                "readyForDelivery": bool(job.ready_for_delivery),
+                "actualDeliveryDisplay": job.actual_delivery.strftime("%d %b %Y, %I:%M %p") if job.actual_delivery else "",
+                "expectedDeliveryDisplay": job.expected_delivery_datetime.strftime("%d %b %Y, %I:%M %p") if job.expected_delivery_datetime else "",
+                "second_approval_pending": second_approval_pending,
+                 "additional_approval_parts": [
+    {
+        "id": part.id,
+        "part_no": getattr(part.job_part, "part_no", ""),
+        "description": getattr(part.job_part, "description", ""),
+        "decision": part.decision or "",
+        "advisor_approval_status": part.advisor_approval_status or "",
+        "photos": [
+            {
+                "id": photo.id,
+                "url": photo.image.url if photo.image else "",
+            }
+            for photo in part.additional_approval_photos.all()
+        ],
+    }
+    for part in additional_approval_parts
+],
+       "additional_approval_labours": [
+    {
+        "id": labour.id,
+        "job_code": getattr(labour, "job_code", ""),
+        "description": getattr(labour, "description", ""),
+        "decision": getattr(labour, "decision", "") or "",
+        "advisor_approval_status": getattr(
+            labour,
+            "advisor_approval_status",
+            ""
+        ) or "",
+    }
+    for labour in additional_approval_labours
+],
+                       
+                        "additional_approval_total_count": additional_approval_total_count,
+                        "additional_approval_approved_count": additional_approval_approved_count,
+                        "additional_approval_rejected_count": additional_approval_rejected_count,
+                        "additional_approval_pending_count": additional_approval_pending_count,
+                         "can_approve_second_approval": can_approve_second_approval,
+
+            
+    }
     return render(request, "jobcard/jobcardEntry.html", {
         "form": form,
         "claim": claim,
         "job": job,
+        "is_job_edit": bool(job and job.pk),
         "approval_link": approval_link,
         "manual_customer_approval_url": manual_customer_approval_url,
         "manual_whatsapp_phone": manual_whatsapp_phone,
@@ -1096,6 +1688,7 @@ def jobcard_edit(request, pk):
         "claim_document_slots": get_claim_document_slots(claim),
         "PDF_SECRET_TOKEN": settings.PDF_SECRET_TOKEN,
         **get_inventory_context(job),
+        "react_jobcard_entry": react_jobcard_entry,
 
         # ✅ BREADCRUMB
         "breadcrumbs": [

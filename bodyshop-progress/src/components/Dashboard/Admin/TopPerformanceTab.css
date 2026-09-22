@@ -1,0 +1,601 @@
+/* ==========================================
+   TOP PERFORMANCE DASHBOARD
+========================================== */
+
+.top-performance-dashboard {
+  width: 100%;
+  padding: 2px 0 24px;
+}
+
+
+/* ==========================================
+   HEADER
+========================================== */
+
+.top-performance-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 18px;
+}
+
+
+.top-performance-header h2 {
+  margin: 0;
+
+  font-size: 22px;
+  font-weight: 700;
+
+  color: #1e293b;
+}
+
+
+.top-performance-header p {
+  margin: 5px 0 0;
+
+  font-size: 12px;
+
+  color: #94a3b8;
+}
+
+
+.top-performance-header-icon {
+  width: 46px;
+  height: 46px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 13px;
+
+  color: #ca8a04;
+
+  background: #fefce8;
+}
+
+
+/* ==========================================
+   PERFORMANCE HIGHLIGHTS
+========================================== */
+
+.performance-highlight-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 14px;
+
+  margin-bottom: 18px;
+}
+
+
+.performance-highlight-card {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 16px;
+
+  min-height: 94px;
+
+  background: #ffffff;
+
+  border: 1px solid #e6ebf1;
+
+  border-radius: 14px;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+.performance-highlight-card:hover {
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 10px 24px
+    rgba(15, 23, 42, 0.08);
+}
+
+
+.performance-highlight-icon {
+  width: 44px;
+  height: 44px;
+
+  min-width: 44px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  color: var(--performance-color);
+
+  background:
+    color-mix(
+      in srgb,
+      var(--performance-color) 10%,
+      white
+    );
+}
+
+
+.performance-highlight-content {
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+}
+
+
+.performance-highlight-content span {
+  font-size: 10px;
+
+  font-weight: 600;
+
+  color: #64748b;
+
+  margin-bottom: 5px;
+}
+
+
+.performance-highlight-content strong {
+  font-size: 19px;
+
+  font-weight: 750;
+
+  color: #1e293b;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.performance-highlight-content small {
+  margin-top: 4px;
+
+  font-size: 10px;
+
+  color: #94a3b8;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+/* ==========================================
+   LEADERBOARD GRID
+========================================== */
+
+.performance-leaderboard-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 18px;
+}
+
+
+/* ==========================================
+   LEADERBOARD PANEL
+========================================== */
+
+.leaderboard-panel {
+  background: #ffffff;
+
+  border: 1px solid #e6ebf1;
+
+  border-radius: 16px;
+
+  padding: 20px;
+
+  box-shadow:
+    0 4px 14px
+    rgba(15, 23, 42, 0.04);
+}
+
+
+/* ==========================================
+   LEADERBOARD HEADER
+========================================== */
+
+.leaderboard-header {
+  display: flex;
+
+  align-items: flex-start;
+
+  justify-content: space-between;
+
+  padding-bottom: 16px;
+
+  margin-bottom: 8px;
+
+  border-bottom:
+    1px solid #eef1f5;
+}
+
+
+.leaderboard-title-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  color: #2563eb;
+}
+
+
+.leaderboard-title-row h3 {
+  margin: 0;
+
+  font-size: 16px;
+
+  color: #1e293b;
+}
+
+
+.leaderboard-header p {
+  margin: 5px 0 0;
+
+  font-size: 10px;
+
+  color: #94a3b8;
+}
+
+
+.leaderboard-badge {
+  padding: 6px 9px;
+
+  border-radius: 20px;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  color: #2563eb;
+
+  background: #eff6ff;
+}
+
+
+.technician-badge {
+  color: #b45309;
+
+  background: #fffbeb;
+}
+
+
+/* ==========================================
+   LEADERBOARD LIST
+========================================== */
+
+.leaderboard-list {
+  display: flex;
+
+  flex-direction: column;
+}
+
+
+/* ==========================================
+   LEADERBOARD ITEM
+========================================== */
+
+.leaderboard-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+  padding: 13px 4px;
+
+  border-bottom:
+    1px solid #f1f5f9;
+}
+
+
+.leaderboard-item:last-child {
+  border-bottom: none;
+}
+
+
+.leaderboard-item:hover {
+  background: #fafcff;
+
+  border-radius: 10px;
+}
+
+
+/* ==========================================
+   RANK BADGE
+========================================== */
+
+.rank-badge {
+  width: 30px;
+  height: 30px;
+
+  min-width: 30px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+
+  font-size: 12px;
+
+  font-weight: 700;
+}
+
+
+.rank-gold {
+  color: #ca8a04;
+
+  background: #fef9c3;
+}
+
+
+.rank-silver {
+  color: #64748b;
+
+  background: #f1f5f9;
+}
+
+
+.rank-bronze {
+  color: #c2410c;
+
+  background: #ffedd5;
+}
+
+
+.rank-default {
+  color: #64748b;
+
+  background: #f8fafc;
+}
+
+
+/* ==========================================
+   AVATAR
+========================================== */
+
+.leaderboard-avatar {
+  width: 42px;
+  height: 42px;
+
+  min-width: 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  font-size: 12px;
+
+  font-weight: 750;
+}
+
+
+.advisor-avatar {
+  color: #2563eb;
+
+  background: #eff6ff;
+}
+
+
+.technician-avatar {
+  color: #b45309;
+
+  background: #fffbeb;
+}
+
+
+/* ==========================================
+   PERSON DETAILS
+========================================== */
+
+.leaderboard-person {
+  flex: 1;
+
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+}
+
+
+.leaderboard-person > strong {
+  font-size: 12px;
+
+  color: #334155;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.leaderboard-person span {
+  display: flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  margin-top: 5px;
+
+  font-size: 10px;
+
+  color: #94a3b8;
+}
+
+
+.leaderboard-person small {
+  margin-top: 3px;
+
+  font-size: 9px;
+
+  color: #64748b;
+}
+
+
+/* ==========================================
+   REVENUE METRIC
+========================================== */
+
+.revenue-metric {
+  display: flex;
+
+  align-items: center;
+
+  gap: 3px;
+
+  color: #16a34a;
+}
+
+
+.revenue-metric strong {
+  font-size: 12px;
+}
+
+
+/* ==========================================
+   TECHNICIAN EFFICIENCY
+========================================== */
+
+.technician-efficiency {
+  width: 100px;
+
+  text-align: right;
+}
+
+
+.technician-efficiency strong {
+  display: block;
+
+  margin-bottom: 6px;
+
+  font-size: 12px;
+
+  color: #7c3aed;
+}
+
+
+.efficiency-bar {
+  width: 100%;
+
+  height: 5px;
+
+  overflow: hidden;
+
+  border-radius: 10px;
+
+  background: #ede9fe;
+}
+
+
+.efficiency-fill {
+  height: 100%;
+
+  border-radius: inherit;
+
+  background: #8b5cf6;
+
+  transition: width 0.5s ease;
+}
+
+
+/* ==========================================
+   EMPTY STATE
+========================================== */
+
+.leaderboard-empty {
+  min-height: 280px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  text-align: center;
+
+  color: #94a3b8;
+}
+
+
+.leaderboard-empty strong {
+  color: #475569;
+
+  font-size: 14px;
+}
+
+
+.leaderboard-empty span {
+  font-size: 11px;
+}
+
+
+/* ==========================================
+   RESPONSIVE
+========================================== */
+
+@media (max-width: 1100px) {
+
+  .performance-highlight-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  .performance-leaderboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .performance-highlight-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .leaderboard-panel {
+    padding: 15px;
+  }
+
+
+  .technician-efficiency {
+    width: 75px;
+  }
+
+}

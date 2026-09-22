@@ -200,6 +200,13 @@ class PartRequisitionFulfillment(models.Model):
 class InsuranceCompany(models.Model):
     ins_co_name = models.CharField(max_length=255)
 
+    # Company Logo
+    logo = models.ImageField(
+        upload_to='insurance/logos/',
+        blank=True,
+        null=True
+    )
+
     branch = models.CharField(max_length=255, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
 
@@ -210,25 +217,44 @@ class InsuranceCompany(models.Model):
         max_length=6,
         blank=True,
         null=True,
-        validators=[RegexValidator(r'^\d{6}$', 'Enter valid 6 digit PIN code')]
+        validators=[
+            RegexValidator(
+                r'^\d{6}$',
+                'Enter valid 6 digit PIN code'
+            )
+        ]
     )
 
     gst_no = models.CharField(
         max_length=15,
         blank=True,
         null=True,
-        validators=[RegexValidator(r'^[0-9A-Z]{15}$', 'Enter valid GSTIN')]
+        validators=[
+            RegexValidator(
+                r'^[0-9A-Z]{15}$',
+                'Enter valid GSTIN'
+            )
+        ]
     )
 
     cashless = models.BooleanField(default=False)
 
-    claim_manager_name = models.CharField(max_length=255, blank=True, null=True)
+    claim_manager_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
 
     mobile_no = models.CharField(
         max_length=10,
         blank=True,
         null=True,
-        validators=[RegexValidator(r'^\d{10}$', 'Enter valid 10 digit mobile number')]
+        validators=[
+            RegexValidator(
+                r'^\d{10}$',
+                'Enter valid 10 digit mobile number'
+            )
+        ]
     )
 
     email = models.EmailField(blank=True, null=True)
@@ -236,24 +262,37 @@ class InsuranceCompany(models.Model):
     moa_date = models.DateField(blank=True, null=True)
     net_moa_date = models.DateField(blank=True, null=True)
 
-    dms_code = models.CharField(max_length=20, blank=True, null=True)
+    dms_code = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
 
-    customer_hash = models.CharField(max_length=255, blank=True, null=True)
+    customer_hash = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['ins_co_name']
+
         indexes = [
             models.Index(fields=['ins_co_name']),
             models.Index(fields=['city']),
         ]
-        constraints = [
-            models.UniqueConstraint(fields=['ins_co_name', 'branch'], name='unique_company_branch')
-        ]
-    def __str__(self):
-        return f"{self.ins_co_name}"
 
+        constraints = [
+            models.UniqueConstraint(
+                fields=['ins_co_name', 'branch'],
+                name='unique_company_branch'
+            )
+        ]
+
+    def __str__(self):
+        return self.ins_co_name
 class VehicleModel(models.Model):
     name = models.CharField(max_length=50, unique=True)
 
@@ -307,6 +346,7 @@ class Vehicle(models.Model):
     policy_no = models.CharField(max_length=100, blank=True)
     policy_start_date = models.DateField(null=True, blank=True)
     policy_end_date = models.DateField(null=True, blank=True)
+    vehicle_image = models.ImageField(upload_to="vehicle_documents/images/", null=True, blank=True)
     rc_document = models.FileField(upload_to="vehicle_documents/rc/", null=True, blank=True)
     insurance_policy_document = models.FileField(upload_to="vehicle_documents/insurance/", null=True, blank=True)
     primary_driver = models.ForeignKey(
@@ -653,6 +693,15 @@ class Claim(models.Model):
         blank=True
     )
 
+    survey_agency = models.CharField(max_length=150, blank=True, default="")
+    survey_reference_no = models.CharField(max_length=100, blank=True, default="")
+    survey_type = models.CharField(max_length=50, blank=True, default="Physical Survey")
+    damage_type = models.CharField(max_length=150, blank=True, default="")
+    salvage_applicable = models.CharField(max_length=10, blank=True, default="No")
+    recommended_action = models.CharField(max_length=100, blank=True, default="Approve Repair")
+    survey_remarks = models.TextField(blank=True, default="")
+    survey_notes = models.TextField(blank=True, default="")
+
     self_survey = models.BooleanField(default=False)
 
     insurance_approval_date = models.DateTimeField(null=True, blank=True)
@@ -664,6 +713,20 @@ class Claim(models.Model):
         null=True,
         blank=True
     )
+
+    approval_status = models.CharField(max_length=30, blank=True, default="Pending")
+    deductible_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+    approval_reference_no = models.CharField(max_length=100, blank=True, default="")
+    approval_valid_till = models.DateField(null=True, blank=True)
+    approved_repair_scope = models.TextField(blank=True, default="")
+    approval_remarks = models.TextField(blank=True, default="")
+    approval_conditions = models.TextField(blank=True, default="")
+    insurance_remarks = models.TextField(blank=True, default="")
+    internal_remarks = models.TextField(blank=True, default="")
+    approval_letter = models.FileField(upload_to="claim_approval/", null=True, blank=True)
+    repair_authorization = models.FileField(upload_to="claim_approval/", null=True, blank=True)
+    approved_estimate = models.FileField(upload_to="claim_approval/", null=True, blank=True)
+    additional_approval_document = models.FileField(upload_to="claim_approval/", null=True, blank=True)
 
 
 
@@ -877,6 +940,16 @@ class Claim(models.Model):
 
     def __str__(self):
         return self.claim_no
+
+
+class ClaimStageHistory(models.Model):
+    claim = models.ForeignKey(Claim, on_delete=models.CASCADE, related_name="stage_history")
+    stage = models.PositiveSmallIntegerField(choices=Claim.CLAIM_STAGES)
+    changed_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["changed_at", "id"]
 
 
 class JobCardType(models.Model):
@@ -1159,27 +1232,48 @@ class JobCardQualityCheck(models.Model):
     def total_items(self):
         return self.items.count()
 
+
     @property
     def ok_items(self):
         return self.items.filter(
-            status="OK",
+            status=QualityCheckItem.Status.OK
         ).count()
+
+
+    @property
+    def attention_items(self):
+        return self.items.filter(
+            status=QualityCheckItem.Status.ATTENTION
+        ).count()
+
 
     @property
     def not_ok_items(self):
         return self.items.filter(
-            status="NOT_OK",
+            status=QualityCheckItem.Status.NOT_OK
         ).count()
+
+
+    @property
+    def na_items(self):
+        return self.items.filter(
+            status=QualityCheckItem.Status.NA
+        ).count()
+
 
     @property
     def pending_items(self):
         return self.items.filter(
-            status="PENDING",
+            status=QualityCheckItem.Status.PENDING
         ).count()
+
 
     @property
     def checked_items(self):
-        return self.ok_items + self.not_ok_items
+        return self.items.exclude(
+            status=QualityCheckItem.Status.PENDING
+        ).count()
+
 
     @property
     def completion_percentage(self):
@@ -1193,18 +1287,33 @@ class JobCardQualityCheck(models.Model):
             2,
         )
 
+
+    @property
+    def has_failures(self):
+        return self.not_ok_items > 0
+
+
     @property
     def result(self):
+        if self.total_items == 0:
+            return "PENDING"
+
+        if self.pending_items > 0:
+            return "PENDING"
+
         if self.not_ok_items > 0:
             return "NOT_OK"
 
-        if self.total_items > 0 and self.pending_items == 0:
-            return "OK"
+        return "OK"
 
-        return "PENDING"
-    def __str__(self):
-        return f"QC - {self.jobcard.job_no}"
 
+    @property
+    def can_complete(self):
+        return (
+            self.total_items > 0
+            and self.pending_items == 0
+            and self.not_ok_items == 0
+        )
 
 class QualityCheckEvidencePhoto(models.Model):
     quality_check = models.ForeignKey(
@@ -1263,10 +1372,13 @@ class QualityCheckInspectorSignature(models.Model):
 
 
 class QualityCheckItem(models.Model):
+
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
-        OK = "OK", "OK"
-        NOT_OK = "NOT_OK", "Not OK"
+        OK = "OK", "Pass"
+        ATTENTION = "ATTENTION", "Attention"
+        NOT_OK = "NOT_OK", "Fail"
+        NA = "NA", "N/A"
 
     quality_check = models.ForeignKey(
         "JobCardQualityCheck",
@@ -1275,21 +1387,31 @@ class QualityCheckItem(models.Model):
     )
 
     item_key = models.CharField(
-        max_length=50,
-    )
-
-    item_name = models.CharField(
         max_length=100,
     )
 
+    item_name = models.CharField(
+        max_length=150,
+    )
+
     category = models.CharField(
-        max_length=50,
+        max_length=100,
         blank=True,
         default="",
     )
 
+    # Controls order of the 8 category cards
+    category_order = models.PositiveIntegerField(
+        default=0,
+    )
+
+    # Controls order of checklist items inside category
+    item_order = models.PositiveIntegerField(
+        default=0,
+    )
+
     status = models.CharField(
-        max_length=10,
+        max_length=15,
         choices=Status.choices,
         default=Status.PENDING,
     )
@@ -1322,6 +1444,8 @@ class QualityCheckItem(models.Model):
 
     class Meta:
         ordering = [
+            "category_order",
+            "item_order",
             "id",
         ]
 
@@ -1335,73 +1459,9 @@ class QualityCheckItem(models.Model):
             ),
         ]
 
-    @property
-    def total_items(self):
-        return self.items.count()
-
-    @property
-    def ok_items(self):
-        return self.items.filter(
-            status=QualityCheckItem.Status.OK,
-        ).count()
-
-    @property
-    def not_ok_items(self):
-        return self.items.filter(
-            status=QualityCheckItem.Status.NOT_OK,
-        ).count()
-
-    @property
-    def pending_items(self):
-        return self.items.filter(
-            status=QualityCheckItem.Status.PENDING,
-        ).count()
-
-    @property
-    def checked_items(self):
-        return self.items.exclude(
-            status=QualityCheckItem.Status.PENDING,
-        ).count()
-
-    @property
-    def completion_percentage(self):
-        total = self.total_items
-
-        if total == 0:
-            return 0
-
-        return round(
-            (self.checked_items / total) * 100,
-            2,
-        )
-
-    @property
-    def has_failures(self):
-        return self.not_ok_items > 0
-
-    @property
-    def result(self):
-        if self.total_items == 0:
-            return "PENDING"
-
-        if self.pending_items > 0:
-            return "PENDING"
-
-        if self.not_ok_items > 0:
-            return "NOT_OK"
-
-        return "OK"
-
-    @property
-    def can_complete(self):
-        return (
-                self.total_items > 0
-                and self.pending_items == 0
-                and self.not_ok_items == 0
-        )
     def __str__(self):
         return (
-            f"{self.quality_check_id} - "
+            f"{self.category} - "
             f"{self.item_name} - "
             f"{self.get_status_display()}"
         )
@@ -1853,7 +1913,7 @@ class JobCardPart(models.Model):
         except (InvalidOperation, TypeError):
             rate = Decimal("0")
 
-        self.total = qty * rate
+        self.amount  = qty * rate
 
         super().save(*args, **kwargs)
 

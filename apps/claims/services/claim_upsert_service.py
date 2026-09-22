@@ -44,13 +44,17 @@ class ClaimUpsertService:
         elif claim.insurance_approval_date and claim.assessment_file:
             derived = ClaimStageCode.INSURANCE_APPROVAL
         elif claim.survey_date and claim.surveyor_id:
-            derived = ClaimStageCode.SURVEY
+            # Survey is complete; open the Approval stage next.
+            derived = ClaimStageCode.INSURANCE_APPROVAL
         elif (
             claim.intimation_date
             and claim.insurance_company_id
             and claim.policy_no
+            and claim.ic_claim_no
         ):
-            derived = ClaimStageCode.INTIMATION
+            # Intimation is complete only when all claim references are present.
+            # The next editable workflow screen is Survey (stage 5).
+            derived = ClaimStageCode.SURVEY
         elif claim.employee_id:
             derived = ClaimStageCode.ADVISOR_ASSIGNED
         else:

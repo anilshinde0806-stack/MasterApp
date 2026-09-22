@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import "./VehicleMaster.css";
-
 function VehicleMaster() {
 
 
@@ -8,6 +7,7 @@ function VehicleMaster() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   // --------------------------------------------------
   // LOAD VEHICLES
@@ -81,7 +81,9 @@ function VehicleMaster() {
 const handleEditVehicle = (vehicle) => {
   window.location.href = `/vehicle/${vehicle.id}/edit/`;
 };
-
+const handleViewVehicle = (vehicle) => {
+  window.location.href = `/vehicle/${vehicle.id}/`;
+};
   // --------------------------------------------------
   // RENDER
   // --------------------------------------------------
@@ -149,6 +151,7 @@ const handleEditVehicle = (vehicle) => {
 
             <thead>
               <tr>
+                <th>Image</th>
                 <th>Registration</th>
                 <th>Chassis</th>
                 <th>Engine</th>
@@ -156,6 +159,7 @@ const handleEditVehicle = (vehicle) => {
                 <th>Variant</th>
                 <th>Color</th>
                 <th>Customer</th>
+                <th>Assigned Driver</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -165,7 +169,7 @@ const handleEditVehicle = (vehicle) => {
               {filteredVehicles.length === 0 ? (
                 <tr>
                   <td
-                    colSpan="8"
+                    colSpan="10"
                     className="vehicle-empty"
                   >
                     {search
@@ -176,6 +180,19 @@ const handleEditVehicle = (vehicle) => {
               ) : (
                 filteredVehicles.map((vehicle) => (
                   <tr key={vehicle.id}>
+
+                    <td className="vehicle-image-cell">
+                      {vehicle.vehicle_image ? (
+                        <div className="vehicle-list-image-wrap">
+                          <img src={vehicle.vehicle_image} alt={vehicle.registration_no || "Vehicle"} />
+                          <div className="vehicle-list-image-preview">
+                            <img src={vehicle.vehicle_image} alt="Large vehicle preview" />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="vehicle-list-image-placeholder">▧</span>
+                      )}
+                    </td>
 
                     <td className="vehicle-registration">
                       {vehicle.registration_no || "-"}
@@ -206,13 +223,55 @@ const handleEditVehicle = (vehicle) => {
                     </td>
 
                     <td>
-                      <button
-                        type="button"
-                        className="vehicle-edit-btn"
-                        onClick={() => handleEditVehicle(vehicle)}
-                      >
-                        Edit
-                      </button>
+                      {vehicle.assigned_drivers?.length ? (
+                        <div className="vehicle-driver-cell">
+                          {vehicle.assigned_drivers[0].photo ? (
+                            <img src={vehicle.assigned_drivers[0].photo} alt="" />
+                          ) : (
+                            <span className="vehicle-driver-placeholder">{vehicle.assigned_drivers[0].name?.charAt(0) || "D"}</span>
+                          )}
+                          <span>{vehicle.assigned_drivers[0].name}</span>
+                          {vehicle.assigned_drivers.length > 1 && <small>+{vehicle.assigned_drivers.length - 1}</small>}
+                        </div>
+                      ) : (
+                        <span className="vehicle-unassigned">Unassigned</span>
+                      )}
+                    </td>
+
+                    <td>
+                      
+                     <div className="vehicle-action-menu-wrapper">
+  <button
+    type="button"
+    className="vehicle-action-btn"
+    onClick={() =>
+      setOpenMenuId(
+        openMenuId === vehicle.id ? null : vehicle.id
+      )
+    }
+    title="Actions"
+  >
+    ⋮
+  </button>
+
+  {openMenuId === vehicle.id && (
+    <div className="vehicle-action-menu">
+      <button
+        type="button"
+        onClick={() => handleViewVehicle(vehicle)}
+      >
+        View
+      </button>
+
+      <button
+        type="button"
+        onClick={() => handleEditVehicle(vehicle)}
+      >
+        Edit
+      </button>
+    </div>
+  )}
+</div>
                     </td>
 
                   </tr>

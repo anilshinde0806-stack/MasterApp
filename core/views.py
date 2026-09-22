@@ -18,6 +18,7 @@ from django.contrib.sites import requests
 from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.db.models import  Sum, F
+from django.conf import settings
 from django.template.loader import get_template
 from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.cache import never_cache
@@ -2380,6 +2381,7 @@ def vehicle_list_api(request):
         Vehicle.objects.select_related('model', 'variant', 'customer', 'insurance_company')
         .values(
             'id',
+            'vehicle_image',
             'registration_no',
             'chassis_no',
             'engine_no',
@@ -2400,6 +2402,28 @@ def vehicle_list_api(request):
             'customer__name'
         )
     )
+    media_url = getattr(settings, "MEDIA_URL", "/media/")
+    vehicle_ids = [item["id"] for item in data]
+    assigned_drivers = DriverMaster.objects.filter(
+        vehicle_id__in=vehicle_ids
+    ).order_by("vehicle_id", "name")
+    driver_map = {}
+    for driver in assigned_drivers:
+        driver_map.setdefault(driver.vehicle_id, []).append({
+            "id": driver.id,
+            "name": driver.name,
+            "photo": (
+                f"{media_url.rstrip('/')}/{str(driver.face_photo.name).lstrip('/')}"
+                if driver.face_photo else ""
+            ),
+        })
+    for item in data:
+        image_path = item.get("vehicle_image")
+        item["vehicle_image"] = (
+            f"{media_url.rstrip('/')}/{str(image_path).lstrip('/')}"
+            if image_path else ""
+        )
+        item["assigned_drivers"] = driver_map.get(item["id"], [])
     return JsonResponse(data, safe=False)
 
 
@@ -2491,6 +2515,8 @@ def vehicle_update_api(request, pk):
             vehicle.rc_document = request.FILES["rc_document"]
         if request.FILES.get("insurance_policy_document"):
             vehicle.insurance_policy_document = request.FILES["insurance_policy_document"]
+        if request.FILES.get("vehicle_image"):
+            vehicle.vehicle_image = request.FILES["vehicle_image"]
         vehicle.last_service_km = request.POST.get("last_service_km") or None
         vehicle.last_service_type = request.POST.get(
             "last_service_type",
@@ -2543,7 +2569,7 @@ def vehicle_create(request):
             "errors": form.errors
         })
 
-    return render(request, "master/vehicle_new.html")
+    return render(request, "master/vehicle_list.html")
 
 @login_required
 def check_registration(request):
@@ -2561,8 +2587,14 @@ def check_registration(request):
 @login_required
 def add_model_ajax(request):
     if request.method == "POST":
-        data = json
-        name = data.get("name").strip()
+        try:
+            data = json.loads(request.body or "{}")
+        except (TypeError, ValueError):
+            return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
+
+        name = str(data.get("name") or "").strip()
+        if not name:
+            return JsonResponse({"status": "error", "message": "Model name is required."}, status=400)
 
         if VehicleModel.objects.filter(name__iexact=name).exists():
             return JsonResponse({
@@ -2582,10 +2614,20 @@ def add_model_ajax(request):
 @login_required
 def add_variant_ajax(request):
     if request.method == "POST":
-        data = json
+        try:
+            data = json.loads(request.body or "{}")
+        except (TypeError, ValueError):
+            return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
 
         model_id = data.get('model_id')
-        name = data.get('name').strip()
+        name = str(data.get('name') or "").strip()
+        if not model_id:
+            return JsonResponse({"status": "error", "message": "Select a model first."}, status=400)
+        if not name:
+            return JsonResponse({"status": "error", "message": "Variant name is required."}, status=400)
+
+        if not VehicleModel.objects.filter(pk=model_id).exists():
+            return JsonResponse({"status": "error", "message": "Selected model was not found."}, status=400)
 
         if VehicleVariant.objects.filter(model_id=model_id, name__iexact=name).exists():
             return JsonResponse({
@@ -5741,34 +5783,100 @@ def get_next_jobcard_pdf_filename(job):
 def vehicle_detail_api(request, pk):
     vehicle = get_object_or_404(Vehicle, pk=pk)
 
+    assigned_driver_details = []
+
+    drivers = DriverMaster.objects.filter(
+    vehicle_id=vehicle.pk
+        ).order_by("name")
+
+    assigned_driver_details = [
+            {
+                "id": driver.id,
+                "name": driver.name,
+                "type": driver.get_driver_type_display(),
+                "mobile": driver.mobile_no or "",
+                "driving_license_no": driver.driving_license_no or "",
+                "valid_until": (
+                    driver.license_valid_until.strftime("%d-%m-%Y")
+                    if driver.license_valid_until else ""
+                ),
+                "photo": driver.face_photo.url if driver.face_photo else "",
+                "documents": (
+                    driver.license_document.url
+                    if driver.license_document else ""
+                ),
+                "is_active": driver.is_active,
+                "vehicle_id": vehicle.pk,
+            }
+            for driver in drivers
+        ]
+    print("Assigned Driver Details:", assigned_driver_details)
     return JsonResponse({
         "id": vehicle.id,
+
         "registration_no": vehicle.registration_no,
         "id_chassis_no": vehicle.chassis_no,
         "id_engine_no": vehicle.engine_no,
         "id_vehicle_type": vehicle.vehicle_type,
+
         "model": vehicle.model_id,
         "variant": vehicle.variant_id,
         "id_color": vehicle.color,
         "id_sale_date": vehicle.sale_date,
+
         "insurance_company": vehicle.insurance_company_id,
-        "insurance_company_name": vehicle.insurance_company.ins_co_name if vehicle.insurance_company else "",
+        "insurance_company_name": (
+            vehicle.insurance_company.ins_co_name
+            if vehicle.insurance_company
+            else ""
+        ),
+
         "policy_no": vehicle.policy_no,
         "policy_start_date": vehicle.policy_start_date,
         "policy_end_date": vehicle.policy_end_date,
-        "rc_document": vehicle.rc_document.url if vehicle.rc_document else "",
-        "insurance_policy_document": vehicle.insurance_policy_document.url if vehicle.insurance_policy_document else "",
+
+        "vehicle_image": (
+            vehicle.vehicle_image.url
+            if vehicle.vehicle_image
+            else ""
+        ),
+
+        "rc_document": (
+            vehicle.rc_document.url
+            if vehicle.rc_document
+            else ""
+        ),
+
+        "insurance_policy_document": (
+            vehicle.insurance_policy_document.url
+            if vehicle.insurance_policy_document
+            else ""
+        ),
+
+        # Driver assignment
         "primary_driver": vehicle.primary_driver_id,
-        "assigned_drivers": list(vehicle.driver_master_records.values_list("id", flat=True)),
-        "assigned_driver_details": [
-            {"id": d.id, "name": d.name, "type": d.get_driver_type_display()}
-            for d in vehicle.driver_master_records.all().order_by("name")
-        ],
+
+        "assigned_drivers": list(
+            vehicle.driver_master_records.values_list(
+                "id",
+                flat=True
+            )
+        ),
+
+        "assigned_driver_details": assigned_driver_details,
+
+        # Service
         "last_service_km": vehicle.last_service_km,
         "last_service_type": vehicle.last_service_type,
         "last_service_date": vehicle.last_service_date,
+
+        # Customer
         "customer": vehicle.customer_id,
-        "customer_name": vehicle.customer.name if vehicle.customer else "",
+        "customer_name": (
+            vehicle.customer.name
+            if vehicle.customer
+            else ""
+        ),
     })
 
 
@@ -5883,6 +5991,17 @@ def validate_claim_stage_before_next(claim):
 
         if not claim.assessment_file:
             missing.append("Assessment File")
+
+        if missing:
+            return False, missing
+
+    # stage 6 -> before moving to work allocation
+    if claim.claim_stage == ClaimStageCode.INSURANCE_APPROVAL:
+        jobcard = JobCard.objects.filter(claim=claim).first()
+        if not claim.assessment_file:
+            missing.append("Assessment Document")
+        if not jobcard or not JobCardAssessmentLabour.objects.filter(job=jobcard).exists():
+            missing.append("At least one Assessment Labour entry")
 
         if missing:
             return False, missing
@@ -8389,8 +8508,9 @@ def work_allocation_entry(request, job_id):
             decision = (
                 new_part_decisions[index]
                 if index < len(new_part_decisions) and new_part_decisions[index]
-                else "New"
+                else "None"
             )
+            amount = Decimal(qty) * rate
 
             job_part = JobCardPart.objects.create(
                 job=job,
@@ -8398,7 +8518,8 @@ def work_allocation_entry(request, job_id):
                 description=description or part_no or "Additional part",
                 qty=qty,
                 rate=rate,
-            )
+                amount=amount,
+             )
             JobCardAssessmentPart.objects.create(
                 job=job,
                 part=job_part,
@@ -8480,7 +8601,7 @@ def work_allocation_entry(request, job_id):
             allocation_labour.decision = (
                 labour_decisions[index]
                 if index < len(labour_decisions)
-                else "Approved"
+                else "None"
             )
             allocation_labour.revised_amount = Decimal(
                 labour_revised_amounts[index]
@@ -8586,13 +8707,14 @@ def work_allocation_entry(request, job_id):
                 if index < len(new_labour_employees)
                 else ""
             )
-
+            labour_amount = labour_hrs * labour_rate
             job_labour = JobCardLabour.objects.create(
                 job=job,
                 job_code=labour_code or "Additional",
                 description=description or labour_code or "Additional labour",
                 labour_hrs=labour_hrs,
                 rate=labour_rate,
+                amount=labour_amount,
             )
             JobCardAssessmentLabour.objects.create(
                 job=job,
@@ -8739,7 +8861,7 @@ def work_allocation_entry(request, job_id):
         })
     assessed_parts = list(JobCardAssessmentPart.objects.filter(
         job=job,
-        decision__in=["New", "Repair", "KO"]
+        decision__in=["New", "Repair", "KO","None"]
     ).select_related("part"))
 
     allocation_parts_by_part_id = {
@@ -8777,7 +8899,7 @@ def work_allocation_entry(request, job_id):
             assessment.additional_approval_photos = []
 
     assessed_labours = list(job.labours.filter(
-        jobcardassessmentlabour__decision="Approved"
+        jobcardassessmentlabour__decision__in=["Approved", "None", None]
     ))
     allocation_labours_by_labour_id = {
         labour.job_labour_id: labour
@@ -10561,3 +10683,14 @@ def dashboard_branches(request):
         "branches": data,
 
     })
+@login_required
+def vehicle_view(request, pk):
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+
+    return render(
+        request,
+        "master/vehicle_list.html",
+        {
+            "vehicle": vehicle,
+        },
+    )

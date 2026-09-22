@@ -86,6 +86,10 @@ class AdminKPIService:
                 claims=self.claims,
                 jobcards=self.jobcards,
             ).get()
+        print("\n========== FINAL KPI METRICS ==========")
+        print(self._metrics)
+        print("=======================================\n")
+    
         return self._metrics
 
 
@@ -158,33 +162,154 @@ class AdminKPIService:
 
 
     def _get_pipeline(self):
+
         counts = {
             int(stage): total
-            for stage, total in self._get_metrics()["pipeline_counts"].items()
+            for stage, total in self._get_metrics()
+            .get("pipeline_counts", {})
+            .items()
         }
+
         return [
 
-            {
-                "stage": ClaimStageCode.CLAIM_CREATED,
-                "title": "Claim Created",
-                "count": counts.get(
-                    ClaimStageCode.CLAIM_CREATED,
-                    0
-                ),
-                "icon": "description",
-                "color": "#1976D2",
-            },
+        {
+            "stage": ClaimStageCode.CLAIM_CREATED,
+            "title": "Claim Created",
+            "count": counts.get(
+                ClaimStageCode.CLAIM_CREATED, 0
+            ),
+            "icon": "description",
+            "color": "#1976D2",
+        },
 
-            {
-                "stage": ClaimStageCode.ADVISOR_ASSIGNED,
-                "title": "Advisor Assigned",
-                "count": counts.get(
-                    ClaimStageCode.ADVISOR_ASSIGNED,
-                    0
-                ),
-                "icon": "person",
-                "color": "#3949AB",
-            },
+        {
+            "stage": ClaimStageCode.ADVISOR_ASSIGNED,
+            "title": "Advisor Assigned",
+            "count": counts.get(
+                ClaimStageCode.ADVISOR_ASSIGNED, 0
+            ),
+            "icon": "person",
+            "color": "#3949AB",
+        },
 
+        {
+            "stage": ClaimStageCode.ESTIMATE_CREATED,
+            "title": "Estimate Created",
+            "count": counts.get(
+                ClaimStageCode.ESTIMATE_CREATED, 0
+            ),
+            "icon": "request_quote",
+            "color": "#0891B2",
+        },
 
-        ]
+        {
+            "stage": ClaimStageCode.INTIMATION,
+            "title": "Claim Intimation",
+            "count": counts.get(
+                ClaimStageCode.INTIMATION, 0
+            ),
+            "icon": "notifications",
+            "color": "#F59E0B",
+        },
+
+        {
+            "stage": ClaimStageCode.SURVEY,
+            "title": "Survey Done",
+            "count": counts.get(
+                ClaimStageCode.SURVEY, 0
+            ),
+            "icon": "camera_alt",
+            "color": "#06B6D4",
+        },
+
+        {
+            "stage": ClaimStageCode.INSURANCE_APPROVAL,
+            "title": "Insurance Approval",
+            "count": counts.get(
+                ClaimStageCode.INSURANCE_APPROVAL, 0
+            ),
+            "icon": "verified",
+            "color": "#16A34A",
+        },
+
+        {
+            "stage": ClaimStageCode.WORK_ALLOCATION,
+            "title": "Work Allocation Pending",
+            "count": counts.get(
+                ClaimStageCode.WORK_ALLOCATION, 0
+            ),
+            "icon": "engineering",
+            "color": "#F97316",
+        },
+
+        {
+            "stage": ClaimStageCode.REPAIR_IN_PROGRESS,
+            "title": "Repair Work In Progress",
+            "count": counts.get(
+                ClaimStageCode.REPAIR_IN_PROGRESS, 0
+            ),
+            "icon": "build",
+            "color": "#8B5CF6",
+        },
+
+        {
+            "stage": ClaimStageCode.WORK_COMPLETED,
+            "title": "Work Completed",
+            "count": counts.get(
+                ClaimStageCode.WORK_COMPLETED, 0
+            ),
+            "icon": "check_circle",
+            "color": "#22C55E",
+        },
+
+        {
+            "stage": ClaimStageCode.RE_INSPECTION,
+            "title": "Re Inspection",
+            "count": counts.get(
+                ClaimStageCode.RE_INSPECTION, 0
+            ),
+            "icon": "search",
+            "color": "#EC4899",
+        },
+
+        {
+            "stage": ClaimStageCode.LIABILITY,
+            "title": "Liability",
+            "count": counts.get(
+                ClaimStageCode.LIABILITY, 0
+            ),
+            "icon": "scale",
+            "color": "#64748B",
+        },
+
+        {
+            "stage": ClaimStageCode.INVOICED,
+            "title": "Invoiced",
+            "count": counts.get(
+                ClaimStageCode.INVOICED, 0
+            ),
+            "icon": "receipt",
+            "color": "#14B8A6",
+        },
+
+        {
+            "stage": ClaimStageCode.DELIVERY,
+            "title": "Delivery",
+            "count": counts.get(
+                ClaimStageCode.DELIVERY, 0
+            ),
+            "icon": "local_shipping",
+            "color": "#3B82F6",
+        },
+
+        {
+            "stage": ClaimStageCode.CLOSED,
+            "title": "Closed",
+            "count": counts.get(
+                ClaimStageCode.CLOSED, 0
+            ),
+            "icon": "lock",
+            "color": "#475569",
+        },
+
+    ]

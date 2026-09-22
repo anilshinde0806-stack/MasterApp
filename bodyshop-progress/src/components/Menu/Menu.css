@@ -432,3 +432,116 @@
     }
 
 }
+
+/* =========================================================
+   100% DESKTOP / NAV WIDTH FIX
+   Prevents menu items from overlapping the right header.
+   ========================================================= */
+
+.modern-react-menu {
+    width: 100%;
+    min-width: 0;
+    min-height: 56px;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.modern-menu-list {
+    width: 100%;
+    min-width: 0;
+    padding: 0 8px;
+    gap: 2px;
+    box-sizing: border-box;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+}
+
+.modern-menu-item {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.modern-menu-link {
+    min-height: 42px;
+    padding: 0 10px;
+    gap: 6px;
+    border-radius: 11px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.modern-menu-link > i:first-child {
+    font-size: 15px;
+}
+
+.modern-menu-arrow {
+    font-size: 9px;
+    margin-left: 2px;
+}
+
+@media (max-width: 1250px) {
+    .modern-menu-list {
+        padding: 0 5px;
+        gap: 1px;
+    }
+
+    .modern-menu-link {
+        padding: 0 7px;
+        gap: 5px;
+        font-size: 11px;
+    }
+
+    .modern-menu-link > i:first-child {
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 1050px) {
+    .modern-menu-list {
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    .modern-menu-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    .modern-menu-link {
+        padding: 0 8px;
+        font-size: 11px;
+    }
+}
+/* Compact submenu typography */
+@media (min-width: 1051px) {
+    .modern-dropdown-menu {
+        min-width: 230px !important;
+        padding: 6px !important;
+        border-radius: 12px !important;
+    }
+
+    .modern-submenu-link {
+        min-height: 38px !important;
+        padding: 0 10px !important;
+        gap: 8px !important;
+        border-radius: 8px !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+    }
+
+    .modern-submenu-link i:first-child {
+        width: 18px !important;
+        font-size: 13px !important;
+    }
+
+    .modern-sub-arrow {
+        font-size: 9px !important;
+    }
+
+    .modern-nested-menu {
+        min-width: 215px !important;
+        padding: 6px !important;
+        border-radius: 12px !important;
+    }
+}

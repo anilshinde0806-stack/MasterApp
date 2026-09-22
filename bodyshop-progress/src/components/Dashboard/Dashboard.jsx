@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import "./Dashboard.css";
-
+import { useNavigate } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard";
 import AdvisorDashboard from "./AdvisorDashboard";
 
@@ -12,7 +12,7 @@ export default function Dashboard() {
   // ==========================================
   // STATE
   // ==========================================
-
+ 
   const [dashboardType, setDashboardType] =
     useState(null);
 
@@ -261,195 +261,182 @@ export default function Dashboard() {
       //
       // Keep API structure intact.
       // ======================================
+    console.log("FULL API RESULT:", result);
 
+console.log(
+  "JOBCARD PIPELINE FROM API:",
+  result?.jobcard_pipeline
+);
       const normalizedData = {
 
-        ...result,
+  ...result,
 
 
-        // ====================================
-        // OVERVIEW COMPATIBILITY VALUES
-        // ====================================
+  // ====================================
+  // OVERVIEW COMPATIBILITY VALUES
+  // ====================================
 
-        active_claims:
+  active_claims:
 
-          result?.summaries?.find(
+    result?.active_claims ??
 
-            item =>
-              item.type === "claims"
+    result?.summaries?.find(
+      item => item.type === "claims"
+    )?.value ??
 
-          )?.value ?? 0,
+    0,
 
 
-        active_job_cards:
+  // ====================================
+  // ACTIVE JOBCARDS
+  // ====================================
 
-          result?.summaries?.find(
+  active_job_cards:
 
-            item =>
-              item.type === "jobcards"
+    result?.active_job_cards ??
 
-          )?.value ?? 0,
+    result?.summaries?.find(
+      item => item.type === "jobcards"
+    )?.value ??
 
+    0,
 
-        vehicles_in_workshop:
 
-          result?.summaries?.find(
+  vehicles_in_workshop:
 
-            item =>
-              item.type === "workshop"
+    result?.summaries?.find(
+      item => item.type === "workshop"
+    )?.value ?? 0,
 
-          )?.value ?? 0,
 
+  pending_delivery:
 
-        pending_delivery:
+    result?.summaries?.find(
+      item => item.type === "delivery"
+    )?.value ?? 0,
 
-          result?.summaries?.find(
 
-            item =>
-              item.type === "delivery"
+  // ====================================
+  // CLAIMS PIPELINE
+  // ====================================
 
-          )?.value ?? 0,
+  pipeline:
 
+    result?.pipeline || [],
 
-        // ====================================
-        // REVENUE
-        // ====================================
 
-        revenue: {
+  // ====================================
+  // JOBCARD PIPELINE
+  // ====================================
 
-          total:
+  jobcard_pipeline:
 
-            Number(
-              result?.revenue?.total || 0
-            ),
+    result?.jobcard_pipeline || [],
 
 
-          parts:
+  // ====================================
+  // REVENUE
+  // ====================================
 
-            Number(
-              result?.revenue?.parts || 0
-            ),
+  revenue: {
 
+    total:
+      Number(result?.revenue?.total || 0),
 
-          labour:
+    parts:
+      Number(result?.revenue?.parts || 0),
 
-            Number(
-              result?.revenue?.labour || 0
-            ),
+    labour:
+      Number(result?.revenue?.labour || 0),
 
+    trend:
+      result?.revenue?.trend || []
 
-          trend:
+  },
 
-            result?.revenue?.trend || []
 
-        },
+  // ====================================
+  // OLD REVENUE TREND FORMAT
+  // ====================================
 
+  revenue_trend:
 
-        // ====================================
-        // OLD REVENUE TREND FORMAT
-        //
-        // Kept only for compatibility.
-        // ====================================
+    (result?.revenue?.trend || []).map(
+      item => ({
 
-        revenue_trend:
+        month:
 
-          (
-            result?.revenue?.trend || []
-          ).map(
+          item.label ||
+          item.month ||
+          item.date,
 
-            item => ({
 
-              month:
+        revenue:
 
-                item.label ||
-                item.month ||
-                item.date,
+          Number(
+            item.total ??
+            item.revenue ??
+            0
+          )
 
+      })
+    ),
 
-              revenue:
 
-                Number(
+  // ====================================
+  // PERFORMANCE
+  // ====================================
 
-                  item.total ??
-                  item.revenue ??
-                  0
+  performance:
 
-                )
+    result?.performance || {
 
-            })
+      total_jobs: 0,
+      completed_jobs: 0,
+      pending_jobs: 0,
+      running_jobs: 0,
+      completion_percentage: 0,
+      average_tat: "0"
 
-          ),
+    },
 
 
-        // ====================================
-        // PIPELINE
-        // ====================================
+  // ====================================
+  // FINANCIAL
+  // ====================================
 
-        pipeline:
+  financial:
 
-          result?.pipeline || [],
+    result?.financial || {},
 
 
-        // ====================================
-        // PERFORMANCE
-        // ====================================
+  // ====================================
+  // TOP ADVISORS
+  // ====================================
 
-        performance:
+  top_advisors:
 
-          result?.performance || {
+    result?.top_advisors || [],
 
-            total_jobs: 0,
 
-            completed_jobs: 0,
+  // ====================================
+  // TOP TECHNICIANS
+  // ====================================
 
-            pending_jobs: 0,
+  top_technicians:
 
-            running_jobs: 0,
+    result?.top_technicians || [],
 
-            completion_percentage: 0,
 
-            average_tat: "0"
+  // ====================================
+  // BRANCH PERFORMANCE
+  // ====================================
 
-          },
+  branch_performance:
 
+    result?.branch_performance || []
 
-        // ====================================
-        // FINANCIAL
-        // ====================================
-
-        financial:
-
-          result?.financial || {},
-
-
-        // ====================================
-        // TOP ADVISORS
-        // ====================================
-
-        top_advisors:
-
-          result?.top_advisors || [],
-
-
-        // ====================================
-        // TOP TECHNICIANS
-        // ====================================
-
-        top_technicians:
-
-          result?.top_technicians || [],
-
-
-        // ====================================
-        // BRANCH PERFORMANCE
-        // ====================================
-
-        branch_performance:
-
-          result?.branch_performance || []
-
-      };
-
+};
 
       console.log(
         "NORMALIZED DATA:",

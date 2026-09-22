@@ -1,0 +1,770 @@
+/* =========================================================
+   FUEL GAUGE
+   Modern BODYSHOP / Automotive UI
+   ========================================================= */
+
+.fuel-gauge-card {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px;
+
+  background: #ffffff;
+
+  border: 1px solid #e5eaf1;
+  border-radius: 20px;
+
+  box-shadow:
+    0 10px 35px rgba(15, 23, 42, 0.07),
+    0 2px 8px rgba(15, 23, 42, 0.03);
+
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.fuel-gauge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 10px;
+}
+
+.fuel-gauge-eyebrow {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #8b95a7;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  letter-spacing: 1.2px;
+}
+
+.fuel-gauge-header h3 {
+  margin: 0;
+
+  color: #172033;
+
+  font-size: 21px;
+  font-weight: 750;
+}
+
+.fuel-gauge-header-icon {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #1769d2;
+
+  background: #edf5ff;
+
+  border-radius: 12px;
+}
+
+
+/* =========================================================
+   GAUGE AREA
+   ========================================================= */
+
+.fuel-gauge {
+  position: relative;
+
+  width: 100%;
+  max-width: 650px;
+
+  height: 350px;
+
+  margin: 0 auto;
+}
+
+
+/* =========================================================
+   ARC
+   ========================================================= */
+
+.fuel-arc {
+  position: absolute;
+
+  left: 50%;
+  bottom: 32px;
+
+  width: 420px;
+  height: 210px;
+
+  transform: translateX(-50%);
+
+  overflow: hidden;
+
+  border-radius: 420px 420px 0 0;
+
+  background:
+    conic-gradient(
+      from 270deg,
+      #ef2d24 0deg 18deg,
+      #ff7a18 18deg 36deg,
+      #ffc928 36deg 54deg,
+      #71c936 54deg 72deg,
+      #08a94f 72deg 90deg
+    );
+
+  box-shadow:
+    0 0 0 12px #eef4fb,
+    0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+
+/*
+ * Creates the empty inner part of the gauge.
+ */
+.fuel-arc::after {
+  content: "";
+
+  position: absolute;
+
+  left: 50%;
+  bottom: -4px;
+
+  width: 330px;
+  height: 165px;
+
+  transform: translateX(-50%);
+
+  background: #ffffff;
+
+  border-radius: 330px 330px 0 0;
+}
+
+
+/* =========================================================
+   SEGMENT DIVIDERS
+   ========================================================= */
+
+.fuel-segment {
+  position: absolute;
+
+  top: 0;
+
+  width: 3px;
+  height: 100%;
+
+  background: rgba(255, 255, 255, 0.9);
+
+  z-index: 3;
+}
+
+.fuel-red {
+  left: 20%;
+  transform: rotate(-18deg);
+  transform-origin: bottom center;
+}
+
+.fuel-orange {
+  left: 35%;
+  transform: rotate(-9deg);
+  transform-origin: bottom center;
+}
+
+.fuel-yellow {
+  left: 50%;
+}
+
+.fuel-light-green {
+  left: 65%;
+  transform: rotate(9deg);
+  transform-origin: bottom center;
+}
+
+.fuel-green {
+  left: 80%;
+  transform: rotate(18deg);
+  transform-origin: bottom center;
+}
+
+
+/* =========================================================
+   LABELS
+   ========================================================= */
+
+.fuel-label {
+  position: absolute;
+
+  z-index: 8;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+
+  min-width: 80px;
+
+  color: #172033;
+}
+
+.fuel-label strong {
+  display: block;
+
+  padding: 8px 17px;
+
+  background: #f1f6fd;
+
+  border-radius: 20px;
+
+  font-size: 19px;
+  font-weight: 750;
+}
+
+.fuel-label span {
+  margin-top: 6px;
+
+  color: #7d899d;
+
+  font-size: 15px;
+  font-weight: 600;
+}
+
+
+/* Empty */
+
+.fuel-empty {
+  left: 1%;
+  top: 195px;
+}
+
+
+/* Quarter */
+
+.fuel-quarter {
+  left: 18%;
+  top: 82px;
+}
+
+
+/* Half */
+
+.fuel-half {
+  left: 50%;
+  top: 10px;
+
+  transform: translateX(-50%);
+}
+
+
+/* Three quarter */
+
+.fuel-three-quarter {
+  right: 18%;
+  top: 82px;
+}
+
+
+/* Full */
+
+.fuel-full {
+  right: 1%;
+  top: 195px;
+}
+
+
+/* =========================================================
+   TICKS
+   ========================================================= */
+
+.fuel-tick {
+  position: absolute;
+
+  z-index: 7;
+
+  width: 4px;
+  height: 28px;
+
+  background: #173866;
+
+  border-radius: 5px;
+
+  transform-origin: center;
+}
+
+.fuel-tick-0 {
+  left: 18%;
+  top: 205px;
+
+  transform: rotate(100deg);
+}
+
+.fuel-tick-25 {
+  left: 29%;
+  top: 112px;
+
+  transform: rotate(135deg);
+}
+
+.fuel-tick-50 {
+  left: 50%;
+  top: 70px;
+
+  transform: translateX(-50%);
+}
+
+.fuel-tick-75 {
+  right: 29%;
+  top: 112px;
+
+  transform: rotate(-135deg);
+}
+
+.fuel-tick-100 {
+  right: 18%;
+  top: 205px;
+
+  transform: rotate(-100deg);
+}
+
+
+/* =========================================================
+   CENTER FUEL ICON
+   ========================================================= */
+
+.fuel-center-icon {
+  position: absolute;
+
+  left: 50%;
+  top: 150px;
+
+  z-index: 5;
+
+  transform: translateX(-50%);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 82px;
+  height: 82px;
+
+  color: #173866;
+
+  background: #f7faff;
+
+  border-radius: 50%;
+
+  box-shadow:
+    inset 0 0 20px rgba(23, 56, 102, 0.04);
+}
+
+
+/* =========================================================
+   NEEDLE
+   ========================================================= */
+
+.fuel-needle {
+  position: absolute;
+
+  left: 50%;
+  top: 190px;
+
+  z-index: 9;
+
+  width: 150px;
+  height: 4px;
+
+  transform-origin: 0 50%;
+
+  transition: transform 0.45s cubic-bezier(
+    0.22,
+    1,
+    0.36,
+    1
+  );
+}
+
+.fuel-needle-line {
+  position: absolute;
+
+  right: 0;
+  top: 50%;
+
+  width: 145px;
+  height: 6px;
+
+  transform: translateY(-50%);
+
+  background: #173866;
+
+  clip-path: polygon(
+    0 35%,
+    90% 0,
+    100% 50%,
+    90% 100%,
+    0 65%
+  );
+
+  filter: drop-shadow(
+    0 4px 4px rgba(23, 56, 102, 0.2)
+  );
+}
+
+.fuel-needle-center {
+  position: absolute;
+
+  left: 50%;
+  top: 184px;
+
+  z-index: 10;
+
+  width: 18px;
+  height: 18px;
+
+  transform: translate(-50%, -50%);
+
+  background: #173866;
+
+  border: 5px solid #ffffff;
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 2px 7px rgba(15, 23, 42, 0.2);
+}
+
+
+/* =========================================================
+   CURRENT VALUE
+   ========================================================= */
+
+.fuel-current-value {
+  width: min(100%, 420px);
+
+  min-height: 76px;
+
+  margin: -5px auto 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 15px;
+
+  background: #effaf5;
+
+  border: 1px solid #d8f2e6;
+
+  border-radius: 40px;
+}
+
+.fuel-current-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #08a94f;
+}
+
+.fuel-current-text {
+  display: flex;
+  align-items: center;
+
+  gap: 15px;
+}
+
+.fuel-current-text span {
+  color: #173866;
+
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.fuel-current-text strong {
+  padding-left: 15px;
+
+  border-left: 1px solid #cfe5da;
+
+  color: #08a94f;
+
+  font-size: 34px;
+  line-height: 1;
+
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   LEVEL BUTTONS
+   ========================================================= */
+
+.fuel-level-buttons {
+  display: grid;
+
+  grid-template-columns:
+    repeat(5, 1fr);
+
+  gap: 8px;
+}
+
+.fuel-level-button {
+  min-height: 58px;
+
+  padding: 8px;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 2px;
+
+  cursor: pointer;
+
+  background: #f8fafc;
+
+  border: 1px solid #e3e8ef;
+
+  border-radius: 10px;
+
+  color: #657186;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.fuel-level-button:hover {
+  border-color: #b9c8dc;
+
+  background: #f2f6fb;
+
+  transform: translateY(-1px);
+}
+
+.fuel-level-button strong {
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.fuel-level-button span {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fuel-level-button.active {
+  color: #ffffff;
+
+  background: #173866;
+
+  border-color: #173866;
+
+  box-shadow:
+    0 5px 14px rgba(23, 56, 102, 0.18);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+  .fuel-gauge-card {
+    padding: 20px 15px;
+
+    border-radius: 16px;
+  }
+
+  .fuel-gauge {
+    height: 290px;
+  }
+
+  .fuel-arc {
+    width: 320px;
+    height: 160px;
+
+    bottom: 25px;
+  }
+
+  .fuel-arc::after {
+    width: 250px;
+    height: 125px;
+  }
+
+  .fuel-center-icon {
+    top: 130px;
+
+    width: 65px;
+    height: 65px;
+  }
+
+  .fuel-center-icon svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .fuel-needle {
+    top: 10px;
+
+    width: 115px;
+  }
+
+  .fuel-needle-line {
+    width: 110px;
+  }
+
+  .fuel-needle-center {
+    top: 157px;
+  }
+
+  .fuel-label strong {
+    padding: 6px 12px;
+
+    font-size: 15px;
+  }
+
+  .fuel-label span {
+    font-size: 12px;
+  }
+
+  .fuel-empty {
+    left: -2%;
+    top: 170px;
+  }
+
+  .fuel-quarter {
+    left: 13%;
+    top: 75px;
+  }
+
+  .fuel-half {
+    top: 20px;
+  }
+
+  .fuel-three-quarter {
+    right: 13%;
+    top: 75px;
+  }
+
+  .fuel-full {
+    right: -2%;
+    top: 170px;
+  }
+
+  .fuel-current-text strong {
+    font-size: 28px;
+  }
+
+  .fuel-level-buttons {
+    grid-template-columns:
+      repeat(5, minmax(0, 1fr));
+
+    gap: 5px;
+  }
+
+  .fuel-level-button {
+    min-height: 52px;
+  }
+}
+
+
+@media (max-width: 450px) {
+
+  .fuel-gauge {
+    height: 250px;
+  }
+
+  .fuel-arc {
+    width: 260px;
+    height: 130px;
+  }
+
+  .fuel-arc::after {
+    width: 200px;
+    height: 100px;
+  }
+
+  .fuel-center-icon {
+    top: 112px;
+
+    width: 55px;
+    height: 55px;
+  }
+
+  .fuel-needle {
+    top: 138px;
+
+    width: 90px;
+  }
+
+  .fuel-needle-line {
+    width: 85px;
+  }
+
+  .fuel-needle-center {
+    top: 132px;
+  }
+
+  .fuel-label strong {
+    padding: 5px 8px;
+
+    font-size: 12px;
+  }
+
+  .fuel-label span {
+    font-size: 10px;
+  }
+
+  .fuel-empty {
+    top: 150px;
+  }
+
+  .fuel-quarter {
+    top: 70px;
+  }
+
+  .fuel-half {
+    top: 20px;
+  }
+
+  .fuel-three-quarter {
+    top: 70px;
+  }
+
+  .fuel-full {
+    top: 150px;
+  }
+
+  .fuel-current-value {
+    min-height: 65px;
+  }
+
+  .fuel-current-text {
+    gap: 8px;
+  }
+
+  .fuel-current-text span {
+    font-size: 14px;
+  }
+
+  .fuel-current-text strong {
+    padding-left: 8px;
+
+    font-size: 24px;
+  }
+
+  .fuel-level-button strong {
+    font-size: 12px;
+  }
+
+  .fuel-level-button span {
+    font-size: 9px;
+  }
+}
