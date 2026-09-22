@@ -1,14 +1,13 @@
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-
-
 import Dashboard from "./components/Dashboard/Dashboard";
 
-const rootElement = document.getElementById("dashboard-root");
+const root = document.getElementById("dashboard-root");
 
-if (rootElement) {
-  createRoot(rootElement).render(
+if (root) {
+  createRoot(root).render(
     <StrictMode>
       <Dashboard />
     </StrictMode>

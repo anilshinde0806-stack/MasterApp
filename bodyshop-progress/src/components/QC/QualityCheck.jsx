@@ -294,6 +294,52 @@ export default function QualityCheck({ jobId }) {
     }
   }
 
+  function openRemarkEditor(item) {
+    const status = normalizeStatus(item.status);
+
+    setRemarkItem({
+      ...item,
+      pendingStatus: status === "PENDING" ? "OK" : status,
+    });
+
+    setRemarks(item.remarks || "");
+  }
+
+  async function saveRemark() {
+    if (!remarkItem) return;
+
+    const status = normalizeStatus(remarkItem.pendingStatus);
+
+    // Remarks are required when saving an issue.
+    if (
+      (status === "ATTENTION" || status === "NOT_OK") &&
+      !remarks.trim()
+    ) {
+      setError("Please enter remarks for Attention / Fail.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await updateItem(
+        remarkItem,
+        status === "PENDING" ? "OK" : status,
+        remarks.trim()
+      );
+
+      setRemarkItem(null);
+      setRemarks("");
+    } catch (err) {
+      setError(err.message || "Unable to save remarks.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
 
   async function uploadPhoto(event) {
     const file = event.target.files?.[0];

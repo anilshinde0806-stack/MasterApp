@@ -1,5 +1,6 @@
-import React from "react";
+
 import { createRoot } from "react-dom/client";
+
 import QualityCheck from "./components/QC/QualityCheck";
 
 function getJobId() {
@@ -28,7 +29,13 @@ function QualityCheckApp() {
 
   if (!jobId) {
     return (
-      <div style={{ padding: 24, color: "#b91c1c", fontFamily: "Arial, sans-serif" }}>
+      <div
+        style={{
+          padding: 24,
+          color: "#b91c1c",
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
         <strong>Quality Check Job Card ID not found.</strong>
       </div>
     );
